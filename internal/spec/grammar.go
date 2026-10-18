@@ -1,0 +1,170 @@
+package spec
+
+import (
+	"fmt"
+	"strings"
+)
+
+type DiagnosticDoc struct {
+	Code    string
+	Meaning string
+}
+
+var diagnosticDocs = []DiagnosticDoc{
+	{CodeSyntax, "The file is not valid Go."},
+	{CodeBuildTag, "The file does not start with `//go:build spec`."},
+	{CodePackageName, "The package clause is not `package specs`."},
+	{CodeUnsupportedImport, "An import other than `time`, `uuid` or `github.com/google/uuid`."},
+	{CodeUnsupportedDecl, "A declaration other than the entity struct or a type alias."},
+	{CodeTypeError, "The Go type checker rejected the file (undefined names, unused imports)."},
+	{CodeEntityCount, "The file declares zero or more than one entity."},
+	{CodeDomainName, "The file name is not a valid, unreserved Go package name."},
+	{CodeReservedName, "An entity or field name collides with generated code."},
+	{CodeUnexportedField, "A field is not exported."},
+	{CodeEmbeddedField, "A field is embedded."},
+	{CodeInvalidTag, "The struct tag is malformed or `_ struct{}` is repeated."},
+	{CodeUnsupportedTagKey, "A tag key other than `gen` is used."},
+	{CodeUnsupportedType, "The field type is not supported."},
+	{CodeUnknownMarker, "The marker does not exist; the closest marker is suggested."},
+	{CodeMarkerScope, "An entity marker is used on a field or the other way around."},
+	{CodeDuplicateMarker, "A marker is repeated on the same field."},
+	{CodeInvalidValue, "A marker value is malformed or out of range."},
+	{CodeInvalidCombination, "Markers or types that cannot be combined."},
+	{CodeMissingPK, "The entity has no primary key."},
+	{CodeMultiplePK, "The entity has more than one primary key."},
+	{CodeUnknownEntity, "A relation targets an entity that does not exist."},
+	{CodeUnknownField, "`fk=` names a field that does not exist."},
+	{CodeRelationTypeMismatch, "A relation field has the wrong type or no matching back reference."},
+	{CodeRelationAmbiguous, "A has_many relation matches several belongs_to fields; add `fk=`."},
+	{CodeRelationCycle, "Non-nullable belongs_to references form a cycle."},
+	{CodeRelationRoutes, "Warning: relation routes are skipped because the target domain has noroutes."},
+	{CodeDuplicateColumn, "Two fields map to the same column, or a field collides with `deleted_at`."},
+	{CodeDuplicateJSON, "Two fields map to the same JSON member."},
+	{CodeDuplicateTable, "Two entities or join tables share a table name."},
+	{CodeNameCollision, "A generated identifier or query parameter would collide."},
+	{"dialect_limit", "The configured SQL dialect cannot represent the field (for example an unbounded indexed string on sqlserver or mysql)."},
+	{"dialect_cascade", "Warning on sqlserver: several cascading paths reach the same table, which SQL Server rejects."},
+	{"toolchain_feature", "Warning: the spec imports the standard library `uuid` package while the project targets Go 1.26."},
+}
+
+func Diagnostics() []DiagnosticDoc {
+	return diagnosticDocs
+}
+
+func Reference() string {
+	var b strings.Builder
+	w := func(format string, args ...any) {
+		fmt.Fprintf(&b, format, args...)
+	}
+	w("# Spec reference\n\n")
+	w("This file is generated from the marker registry of codebuild (`internal/spec`). Run `go test ./internal/spec -update` after changing markers.\n\n")
+	w("## File layout\n\n")
+	w("Every domain has one spec file in `specs/<domain>.go`. The file name is the domain name and becomes the Go package `internal/<domain>`, so it must contain only lowercase letters and digits.\n\n")
+	w("```go\n%s```\n\n", exampleSpec)
+	w("```ebnf\n%s```\n\n", grammarEBNF)
+	w("Rules:\n\n")
+	w("- The first line is `//go:build spec`, which keeps specs out of normal builds while gofmt, gopls and the type checker keep working.\n")
+	w("- The package is `specs` and the only imports are `time`, `uuid` (Go 1.27+) and `github.com/google/uuid` (Go 1.26). Both UUID packages are accepted for every Go version.\n")
+	w("- Exactly one entity struct per file. Type aliases such as `type Email = string` are allowed and resolved.\n")
+	w("- Fields are exported and not embedded. Tags only use the `gen` key; JSON tags are generated.\n")
+	w("- Entity markers go on a single `_ struct{}` field.\n\n")
+	w("## Supported field types\n\n")
+	w("| Go type | Meaning |\n|---|---|\n")
+	w("| `string` | text, `VARCHAR(max)` when `max=` is set |\n")
+	w("| `bool` | boolean |\n")
+	w("| `int16`, `int32`, `int`, `int64` | integers (`int` is stored as a 64-bit column) |\n")
+	w("| `float32`, `float64` | floating point |\n")
+	w("| `[]byte` | binary, base64 in JSON |\n")
+	w("| `time.Time` | timestamp, stored in UTC, RFC 3339 in JSON |\n")
+	w("| `uuid.UUID` | UUID, string in JSON |\n")
+	w("| `*T` of any type above | nullable column; `null` and an absent member are equivalent |\n")
+	w("| `[]Entity` | virtual relation field, only with `rel=has_many` or `rel=many_to_many` |\n\n")
+	w("## Naming conventions\n\n")
+	w("| Item | Rule | Example |\n|---|---|---|\n")
+	w("| Domain and package | spec file name | `specs/users.go` -> `internal/users` |\n")
+	w("| Table | snake_case plural of the entity, or `table=` | `OrderItem` -> `order_items` |\n")
+	w("| Column | snake_case of the field, or `column=` | `OrgID` -> `org_id` |\n")
+	w("| JSON member | lowerCamelCase of the field | `OrgID` -> `orgId` |\n")
+	w("| Route | kebab-case of the table | `order_items` -> `/order-items` |\n")
+	w("| Constraints | `pk_`, `ux_`, `ix_`, `fk_`, `ck_`, `df_` + table + column, shortened with a hash past 63 characters | `ux_users_email` |\n\n")
+	for _, scope := range []string{"entity", "field"} {
+		if scope == "entity" {
+			w("## Entity markers\n\n")
+		} else {
+			w("## Field markers\n\n")
+		}
+		for _, m := range Markers() {
+			if m.Scope != scope {
+				continue
+			}
+			w("### `%s`\n\n", m.Name)
+			w("- Syntax: `%s`\n", m.Syntax)
+			w("- Applies to: %s\n", m.AppliesTo)
+			w("- Effect: %s\n", m.Description)
+			w("- Example: `%s`\n", m.Example)
+			w("- Common error: %s\n\n", m.CommonError)
+		}
+	}
+	w("## Request semantics\n\n")
+	w("- Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.\n")
+	w("- An absent member takes the `default=` value, or the zero value. Pointer fields treat `null` like an absent member.\n")
+	w("- `required` members must be present. Non-pointer `belongs_to` fields and client-provided primary keys are required implicitly.\n")
+	w("- Validation rules apply to every value of non-pointer fields and to non-nil values of pointer fields. Use a pointer for optional values.\n")
+	w("- Fields with `auto`, `auto=create`, `auto=update` or the primary key never appear in update requests.\n")
+	w("- Validation failures return HTTP 422 with RFC 9457 problem details and an `errors` array of `{field, message}`.\n\n")
+	w("## Generated routes\n\n")
+	w("| Method and path | Purpose | Notes |\n|---|---|---|\n")
+	w("| `GET /<table>` | list | `limit`, `offset` and equality filters on indexed, unique and belongs_to fields |\n")
+	w("| `POST /<table>` | create | 201 with `Location`; skipped for `readonly` |\n")
+	w("| `GET /<table>/{id}` | get | 404 when missing or soft deleted |\n")
+	w("| `PUT /<table>/{id}` | full update | skipped for `readonly` |\n")
+	w("| `DELETE /<table>/{id}` | delete | soft delete with `softdelete`; 409 when referenced |\n")
+	w("| `GET /<parents>/{parentId}/<field>` | has_many | generated in the child domain |\n")
+	w("| `GET /<sources>/{sourceId}/<field>` | many_to_many list | generated in the target domain |\n")
+	w("| `PUT` and `DELETE /<sources>/{sourceId}/<field>/{targetId}` | many_to_many link and unlink | 204, idempotent |\n\n")
+	w("## Diagnostic codes\n\n")
+	w("Diagnostics are printed as `file:line:column: message (did you mean \"x\"?) [code]` and as JSON objects with `file`, `line`, `column`, `severity`, `code`, `message` and `suggestion` when `--json` is used.\n\n")
+	w("| Code | Meaning |\n|---|---|\n")
+	for _, d := range diagnosticDocs {
+		w("| `%s` | %s |\n", d.Code, d.Meaning)
+	}
+	return b.String()
+}
+
+const exampleSpec = `//go:build spec
+
+package specs
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type User struct {
+	_         struct{}  ` + "`" + `gen:"table=users,softdelete"` + "`" + `
+	ID        uuid.UUID ` + "`" + `gen:"pk,auto"` + "`" + `
+	Name      string    ` + "`" + `gen:"required,notempty,max=120"` + "`" + `
+	Email     string    ` + "`" + `gen:"required,unique,email,max=254"` + "`" + `
+	Role      string    ` + "`" + `gen:"enum=admin|operator|viewer,default=viewer"` + "`" + `
+	Bio       *string   ` + "`" + `gen:"max=500"` + "`" + `
+	OrgID     uuid.UUID ` + "`" + `gen:"rel=belongs_to:Org"` + "`" + `
+	CreatedAt time.Time ` + "`" + `gen:"auto=create"` + "`" + `
+	UpdatedAt time.Time ` + "`" + `gen:"auto=update"` + "`" + `
+}
+`
+
+const grammarEBNF = `SpecFile   = "//go:build spec" "package specs" [ Imports ] { AliasDecl } EntityDecl { AliasDecl } .
+Imports    = "import" of "time" | "uuid" | "github.com/google/uuid" .
+AliasDecl  = "type" Name "=" FieldType .
+EntityDecl = "type" EntityName "struct" "{" [ MetaField ] { Field } "}" .
+MetaField  = "_" "struct{}" GenTag .
+Field      = FieldName FieldType [ GenTag ] .
+GenTag     = "` + "`" + `gen:\"" Marker { "," Marker } "\"` + "`" + `" .
+Marker     = Key [ "=" Value ] .
+RelValue   = ( "belongs_to" | "has_many" | "many_to_many" ) ":" EntityName .
+EnumValue  = Item { "|" Item } .
+OmitValue  = Target { "|" Target } .
+Target     = "create" | "update" | "response" .
+AutoValue  = "create" | "update" .
+`
