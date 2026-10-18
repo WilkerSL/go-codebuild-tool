@@ -1,0 +1,9 @@
+/api
+/migrate
+*.exe
+*.test
+*.out
+*.db
+*.db-shm
+*.db-wal
+.env

@@ -1,0 +1,6 @@
+{{.Header}}
+
+package {{.Package}}
+{{range .Queries}}
+const {{.Name}} = {{.Literal}}
+{{end}}

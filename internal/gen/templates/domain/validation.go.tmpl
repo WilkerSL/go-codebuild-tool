@@ -1,0 +1,44 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"strings"
+	"unicode/utf8"
+
+	"{{.Module}}/internal/platform/validation"
+)
+{{- if not .ReadOnly}}
+
+func (in CreateInput) Validate() error {
+{{- if .CreateValidate}}
+	var errs validation.Errors
+{{- range .CreateValidate}}
+	{{.}}
+{{- end}}
+	return errs.Err()
+{{- else}}
+	return nil
+{{- end}}
+}
+{{- if .HasUpdate}}
+
+func (in UpdateInput) Validate() error {
+{{- if .UpdateValidate}}
+	var errs validation.Errors
+{{- range .UpdateValidate}}
+	{{.}}
+{{- end}}
+	return errs.Err()
+{{- else}}
+	return nil
+{{- end}}
+}
+{{- end}}
+{{- range .Checked}}
+
+func {{.CheckFunc}}(errs *validation.Errors, v {{.BaseType}}) {
+	{{.CheckBody}}
+}
+{{- end}}
+{{- end}}

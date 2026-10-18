@@ -1,0 +1,90 @@
+{{define "sqlserver.constraint" -}}
+func Constraint(err error) (*ConstraintError, bool) {
+	msErr, ok := errors.AsType[mssql.Error](err)
+	if !ok {
+		return nil, false
+	}
+	switch msErr.Number {
+	case 2601, 2627:
+		return &ConstraintError{Kind: UniqueViolation, Constraint: quotedConstraint(msErr.Message), Err: err}, true
+	case 547:
+		if strings.Contains(msErr.Message, "FOREIGN KEY") || strings.Contains(msErr.Message, "REFERENCE") {
+			return &ConstraintError{Kind: ForeignKeyViolation, Constraint: quotedConstraint(msErr.Message), Err: err}, true
+		}
+	}
+	return nil, false
+}
+
+func quotedConstraint(message string) string {
+	for _, marker := range []string{"constraint '", "constraint \"", "unique index '"} {
+		_, rest, ok := strings.Cut(message, marker)
+		if !ok {
+			continue
+		}
+		if end := strings.IndexAny(rest, "'\""); end >= 0 {
+			return rest[:end]
+		}
+	}
+	return ""
+}
+{{- end}}
+
+{{define "sqlserver.connect" -}}
+{{.Header}}
+
+package database
+
+import (
+	"database/sql"
+	"fmt"
+
+	_ "github.com/microsoft/go-mssqldb"
+)
+
+func Connect(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("sqlserver", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	return db, nil
+}
+{{- end}}
+
+{{define "sqlserver.migrate" -}}
+func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, "IF OBJECT_ID(N'schema_migrations', N'U') IS NULL CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BIT NOT NULL)")
+	return err
+}
+
+func lockMigrations(ctx context.Context, conn *sql.Conn) error {
+	var result int
+	err := conn.QueryRowContext(ctx, "DECLARE @result INT; EXEC @result = sp_getapplock @Resource = 'codebuild_migrations', @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = 60000; SELECT @result").Scan(&result)
+	if err != nil {
+		return err
+	}
+	if result < 0 {
+		return fmt.Errorf("sp_getapplock returned %d", result)
+	}
+	return nil
+}
+
+func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, "EXEC sp_releaseapplock @Resource = 'codebuild_migrations', @LockOwner = 'Session'")
+	return err
+}
+
+func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string) error {
+	return applyInTransaction(ctx, conn, to, script)
+}
+
+func setVersion(ctx context.Context, exec execer, version uint64, dirty bool) error {
+	if _, err := exec.ExecContext(ctx, "DELETE FROM schema_migrations"); err != nil {
+		return err
+	}
+	if version == 0 {
+		return nil
+	}
+	_, err := exec.ExecContext(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES (@p1, @p2)", int64(version), dirty)
+	return err
+}
+{{- end}}

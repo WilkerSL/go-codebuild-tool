@@ -1,0 +1,8 @@
+{
+  "dialect": "sqlserver",
+  "pagination": {
+    "defaultLimit": 20,
+    "maxLimit": 100
+  },
+  "manualWiring": []
+}

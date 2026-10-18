@@ -1,0 +1,18 @@
+{{.Header}}
+
+package app
+
+import (
+	"database/sql"
+	"log/slog"
+	"net/http"
+{{range .Wired}}
+	"{{.Import}}"
+{{- end}}
+)
+
+func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) {
+{{- range .Wired}}
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService({{.Package}}.NewRepository(db)), logger))
+{{- end}}
+}

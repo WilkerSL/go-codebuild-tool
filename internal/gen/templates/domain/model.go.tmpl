@@ -1,0 +1,30 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"time"
+
+	"{{.UUIDImport}}"
+)
+{{- if .Enums}}
+
+const (
+{{- range .Enums}}
+	{{.Name}} = {{.Value}}
+{{- end}}
+)
+{{- end}}
+
+type {{.Name}} struct {
+{{- range .Fields}}
+	{{.Name}} {{.GoType}} {{.ModelTag}}
+{{- end}}
+}
+
+type Page struct {
+	Items  []{{.Name}} `json:"items"`
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+	Total  int64 `json:"total"`
+}

@@ -1,0 +1,69 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"time"
+
+	"{{.UUIDImport}}"
+
+	"{{.Module}}/internal/platform/validation"
+)
+{{- if not .ReadOnly}}
+
+type CreateInput struct {
+{{- range .Create}}
+	{{.Name}} {{.GoType}}
+{{- end}}
+}
+{{- if .HasUpdate}}
+
+type UpdateInput struct {
+{{- range .Update}}
+	{{.Name}} {{.GoType}}
+{{- end}}
+}
+{{- end}}
+{{- end}}
+
+type ListParams struct {
+	Limit  int
+	Offset int
+{{- range .Filters}}
+	{{.Name}} {{.FilterType}}
+{{- end}}
+}
+{{- if not .ReadOnly}}
+
+type createRequest struct {
+{{- range .Create}}
+	{{.Name}} {{.RequestType}} `json:"{{.JSON}}"`
+{{- end}}
+}
+
+func (req createRequest) input() (CreateInput, error) {
+	var in CreateInput
+	var errs validation.Errors
+{{- range .Create}}
+	{{.Convert}}
+{{- end}}
+	return in, errs.Err()
+}
+{{- if .HasUpdate}}
+
+type updateRequest struct {
+{{- range .Update}}
+	{{.Name}} {{.RequestType}} `json:"{{.JSON}}"`
+{{- end}}
+}
+
+func (req updateRequest) input() (UpdateInput, error) {
+	var in UpdateInput
+	var errs validation.Errors
+{{- range .Update}}
+	{{.Convert}}
+{{- end}}
+	return in, errs.Err()
+}
+{{- end}}
+{{- end}}

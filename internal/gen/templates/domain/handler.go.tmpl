@@ -1,0 +1,194 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"{{.Module}}/internal/platform/httpx"
+	"{{.Module}}/internal/platform/validation"
+)
+
+type Handler struct {
+	svc    *Service
+	logger *slog.Logger
+}
+
+func NewHandler(svc *Service, logger *slog.Logger) *Handler {
+	return &Handler{svc: svc, logger: logger}
+}
+
+func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
+	httpx.WriteError(w, r, h.logger, err)
+}
+
+func listParams(r *http.Request) (ListParams, error) {
+	q := r.URL.Query()
+	var errs validation.Errors
+	var p ListParams
+	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+{{- range .Filters}}
+	{{.FilterParse}}
+{{- end}}
+	if len(errs) > 0 {
+		return ListParams{}, httpx.BadRequest("the query string contains invalid parameters", errs...)
+	}
+	return p, nil
+}
+
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	p, err := listParams(r)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	page, err := h.svc.List(r.Context(), p)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, page)
+}
+
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.svc.Get(r.Context(), id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, item)
+}
+{{- if not .ReadOnly}}
+
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	var req createRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	in, err := req.input()
+	if err == nil {
+		err = in.Validate()
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.svc.Create(r.Context(), in)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Location", "{{.Path}}/"+{{.PKLocation}})
+	httpx.WriteJSON(w, http.StatusCreated, item)
+}
+{{- if .HasUpdate}}
+
+func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	in, err := req.input()
+	if err == nil {
+		err = in.Validate()
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.svc.Update(r.Context(), id, in)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, item)
+}
+{{- end}}
+
+func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end}}
+{{- range .Relations}}
+
+func (h *Handler) {{.Handler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	p, err := listParams(r)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	page, err := h.svc.{{.Method}}(r.Context(), {{.SourceIDVar}}, p)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, page)
+}
+{{- if .Writable}}
+
+func (h *Handler) {{.LinkHandler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	id, err := {{$.PKParseItem}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.{{.LinkMethod}}(r.Context(), {{.SourceIDVar}}, id); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) {{.UnlinkHandler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	id, err := {{$.PKParseItem}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.svc.{{.UnlinkMethod}}(r.Context(), {{.SourceIDVar}}, id); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end}}
+{{- end}}

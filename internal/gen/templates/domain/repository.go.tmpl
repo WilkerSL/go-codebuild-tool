@@ -1,0 +1,274 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"{{.UUIDImport}}"
+
+	"{{.Module}}/internal/platform/database"
+	"{{.Module}}/internal/platform/validation"
+)
+
+type Repository struct {
+	db *sql.DB
+}
+
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{db: db}
+}
+
+func scan{{.Name}}(scan func(dest ...any) error) ({{.Name}}, error) {
+	var item {{.Name}}
+	err := scan(
+{{- range .Fields}}
+		{{.ScanTarget}},
+{{- end}}
+	)
+	return item, err
+}
+
+func (r *Repository) Get(ctx context.Context, id {{.PK.BaseType}}) ({{.Name}}, error) {
+	item, err := scan{{.Name}}(r.db.QueryRowContext(ctx, getQuery, {{.GetArgs}}).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return {{.Name}}{}, database.ErrNotFound
+	}
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("get {{.Noun}}: %w", err)
+	}
+	return item, nil
+}
+
+func (r *Repository) Exists(ctx context.Context, id {{.PK.BaseType}}) (bool, error) {
+	err := r.exists(ctx, existsQuery, {{.ExistsArgs}})
+	if errors.Is(err, database.ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
+	return r.page(ctx, p, listQuery, []any{ {{- .ListArgs -}} }, countQuery, []any{ {{- .CountArgs -}} })
+}
+{{- if not .ReadOnly}}
+
+func (r *Repository) Create(ctx context.Context, in CreateInput) ({{.Name}}, error) {
+{{- if .AutoUUID}}
+{{- if .Caps.StdUUID}}
+	id := uuid.NewV7()
+{{- else}}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+{{- end}}
+{{- else if and .Dialect.SelectAfter (not .IdentityPK)}}
+	id := in.{{.PK.Name}}
+{{- end}}
+{{- if .Dialect.SelectAfter}}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+	defer tx.Rollback()
+{{- if .IdentityPK}}
+	res, err := tx.ExecContext(ctx, createQuery, {{.CreateArgs}})
+	if err != nil {
+		return {{.Name}}{}, writeError("create {{.Noun}}", err)
+	}
+	lastID, err := res.LastInsertId()
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+	id := {{.PK.BaseType}}(lastID)
+{{- else}}
+	if _, err := tx.ExecContext(ctx, createQuery, {{.CreateArgs}}); err != nil {
+		return {{.Name}}{}, writeError("create {{.Noun}}", err)
+	}
+{{- end}}
+	item, err := scan{{.Name}}(tx.QueryRowContext(ctx, getQuery, {{.SelectAfterIDArg}}).Scan)
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+	return item, nil
+{{- else}}
+	item, err := scan{{.Name}}(r.db.QueryRowContext(ctx, createQuery, {{.CreateArgs}}).Scan)
+	if err != nil {
+		return {{.Name}}{}, writeError("create {{.Noun}}", err)
+	}
+	return item, nil
+{{- end}}
+}
+{{- if .HasUpdate}}
+
+func (r *Repository) Update(ctx context.Context, id {{.PK.BaseType}}, in UpdateInput) ({{.Name}}, error) {
+{{- if .Dialect.SelectAfter}}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("update {{.Noun}}: %w", err)
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, updateQuery, {{.UpdateArgs}})
+	if err != nil {
+		return {{.Name}}{}, writeError("update {{.Noun}}", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("update {{.Noun}}: %w", err)
+	}
+	if n == 0 {
+		return {{.Name}}{}, database.ErrNotFound
+	}
+	item, err := scan{{.Name}}(tx.QueryRowContext(ctx, getQuery, {{.SelectAfterIDArg}}).Scan)
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("update {{.Noun}}: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return {{.Name}}{}, fmt.Errorf("update {{.Noun}}: %w", err)
+	}
+	return item, nil
+{{- else}}
+	item, err := scan{{.Name}}(r.db.QueryRowContext(ctx, updateQuery, {{.UpdateArgs}}).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return {{.Name}}{}, database.ErrNotFound
+	}
+	if err != nil {
+		return {{.Name}}{}, writeError("update {{.Noun}}", err)
+	}
+	return item, nil
+{{- end}}
+}
+{{- end}}
+
+func (r *Repository) Delete(ctx context.Context, id {{.PK.BaseType}}) error {
+	res, err := r.db.ExecContext(ctx, deleteQuery, {{.DeleteArgs}})
+	if err != nil {
+		if ce, ok := database.Constraint(err); ok && ce.Kind == database.ForeignKeyViolation {
+			return fmt.Errorf("delete {{.Noun}}: %w", database.ErrReferenced)
+		}
+		return fmt.Errorf("delete {{.Noun}}: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete {{.Noun}}: %w", err)
+	}
+	if n == 0 {
+		return database.ErrNotFound
+	}
+	return nil
+}
+{{- end}}
+{{- range .Relations}}
+
+func (r *Repository) {{.Method}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, p ListParams) (Page, error) {
+	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
+		return Page{}, err
+	}
+	return r.page(ctx, p, {{.ListConst}}, []any{ {{- .ListArgs -}} }, {{.CountConst}}, []any{ {{- .CountArgs -}} })
+}
+{{- if .Writable}}
+
+func (r *Repository) {{.LinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
+	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
+		return err
+	}
+	if err := r.exists(ctx, existsQuery, {{$.ExistsArgs}}); err != nil {
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, {{.LinkConst}}, {{.LinkArgs}}); err != nil {
+		if ce, ok := database.Constraint(err); ok && ce.Kind == database.UniqueViolation {
+			return nil
+		}
+		return fmt.Errorf("link {{$.Noun}}: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) {{.UnlinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
+	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
+		return err
+	}
+	if err := r.exists(ctx, existsQuery, {{$.ExistsArgs}}); err != nil {
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, {{.UnlinkConst}}, {{.UnlinkArgs}}); err != nil {
+		return fmt.Errorf("unlink {{$.Noun}}: %w", err)
+	}
+	return nil
+}
+{{- end}}
+{{- end}}
+
+func (r *Repository) exists(ctx context.Context, query string, args ...any) error {
+	var one int
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("check {{.Noun}} reference: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) page(ctx context.Context, p ListParams, listSQL string, listArgs []any, countSQL string, countArgs []any) (Page, error) {
+	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return Page{}, fmt.Errorf("list {{.Nouns}}: %w", err)
+	}
+	defer rows.Close()
+	items := make([]{{.Name}}, 0, max(0, min(p.Limit, 100)))
+	for rows.Next() {
+		item, err := scan{{.Name}}(rows.Scan)
+		if err != nil {
+			return Page{}, fmt.Errorf("list {{.Nouns}}: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return Page{}, fmt.Errorf("list {{.Nouns}}: %w", err)
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return Page{}, fmt.Errorf("count {{.Nouns}}: %w", err)
+	}
+	return Page{Items: items, Limit: p.Limit, Offset: p.Offset, Total: total}, nil
+}
+{{- if not .ReadOnly}}
+
+func writeError(op string, err error) error {
+	ce, ok := database.Constraint(err)
+	if !ok {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	field := constraintField(ce)
+	if ce.Kind == database.ForeignKeyViolation {
+		return validation.Errors{ {Field: field, Message: "references a record that does not exist"} }
+	}
+	ce.Field = field
+	return ce
+}
+
+func constraintField(ce *database.ConstraintError) string {
+	switch {
+	case ce.PrimaryKey:
+		return "{{.PK.JSON}}"
+{{- range .ConstraintCases}}
+	case ce.Matches("{{.Constraint}}", "{{.Column}}"):
+		return "{{.Field}}"
+{{- end}}
+{{- if .FKFallback}}
+	case ce.Kind == database.ForeignKeyViolation:
+		return "{{.FKFallback}}"
+{{- end}}
+	}
+	return ""
+}
+{{- end}}

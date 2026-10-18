@@ -1,0 +1,257 @@
+{{.Header}}
+
+package {{.Package}}_test
+
+import (
+	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	mrand "math/rand/v2"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"{{.UUIDImport}}"
+
+	"{{.Import}}"
+	"{{.Module}}/internal/platform/database"
+	"{{.Module}}/internal/platform/validation"
+	"{{.Module}}/migrations"
+{{- range .TestImports}}
+	"{{.}}"
+{{- end}}
+)
+
+func openTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+{{- if .Dialect.Embedded}}
+		dsn = filepath.Join(t.TempDir(), "test.db")
+{{- else}}
+		t.Skip("TEST_DATABASE_URL is not set; point it at a disposable {{.Dialect.Name}} database to run repository tests")
+{{- end}}
+	}
+	db, err := database.Connect(dsn)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := database.MigrateUp(context.Background(), db, migrations.FS); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return db
+}
+
+func testString(n int) string {
+	b := make([]byte, (n+1)/2)
+	rand.Read(b)
+	return hex.EncodeToString(b)[:n]
+}
+
+func testEmail(limit int) string {
+	domain := "@example.com"
+	if limit < len(domain)+4 {
+		domain = "@x.io"
+	}
+	return testString(max(1, min(16, limit-len(domain)))) + domain
+}
+
+func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+	return T(lo + mrand.Int64N(hi-lo+1))
+}
+{{- range .TestHelpers}}
+
+func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.CreateInput {
+	t.Helper()
+{{- range .Parents}}
+	{{.Var}} := {{.Helper}}(t, ctx, db)
+{{- end}}
+	return {{.Package}}.CreateInput{
+{{- range .Fields}}
+		{{.}}
+{{- end}}
+	}
+}
+
+func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.{{.Entity.Name}} {
+	t.Helper()
+	item, err := {{.Package}}.NewRepository(db).Create(ctx, {{.InputFunc}}(t, ctx, db))
+	if err != nil {
+		t.Fatalf("create {{.Entity.Name}}: %v", err)
+	}
+	return item
+}
+{{- end}}
+
+func TestRepositoryCRUD(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	repo := {{.Package}}.NewRepository(db)
+{{- if .Creatable}}
+	created := {{.OwnHelper}}(t, ctx, db)
+	got, err := repo.Get(ctx, created.{{.PK.Name}})
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.{{.PK.Name}} != created.{{.PK.Name}} {
+		t.Fatalf("get returned %v, want %v", got.{{.PK.Name}}, created.{{.PK.Name}})
+	}
+	if ok, err := repo.Exists(ctx, created.{{.PK.Name}}); err != nil || !ok {
+		t.Fatalf("exists: %v %v", ok, err)
+	}
+	page, err := repo.List(ctx, {{.Package}}.ListParams{Limit: 10{{if .ListFilterField}}, {{.ListFilterField.Name}}: &created.{{.ListFilterField.Name}}{{end}}})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+{{- if .ListFilterField}}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{.PK.Name}} != created.{{.PK.Name}} {
+		t.Fatalf("filtered list returned %d of %d items", len(page.Items), page.Total)
+	}
+{{- else}}
+	if page.Total < 1 || len(page.Items) < 1 {
+		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	}
+{{- end}}
+{{- if .HasUpdate}}
+	updated, err := repo.Update(ctx, created.{{.PK.Name}}, {{.Package}}.UpdateInput{
+{{- range .UpdateTestValues}}
+		{{.}}
+{{- end}}
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.{{.PK.Name}} != created.{{.PK.Name}} {
+		t.Fatalf("update returned %v, want %v", updated.{{.PK.Name}}, created.{{.PK.Name}})
+	}
+	if _, err := repo.Update(ctx, {{.MissingID}}, {{.Package}}.UpdateInput{
+{{- range .UpdateTestValues}}
+		{{.}}
+{{- end}}
+	}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("update missing: %v", err)
+	}
+{{- end}}
+	if err := repo.Delete(ctx, created.{{.PK.Name}}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("get after delete: %v", err)
+	}
+	if err := repo.Delete(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("second delete: %v", err)
+	}
+{{- else}}
+	if _, err := repo.List(ctx, {{.Package}}.ListParams{Limit: 10}); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+{{- end}}
+	if _, err := repo.Get(ctx, {{.MissingID}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("get missing: %v", err)
+	}
+}
+{{- if and .Creatable .UniqueTestField}}
+
+func TestRepositoryUniqueConflict(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	first := {{.OwnHelper}}(t, ctx, db)
+	in := {{.OwnInputHelper}}(t, ctx, db)
+	in.{{.UniqueTestField.Name}} = first.{{.UniqueTestField.Name}}
+	_, err := {{.Package}}.NewRepository(db).Create(ctx, in)
+	ce, ok := errors.AsType[*database.ConstraintError](err)
+	if !ok || ce.Kind != database.UniqueViolation || ce.Field != "{{.UniqueTestField.JSON}}" {
+		t.Fatalf("expected a unique violation on {{.UniqueTestField.JSON}}, got %v", err)
+	}
+}
+{{- end}}
+{{- if and .Creatable .MissingRefField}}
+
+func TestRepositoryMissingReference(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	in := {{.OwnInputHelper}}(t, ctx, db)
+	in.{{.MissingRefField.Name}} = {{.MissingRefValue}}
+	_, err := {{.Package}}.NewRepository(db).Create(ctx, in)
+{{- if .MissingRefNamed}}
+	errs, ok := errors.AsType[validation.Errors](err)
+	if !ok || !errs.Has("{{.MissingRefField.JSON}}") {
+		t.Fatalf("expected a validation error for {{.MissingRefField.JSON}}, got %v", err)
+	}
+{{- else}}
+	if _, ok := errors.AsType[validation.Errors](err); !ok {
+		t.Fatalf("expected validation errors, got %v", err)
+	}
+{{- end}}
+}
+{{- end}}
+{{- range .HasManyRelations}}
+
+func TestRepository{{.Method}}(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	repo := {{$.Package}}.NewRepository(db)
+{{- if .TestCreate}}
+	in := {{$.OwnInputHelper}}(t, ctx, db)
+{{- if .FK.F.Nullable}}
+	parent := {{.SourceHelper}}(t, ctx, db)
+	in.{{.FK.Name}} = &parent.{{.Source.PK.Name}}
+{{- end}}
+	created, err := repo.Create(ctx, in)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page, err := repo.{{.Method}}(ctx, {{if .FK.F.Nullable}}*{{end}}created.{{.FK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != created.{{$.PK.Name}} {
+		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	}
+{{- end}}
+	if _, err := repo.{{.Method}}(ctx, {{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("list for a missing parent: %v", err)
+	}
+}
+{{- end}}
+{{- range .ManyToManyRels}}
+
+func TestRepository{{.Method}}(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	repo := {{$.Package}}.NewRepository(db)
+{{- if .TestLink}}
+	source := {{.SourceHelper}}(t, ctx, db)
+	target := {{$.OwnHelper}}(t, ctx, db)
+	for range 2 {
+		if err := repo.{{.LinkMethod}}(ctx, source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
+			t.Fatalf("link: %v", err)
+		}
+	}
+	page, err := repo.{{.Method}}(ctx, source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != target.{{$.PK.Name}} {
+		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	}
+	if err := repo.{{.UnlinkMethod}}(ctx, source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
+		t.Fatalf("unlink: %v", err)
+	}
+	page, err = repo.{{.Method}}(ctx, source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	if err != nil || page.Total != 0 {
+		t.Fatalf("list after unlink: %d items, %v", page.Total, err)
+	}
+	if err := repo.{{.LinkMethod}}(ctx, source.{{.Source.PK.Name}}, {{$.MissingID}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("link a missing record: %v", err)
+	}
+{{- end}}
+	if _, err := repo.{{.Method}}(ctx, {{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("list for a missing source: %v", err)
+	}
+}
+{{- end}}

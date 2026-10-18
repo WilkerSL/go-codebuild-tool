@@ -1,0 +1,9 @@
+{{.Header}}
+
+package migrations
+
+import "embed"
+{{if .HasMigrations}}
+//go:embed *.sql
+{{- end}}
+var FS embed.FS

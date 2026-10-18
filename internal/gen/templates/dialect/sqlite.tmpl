@@ -1,0 +1,154 @@
+{{define "sqlite.constraint" -}}
+func Constraint(err error) (*ConstraintError, bool) {
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok {
+		return nil, false
+	}
+	switch sqliteErr.Code() {
+	case sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+		return &ConstraintError{Kind: UniqueViolation, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
+	case sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY:
+		return &ConstraintError{Kind: UniqueViolation, PrimaryKey: true, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
+	case sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY:
+		return &ConstraintError{Kind: ForeignKeyViolation, Err: err}, true
+	}
+	return nil, false
+}
+
+func failedColumns(message string) []string {
+	i := strings.LastIndex(message, "failed: ")
+	if i < 0 {
+		return nil
+	}
+	list := message[i+len("failed: "):]
+	if j := strings.LastIndex(list, " ("); j >= 0 {
+		list = list[:j]
+	}
+	var columns []string
+	for _, item := range strings.Split(list, ", ") {
+		if dot := strings.LastIndex(item, "."); dot >= 0 {
+			item = item[dot+1:]
+		}
+		columns = append(columns, item)
+	}
+	return columns
+}
+{{- end}}
+
+{{define "sqlite.connect" -}}
+{{.Header}}
+
+package database
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+
+	_ "modernc.org/sqlite"
+)
+
+var connectParams = []struct {
+	name  string
+	param string
+}{
+	{name: "foreign_keys", param: "_pragma=foreign_keys(1)"},
+	{name: "busy_timeout", param: "_pragma=busy_timeout(5000)"},
+	{name: "_time_format", param: "_time_format=sqlite"},
+}
+
+func Connect(dsn string) (*sql.DB, error) {
+	for _, p := range connectParams {
+		if strings.Contains(dsn, p.name) {
+			continue
+		}
+		separator := "?"
+		if strings.Contains(dsn, "?") {
+			separator = "&"
+		}
+		dsn += separator + p.param
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	return db, nil
+}
+{{- end}}
+
+{{define "sqlite.migrate" -}}
+func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)")
+	return err
+}
+
+func lockMigrations(context.Context, *sql.Conn) error {
+	return nil
+}
+
+func unlockMigrations(context.Context, *sql.Conn) error {
+	return nil
+}
+
+func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string) error {
+	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return err
+	}
+	defer conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA foreign_keys = ON")
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		}
+	}()
+	current, _, err := readVersion(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if current != from {
+		return errConcurrentMigration
+	}
+	for i, stmt := range splitStatements(script) {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("statement %d: %w", i+1, err)
+		}
+	}
+	if err := checkForeignKeys(ctx, conn); err != nil {
+		return err
+	}
+	if err := setVersion(ctx, conn, to, false); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+func checkForeignKeys(ctx context.Context, conn *sql.Conn) error {
+	rows, err := conn.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return errors.New("the migration leaves rows that violate foreign keys")
+	}
+	return rows.Err()
+}
+
+func setVersion(ctx context.Context, exec execer, version uint64, dirty bool) error {
+	if _, err := exec.ExecContext(ctx, "DELETE FROM schema_migrations"); err != nil {
+		return err
+	}
+	if version == 0 {
+		return nil
+	}
+	_, err := exec.ExecContext(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES (?, ?)", int64(version), dirty)
+	return err
+}
+{{- end}}

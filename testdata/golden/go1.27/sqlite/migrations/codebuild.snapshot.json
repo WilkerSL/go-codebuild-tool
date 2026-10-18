@@ -1,0 +1,459 @@
+{
+  "version": 1,
+  "dialect": "sqlite",
+  "tables": [
+    {
+      "name": "audit_log",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "action",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "payload",
+          "kind": "string",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_audit_log",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_audit_log_action",
+          "columns": [
+            "action"
+          ]
+        },
+        {
+          "name": "ix_audit_log_created_at",
+          "columns": [
+            "created_at"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "countries",
+      "columns": [
+        {
+          "name": "code",
+          "kind": "string",
+          "size": 2
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 100
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_countries",
+        "columns": [
+          "code"
+        ]
+      }
+    },
+    {
+      "name": "orgs",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "slug",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "plan",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "free"
+          }
+        },
+        {
+          "name": "active",
+          "kind": "bool",
+          "default": {
+            "kind": "literal",
+            "value": "true"
+          }
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_orgs",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_orgs_plan",
+          "columns": [
+            "plan"
+          ]
+        },
+        {
+          "name": "ux_orgs_slug",
+          "columns": [
+            "slug"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_orgs_plan",
+          "column": "plan",
+          "values": [
+            "free",
+            "pro",
+            "enterprise"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "projects",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "org_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "owner_id",
+          "kind": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 200
+        },
+        {
+          "name": "budget",
+          "kind": "float64"
+        },
+        {
+          "name": "priority",
+          "kind": "int32",
+          "default": {
+            "kind": "literal",
+            "value": "3"
+          }
+        },
+        {
+          "name": "archived",
+          "kind": "bool"
+        },
+        {
+          "name": "logo",
+          "kind": "bytes",
+          "size": 65536
+        },
+        {
+          "name": "due_at",
+          "kind": "time",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_projects",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_projects_archived",
+          "columns": [
+            "archived"
+          ]
+        },
+        {
+          "name": "ix_projects_org_id",
+          "columns": [
+            "org_id"
+          ]
+        },
+        {
+          "name": "ix_projects_owner_id",
+          "columns": [
+            "owner_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_projects_org_id",
+          "columns": [
+            "org_id"
+          ],
+          "refTable": "orgs",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "fk_projects_owner_id",
+          "columns": [
+            "owner_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ]
+    },
+    {
+      "name": "tags",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 50
+        },
+        {
+          "name": "color",
+          "kind": "string",
+          "size": 7,
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_tags",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_tags_name",
+          "columns": [
+            "name"
+          ],
+          "unique": true
+        }
+      ]
+    },
+    {
+      "name": "user_tags",
+      "columns": [
+        {
+          "name": "tag_id",
+          "kind": "int64"
+        },
+        {
+          "name": "user_id",
+          "kind": "uuid"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_user_tags",
+        "columns": [
+          "tag_id",
+          "user_id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_user_tags_user_id",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_user_tags_tag_id",
+          "columns": [
+            "tag_id"
+          ],
+          "refTable": "tags",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "fk_user_tags_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "email",
+          "kind": "string",
+          "size": 254
+        },
+        {
+          "name": "role",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "viewer"
+          }
+        },
+        {
+          "name": "bio",
+          "kind": "string",
+          "size": 500,
+          "nullable": true
+        },
+        {
+          "name": "org_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_users",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_users_org_id",
+          "columns": [
+            "org_id"
+          ]
+        },
+        {
+          "name": "ux_users_email",
+          "columns": [
+            "email"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_users_org_id",
+          "columns": [
+            "org_id"
+          ],
+          "refTable": "orgs",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "restrict"
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_users_role",
+          "column": "role",
+          "values": [
+            "admin",
+            "operator",
+            "viewer"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{{.Header}}
+
+package httpx
+
+import (
+	"log/slog"
+	"net/http"
+	"runtime/debug"
+	"time"
+)
+
+func Recover(logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			v := recover()
+			if v == nil {
+				return
+			}
+			if v == http.ErrAbortHandler {
+				panic(v)
+			}
+			logger.ErrorContext(r.Context(), "panic while serving request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Any("panic", v),
+				slog.String("stack", string(debug.Stack())),
+			)
+			WriteProblem(w, Problem{Status: http.StatusInternalServerError, Detail: "an unexpected error occurred", Instance: r.URL.Path})
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	if s.status == 0 {
+		s.status = code
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	if s.status == 0 {
+		s.status = http.StatusOK
+	}
+	n, err := s.ResponseWriter.Write(b)
+	s.bytes += n
+	return n, err
+}
+
+func (s *statusRecorder) Unwrap() http.ResponseWriter {
+	return s.ResponseWriter
+}
+
+func AccessLog(logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w}
+		next.ServeHTTP(rec, r)
+		status := rec.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		logger.LogAttrs(r.Context(), slog.LevelInfo, "request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Int("status", status),
+			slog.Int("bytes", rec.bytes),
+			slog.Duration("duration", time.Since(start)),
+		)
+	})
+}
