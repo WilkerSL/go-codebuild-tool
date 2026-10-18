@@ -1,0 +1,3 @@
+dropping column users.bio deletes its data
+if users.bio was renamed to phone, edit the new migration to rename the column and keep its data
+dropping table countries deletes its data

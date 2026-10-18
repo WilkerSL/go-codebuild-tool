@@ -369,6 +369,8 @@ func (b *fieldBuilder) checkCombinations() {
 	}
 	if f.Ref != nil && !f.Nullable && f.OmitCreate {
 		b.fail("omit", CodeInvalidCombination, "", "non-nullable reference %s must be sent on create; make it a pointer or remove omit=create", f.Name)
+	} else if f.OmitCreate && !f.Nullable && !f.HasDefault && !f.PK && !f.Auto() {
+		b.fail("omit", CodeInvalidCombination, "", "field %s is omitted from create but has no default; add default= or make it a pointer", f.Name)
 	}
 	if f.Email && f.Max != "" {
 		if limit, _ := strconv.Atoi(f.Max); limit < 6 {
