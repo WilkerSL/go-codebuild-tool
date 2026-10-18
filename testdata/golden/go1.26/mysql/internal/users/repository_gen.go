@@ -15,11 +15,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanUser(scan func(dest ...any) error) (User, error) {
@@ -65,47 +69,45 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("create user: %w", err)
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return User{}, fmt.Errorf("create user: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID)); err != nil {
-		return User{}, writeError("create user", err)
-	}
-	item, err := scanUser(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return User{}, fmt.Errorf("create user: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return User{}, fmt.Errorf("create user: %w", err)
+	var item User
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID)); err != nil {
+			return writeError("create user", err)
+		}
+		created, err := scanUser(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+		item = created
+		return nil
+	}); err != nil {
+		return User{}, err
 	}
 	return item, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (User, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return User{}, fmt.Errorf("update user: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, updateQuery, in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID), database.UUIDArg(id))
-	if err != nil {
-		return User{}, writeError("update user", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return User{}, fmt.Errorf("update user: %w", err)
-	}
-	if n == 0 {
-		return User{}, database.ErrNotFound
-	}
-	item, err := scanUser(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return User{}, fmt.Errorf("update user: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return User{}, fmt.Errorf("update user: %w", err)
+	var item User
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, updateQuery, in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID), database.UUIDArg(id))
+		if err != nil {
+			return writeError("update user", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+		if n == 0 {
+			return database.ErrNotFound
+		}
+		updated, err := scanUser(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+		item = updated
+		return nil
+	}); err != nil {
+		return User{}, err
 	}
 	return item, nil
 }

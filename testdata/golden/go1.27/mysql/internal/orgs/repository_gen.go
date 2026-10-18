@@ -14,11 +14,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanOrg(scan func(dest ...any) error) (Org, error) {
@@ -60,47 +64,45 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Org, error) {
 	id := uuid.NewV7()
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Org{}, fmt.Errorf("create org: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Slug, in.Plan, in.Active); err != nil {
-		return Org{}, writeError("create org", err)
-	}
-	item, err := scanOrg(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return Org{}, fmt.Errorf("create org: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Org{}, fmt.Errorf("create org: %w", err)
+	var item Org
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Slug, in.Plan, in.Active); err != nil {
+			return writeError("create org", err)
+		}
+		created, err := scanOrg(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("create org: %w", err)
+		}
+		item = created
+		return nil
+	}); err != nil {
+		return Org{}, err
 	}
 	return item, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Org, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Org{}, fmt.Errorf("update org: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, updateQuery, in.Name, in.Slug, in.Plan, in.Active, database.UUIDArg(id))
-	if err != nil {
-		return Org{}, writeError("update org", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Org{}, fmt.Errorf("update org: %w", err)
-	}
-	if n == 0 {
-		return Org{}, database.ErrNotFound
-	}
-	item, err := scanOrg(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return Org{}, fmt.Errorf("update org: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Org{}, fmt.Errorf("update org: %w", err)
+	var item Org
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, updateQuery, in.Name, in.Slug, in.Plan, in.Active, database.UUIDArg(id))
+		if err != nil {
+			return writeError("update org", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("update org: %w", err)
+		}
+		if n == 0 {
+			return database.ErrNotFound
+		}
+		updated, err := scanOrg(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("update org: %w", err)
+		}
+		item = updated
+		return nil
+	}); err != nil {
+		return Org{}, err
 	}
 	return item, nil
 }

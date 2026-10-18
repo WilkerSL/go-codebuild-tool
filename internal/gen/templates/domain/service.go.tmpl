@@ -1,9 +1,22 @@
 package {{.Package}}
 
+import (
+	"context"
+	"database/sql"
+
+	"{{.UUIDImport}}"
+)
+
 type Service struct {
-	*Repository
+	repo *Repository
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{Repository: repo}
+func NewService(db *sql.DB) *Service {
+	return &Service{repo: NewRepository(db)}
 }
+{{- range .ServiceMethods}}
+
+func (s *Service) {{.Name}}({{.Params}}) {{.Results}} {
+	return s.repo.{{.Name}}({{.Args}})
+}
+{{- end}}

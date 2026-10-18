@@ -15,9 +15,9 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) {
-	countries.RegisterRoutes(mux, countries.NewHandler(countries.NewService(countries.NewRepository(db)), logger))
-	orgs.RegisterRoutes(mux, orgs.NewHandler(orgs.NewService(orgs.NewRepository(db)), logger))
-	projects.RegisterRoutes(mux, projects.NewHandler(projects.NewService(projects.NewRepository(db)), logger))
-	tags.RegisterRoutes(mux, tags.NewHandler(tags.NewService(tags.NewRepository(db)), logger))
-	users.RegisterRoutes(mux, users.NewHandler(users.NewService(users.NewRepository(db)), logger))
+	countries.RegisterRoutes(mux, countries.NewHandler(countries.NewService(db), logger))
+	orgs.RegisterRoutes(mux, orgs.NewHandler(orgs.NewService(db), logger))
+	projects.RegisterRoutes(mux, projects.NewHandler(projects.NewService(db), logger))
+	tags.RegisterRoutes(mux, tags.NewHandler(tags.NewService(db), logger))
+	users.RegisterRoutes(mux, users.NewHandler(users.NewService(db), logger))
 }

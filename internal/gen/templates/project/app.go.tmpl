@@ -13,6 +13,6 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) {
 {{- range .Wired}}
-	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService({{.Package}}.NewRepository(db)), logger))
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger))
 {{- end}}
 }

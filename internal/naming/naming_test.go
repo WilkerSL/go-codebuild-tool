@@ -65,6 +65,14 @@ func TestPlural(t *testing.T) {
 		"order_item": "order_items",
 		"branch":     "branches",
 		"metadata":   "metadata",
+		"shelf":      "shelves",
+		"book_shelf": "book_shelves",
+		"analysis":   "analyses",
+		"quiz":       "quizzes",
+		"roof":       "roofs",
+		"status":     "statuses",
+		"bus":        "buses",
+		"photo":      "photos",
 	}
 	for in, want := range tests {
 		if got := Plural(in); got != want {

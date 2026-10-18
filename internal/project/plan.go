@@ -74,6 +74,9 @@ type FileChange struct {
 	Reason  string `json:"reason,omitempty"`
 	content []byte
 	old     []byte
+	domain  string
+	service bool
+	method  string
 }
 
 type GoUpgrade struct {
@@ -155,7 +158,7 @@ type planner struct {
 func BuildPlan(ctx context.Context, opts Options) (*Plan, error) {
 	p := &planner{opts: opts, plan: &Plan{Starter: opts.Starter, Domains: []string{}, Files: []FileChange{}}}
 	steps := []func(context.Context) error{
-		p.locate, p.loadConfig, p.resolveGo, p.loadSpecs, p.planMigrations, p.generate, p.planGoMod, p.classify,
+		p.locate, p.loadConfig, p.resolveGo, p.loadSpecs, p.planMigrations, p.generate, p.resolveServices, p.planGoMod, p.classify,
 	}
 	for _, step := range steps {
 		if err := step(ctx); err != nil {
@@ -504,6 +507,8 @@ func (p *planner) generate(context.Context) error {
 			owner = OwnerGenerated
 		}
 		p.add(f.Path, f.Content, owner)
+		last := &p.files[len(p.files)-1]
+		last.domain, last.service, last.method = f.Domain, f.ServiceType, f.ServiceMethod
 	}
 	if !p.cfgExisted || p.plan.PreviousDialect != "" {
 		p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)

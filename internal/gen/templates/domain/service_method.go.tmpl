@@ -1,0 +1,11 @@
+package {{.Package}}
+
+import (
+	"context"
+
+	"{{.UUIDImport}}"
+)
+
+func (s *Service) {{.Method.Name}}({{.Method.Params}}) {{.Method.Results}} {
+	return s.repo.{{.Method.Name}}({{.Method.Args}})
+}

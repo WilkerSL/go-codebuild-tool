@@ -200,7 +200,7 @@ func smokeTest(t *testing.T, dir, dsn string) {
 	c := client{t: t, base: "http://" + addr}
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		resp, err := http.Get(c.base + "/healthz")
+		resp, err := http.Get(c.base + "/readyz")
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -211,6 +211,14 @@ func smokeTest(t *testing.T, dir, dsn string) {
 			t.Fatalf("api did not become healthy:\n%s", logs.String())
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	c.expect("GET", "/livez", nil, http.StatusOK)
+	req, _ := http.NewRequest(http.MethodGet, c.base+"/countries", nil)
+	req.Header.Set("X-Request-ID", "e2e-check")
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.Header.Get("X-Request-ID") != "e2e-check" {
+		t.Fatalf("request id was not propagated: %v", err)
+	} else {
+		resp.Body.Close()
 	}
 	suffix := fmt.Sprint(time.Now().UnixNano())
 	org := c.expect("POST", "/orgs", map[string]any{"name": "Acme", "slug": "acme-" + suffix}, http.StatusCreated)

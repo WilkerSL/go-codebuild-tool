@@ -142,3 +142,57 @@ func TestRecover(t *testing.T) {
 		t.Fatalf("status = %d logs = %s", rec.Code, logs.String())
 	}
 }
+
+func TestRequestID(t *testing.T) {
+	var seen string
+	h := RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = RequestIDFrom(r.Context())
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if len(seen) != 32 || rec.Header().Get(RequestIDHeader) != seen {
+		t.Fatalf("generated id = %q, header = %q", seen, rec.Header().Get(RequestIDHeader))
+	}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(RequestIDHeader, "upstream-42")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if seen != "upstream-42" {
+		t.Fatalf("propagated id = %q", seen)
+	}
+	req.Header.Set(RequestIDHeader, "bad id\n")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if seen == "bad id\n" || len(seen) != 32 {
+		t.Fatalf("invalid id was accepted: %q", seen)
+	}
+}
+
+func TestLogHandlerAddsRequestID(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(NewLogHandler(slog.NewTextHandler(&logs, nil))).With("component", "test")
+	h := RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.InfoContext(r.Context(), "handled")
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(RequestIDHeader, "trace-1")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if !strings.Contains(logs.String(), "request_id=trace-1") || !strings.Contains(logs.String(), "component=test") {
+		t.Fatalf("logs = %s", logs.String())
+	}
+}
+
+func TestHealth(t *testing.T) {
+	health := NewHealth(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	mux := http.NewServeMux()
+	health.RegisterRoutes(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, LivenessPath, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("liveness = %d", rec.Code)
+	}
+	health.Drain()
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ReadinessPath, nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness while draining = %d", rec.Code)
+	}
+}

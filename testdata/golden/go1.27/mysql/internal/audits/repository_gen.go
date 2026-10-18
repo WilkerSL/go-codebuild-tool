@@ -13,11 +13,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanAudit(scan func(dest ...any) error) (Audit, error) {
@@ -55,53 +59,51 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 }
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Audit, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Audit{}, fmt.Errorf("create audit: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, createQuery, in.Action, in.Payload)
-	if err != nil {
-		return Audit{}, writeError("create audit", err)
-	}
-	lastID, err := res.LastInsertId()
-	if err != nil {
-		return Audit{}, fmt.Errorf("create audit: %w", err)
-	}
-	id := int64(lastID)
-	item, err := scanAudit(tx.QueryRowContext(ctx, getQuery, id).Scan)
-	if err != nil {
-		return Audit{}, fmt.Errorf("create audit: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Audit{}, fmt.Errorf("create audit: %w", err)
+	var item Audit
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, createQuery, in.Action, in.Payload)
+		if err != nil {
+			return writeError("create audit", err)
+		}
+		lastID, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("create audit: %w", err)
+		}
+		id := int64(lastID)
+		created, err := scanAudit(db.QueryRowContext(ctx, getQuery, id).Scan)
+		if err != nil {
+			return fmt.Errorf("create audit: %w", err)
+		}
+		item = created
+		return nil
+	}); err != nil {
+		return Audit{}, err
 	}
 	return item, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (Audit, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Audit{}, fmt.Errorf("update audit: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, updateQuery, in.Action, in.Payload, id)
-	if err != nil {
-		return Audit{}, writeError("update audit", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Audit{}, fmt.Errorf("update audit: %w", err)
-	}
-	if n == 0 {
-		return Audit{}, database.ErrNotFound
-	}
-	item, err := scanAudit(tx.QueryRowContext(ctx, getQuery, id).Scan)
-	if err != nil {
-		return Audit{}, fmt.Errorf("update audit: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Audit{}, fmt.Errorf("update audit: %w", err)
+	var item Audit
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, updateQuery, in.Action, in.Payload, id)
+		if err != nil {
+			return writeError("update audit", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("update audit: %w", err)
+		}
+		if n == 0 {
+			return database.ErrNotFound
+		}
+		updated, err := scanAudit(db.QueryRowContext(ctx, getQuery, id).Scan)
+		if err != nil {
+			return fmt.Errorf("update audit: %w", err)
+		}
+		item = updated
+		return nil
+	}); err != nil {
+		return Audit{}, err
 	}
 	return item, nil
 }

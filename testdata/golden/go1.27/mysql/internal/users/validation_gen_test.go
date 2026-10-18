@@ -14,28 +14,28 @@ import (
 	"example.com/saas/internal/platform/validation"
 )
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
 func validCreateInput() CreateInput {
 	return CreateInput{
 		Name:  "a",
-		Email: testEmail(254),
+		Email: fixtureEmail(254),
 		Role:  RoleAdmin,
 		OrgID: uuid.New(),
 	}
@@ -85,7 +85,7 @@ func TestCreateRequestRequiredFields(t *testing.T) {
 func validUpdateInput() UpdateInput {
 	return UpdateInput{
 		Name:  "a",
-		Email: testEmail(254),
+		Email: fixtureEmail(254),
 		Role:  RoleAdmin,
 		OrgID: uuid.New(),
 	}

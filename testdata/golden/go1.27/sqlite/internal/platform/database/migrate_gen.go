@@ -20,10 +20,6 @@ type Migration struct {
 	Down    string
 }
 
-type execer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
 func LoadMigrations(fsys fs.FS) ([]Migration, error) {
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
@@ -341,7 +337,7 @@ func checkForeignKeys(ctx context.Context, conn *sql.Conn) error {
 	return rows.Err()
 }
 
-func setVersion(ctx context.Context, exec execer, version uint64, dirty bool) error {
+func setVersion(ctx context.Context, exec DBTX, version uint64, dirty bool) error {
 	if _, err := exec.ExecContext(ctx, "DELETE FROM schema_migrations"); err != nil {
 		return err
 	}

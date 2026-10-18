@@ -17,7 +17,7 @@ import (
 	"example.com/saas/migrations"
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func openFixtureDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -34,26 +34,26 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
 func TestRepositoryCRUD(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := countries.NewRepository(db)
 	if _, err := repo.List(ctx, countries.ListParams{Limit: 10}); err != nil {

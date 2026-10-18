@@ -17,14 +17,33 @@ var initialisms = map[string]bool{
 }
 
 var irregularPlurals = map[string]string{
-	"child":  "children",
-	"foot":   "feet",
-	"goose":  "geese",
-	"man":    "men",
-	"mouse":  "mice",
-	"person": "people",
-	"tooth":  "teeth",
-	"woman":  "women",
+	"calf":      "calves",
+	"child":     "children",
+	"criterion": "criteria",
+	"echo":      "echoes",
+	"elf":       "elves",
+	"foot":      "feet",
+	"goose":     "geese",
+	"half":      "halves",
+	"hero":      "heroes",
+	"knife":     "knives",
+	"leaf":      "leaves",
+	"life":      "lives",
+	"loaf":      "loaves",
+	"man":       "men",
+	"mouse":     "mice",
+	"person":    "people",
+	"potato":    "potatoes",
+	"quiz":      "quizzes",
+	"scarf":     "scarves",
+	"self":      "selves",
+	"shelf":     "shelves",
+	"thief":     "thieves",
+	"tomato":    "tomatoes",
+	"tooth":     "teeth",
+	"wife":      "wives",
+	"wolf":      "wolves",
+	"woman":     "women",
 }
 
 var uncountable = map[string]bool{
@@ -145,6 +164,8 @@ func pluralWord(w string) string {
 		return p
 	}
 	switch {
+	case strings.HasSuffix(w, "is") && len(w) > 3:
+		return w[:len(w)-2] + "es"
 	case strings.HasSuffix(w, "s"), strings.HasSuffix(w, "x"), strings.HasSuffix(w, "z"),
 		strings.HasSuffix(w, "ch"), strings.HasSuffix(w, "sh"):
 		return w + "es"

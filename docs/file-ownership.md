@@ -5,11 +5,12 @@ codebuild decides what it may write by who owns each file. `codebuild plan` show
 | Path | Owner | Behavior |
 |---|---|---|
 | `**/*_gen.go`, `**/*_gen_test.go` | codebuild | Regenerated on every build. |
-| `internal/<domain>/service.go` | you | Created once, never touched again. |
+| `internal/<domain>/service.go` | you | Created once with explicit methods that call the repository, never touched again. |
+| `internal/<domain>/service_<method>.go` | you | Created when the generated handler needs a service method you do not have yet; never touched again. |
 | `cmd/api/main.go`, `cmd/migrate/main.go` | you | Created once. |
 | `internal/platform/config/config.go` | you | Created once. |
 | `internal/platform/database/database.go` | you | Created once; it calls the generated `Connect`. |
-| `AGENTS.md`, `.gitignore` | you | Created once. |
+| `AGENTS.md`, `.gitignore`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml` | you | Created once. |
 | `specs/*.go` | you | Never written by codebuild. |
 | `migrations/NNNN_<name>.up.sql`, `.down.sql` | you after creation | Created once when the schema changes; existing migrations are never modified. |
 | `migrations/codebuild.snapshot.json` | codebuild | The schema produced by all generated migrations. Commit it. |
@@ -40,9 +41,21 @@ If you remove that line, codebuild treats the file as yours and refuses to overw
 
 ## Business logic
 
-`Service` embeds the generated `*Repository`. Define a method with the same name on `*Service` to replace the default behavior; handlers always call the service. Because the embedded repository gains new methods automatically when you add relations, regeneration never breaks your service.
+Handlers call `Service`, and `Service` calls the repository. `service.go` is written once with one explicit method per operation, for example:
 
-`internal/app/routes_gen.go` wires each domain with `NewService(NewRepository(db))`. If a service needs extra dependencies, list the domain in `manualWiring` in `codebuild.json`; codebuild then leaves it out of the generated wiring and prints the line to add to `cmd/api/main.go`.
+```go
+func (s *Service) Create(ctx context.Context, in CreateInput) (User, error) {
+	return s.repo.Create(ctx, in)
+}
+```
+
+Add rules, transactions (`database.InTx` and `Repository.WithTx`) and calls to other repositories there. Nothing is promoted implicitly: if a method is not on `Service`, the handler does not compile, so a rule cannot be bypassed by accident.
+
+When a spec change makes the handlers need a method that `Service` lacks, for example the listing of a new relation, codebuild parses the non-generated files of the package with `go/parser` and writes only the missing methods, each in a new file such as `service_list_org_users.go`. It never edits a file that exists. If such a file already exists without the method, the plan warns and you add the method by hand.
+
+`internal/app/routes_gen.go` creates services with `NewService(db *sql.DB)`, so a service can build any repository it needs without changing that signature. A domain that needs dependencies from outside the database, or routes of its own, can be listed in `manualWiring` in `codebuild.json`; codebuild then leaves it out of the generated wiring and you register it in `cmd/api/main.go`.
+
+Extra queries go in files you own inside the domain package, as methods on `*Repository`.
 
 ## Migrations and the snapshot
 

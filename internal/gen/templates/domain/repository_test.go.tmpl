@@ -25,7 +25,7 @@ import (
 {{- end}}
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func openFixtureDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -46,21 +46,21 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 {{- range .TestHelpers}}
@@ -88,7 +88,7 @@ func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.{{.En
 {{- end}}
 
 func TestRepositoryCRUD(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{.Package}}.NewRepository(db)
 {{- if .Creatable}}
@@ -154,10 +154,51 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("get missing: %v", err)
 	}
 }
+{{- if .Creatable}}
+
+func TestRepositoryWithTx(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	repo := {{.Package}}.NewRepository(db)
+	in := {{.OwnInputHelper}}(t, ctx, db)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	created, err := repo.WithTx(tx).Create(ctx, in)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("create in transaction: %v", err)
+	}
+	if _, err := repo.WithTx(tx).Get(ctx, created.{{.PK.Name}}); err != nil {
+		tx.Rollback()
+		t.Fatalf("get in transaction: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if _, err := repo.Get(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("rolled back row is visible: %v", err)
+	}
+	next := {{.OwnInputHelper}}(t, ctx, db)
+	var committed {{.Package}}.{{.Name}}
+	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		committed, err = repo.WithTx(tx).Create(ctx, next)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("InTx: %v", err)
+	}
+	if _, err := repo.Get(ctx, committed.{{.PK.Name}}); err != nil {
+		t.Fatalf("committed row is missing: %v", err)
+	}
+}
+{{- end}}
 {{- if and .Creatable .UniqueTestField}}
 
 func TestRepositoryUniqueConflict(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	first := {{.OwnHelper}}(t, ctx, db)
 	in := {{.OwnInputHelper}}(t, ctx, db)
@@ -172,7 +213,7 @@ func TestRepositoryUniqueConflict(t *testing.T) {
 {{- if and .Creatable .MissingRefField}}
 
 func TestRepositoryMissingReference(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	in := {{.OwnInputHelper}}(t, ctx, db)
 	in.{{.MissingRefField.Name}} = {{.MissingRefValue}}
@@ -192,7 +233,7 @@ func TestRepositoryMissingReference(t *testing.T) {
 {{- range .HasManyRelations}}
 
 func TestRepository{{.Method}}(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{$.Package}}.NewRepository(db)
 {{- if .TestCreate}}
@@ -221,7 +262,7 @@ func TestRepository{{.Method}}(t *testing.T) {
 {{- range .ManyToManyRels}}
 
 func TestRepository{{.Method}}(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{$.Package}}.NewRepository(db)
 {{- if .TestLink}}

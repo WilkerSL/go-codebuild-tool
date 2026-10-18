@@ -43,6 +43,8 @@ codebuild.json ──► project ────────────┴──�
 - Templates consult `.Caps` for version differences and dialect view fields (`SelectAfter`, `ScanTime`, `UUIDSwap`, ...) for database differences; they never compare version numbers.
 - Queries are named constants in `queries_gen.go`. Optional filters use the `(param IS NULL OR column = param)` form so every query is constant.
 - Relation routes live in the package of the entity they return, so domain packages never import each other.
+- Services are user code. `service.go` is rendered once with explicit methods; `internal/project/service.go` parses the non-generated files of a package to find the methods `Service` already has and renders only the missing ones, each into a new `service_<method>.go`.
+- Repositories depend on `database.DBTX`, the interface shared by `*sql.DB`, `*sql.Tx` and `*sql.Conn`, so the same code runs inside or outside a transaction.
 
 ## Adding a dialect
 

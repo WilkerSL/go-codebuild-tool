@@ -15,11 +15,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanTag(scan func(dest ...any) error) (Tag, error) {
@@ -56,53 +60,51 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 }
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Tag, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Tag{}, fmt.Errorf("create tag: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, createQuery, in.Name, in.Color)
-	if err != nil {
-		return Tag{}, writeError("create tag", err)
-	}
-	lastID, err := res.LastInsertId()
-	if err != nil {
-		return Tag{}, fmt.Errorf("create tag: %w", err)
-	}
-	id := int64(lastID)
-	item, err := scanTag(tx.QueryRowContext(ctx, getQuery, id).Scan)
-	if err != nil {
-		return Tag{}, fmt.Errorf("create tag: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Tag{}, fmt.Errorf("create tag: %w", err)
+	var item Tag
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, createQuery, in.Name, in.Color)
+		if err != nil {
+			return writeError("create tag", err)
+		}
+		lastID, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("create tag: %w", err)
+		}
+		id := int64(lastID)
+		created, err := scanTag(db.QueryRowContext(ctx, getQuery, id).Scan)
+		if err != nil {
+			return fmt.Errorf("create tag: %w", err)
+		}
+		item = created
+		return nil
+	}); err != nil {
+		return Tag{}, err
 	}
 	return item, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (Tag, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Tag{}, fmt.Errorf("update tag: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, updateQuery, in.Name, in.Color, id)
-	if err != nil {
-		return Tag{}, writeError("update tag", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Tag{}, fmt.Errorf("update tag: %w", err)
-	}
-	if n == 0 {
-		return Tag{}, database.ErrNotFound
-	}
-	item, err := scanTag(tx.QueryRowContext(ctx, getQuery, id).Scan)
-	if err != nil {
-		return Tag{}, fmt.Errorf("update tag: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Tag{}, fmt.Errorf("update tag: %w", err)
+	var item Tag
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, updateQuery, in.Name, in.Color, id)
+		if err != nil {
+			return writeError("update tag", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("update tag: %w", err)
+		}
+		if n == 0 {
+			return database.ErrNotFound
+		}
+		updated, err := scanTag(db.QueryRowContext(ctx, getQuery, id).Scan)
+		if err != nil {
+			return fmt.Errorf("update tag: %w", err)
+		}
+		item = updated
+		return nil
+	}); err != nil {
+		return Tag{}, err
 	}
 	return item, nil
 }

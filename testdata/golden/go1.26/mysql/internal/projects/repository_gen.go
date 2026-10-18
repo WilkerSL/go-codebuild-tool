@@ -15,11 +15,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanProject(scan func(dest ...any) error) (Project, error) {
@@ -67,47 +71,45 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error
 	if err != nil {
 		return Project{}, fmt.Errorf("create project: %w", err)
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Project{}, fmt.Errorf("create project: %w", err)
-	}
-	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt)); err != nil {
-		return Project{}, writeError("create project", err)
-	}
-	item, err := scanProject(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return Project{}, fmt.Errorf("create project: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Project{}, fmt.Errorf("create project: %w", err)
+	var item Project
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt)); err != nil {
+			return writeError("create project", err)
+		}
+		created, err := scanProject(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("create project: %w", err)
+		}
+		item = created
+		return nil
+	}); err != nil {
+		return Project{}, err
 	}
 	return item, nil
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Project, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Project{}, fmt.Errorf("update project: %w", err)
-	}
-	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt), database.UUIDArg(id))
-	if err != nil {
-		return Project{}, writeError("update project", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Project{}, fmt.Errorf("update project: %w", err)
-	}
-	if n == 0 {
-		return Project{}, database.ErrNotFound
-	}
-	item, err := scanProject(tx.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
-	if err != nil {
-		return Project{}, fmt.Errorf("update project: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return Project{}, fmt.Errorf("update project: %w", err)
+	var item Project
+	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		res, err := db.ExecContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt), database.UUIDArg(id))
+		if err != nil {
+			return writeError("update project", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("update project: %w", err)
+		}
+		if n == 0 {
+			return database.ErrNotFound
+		}
+		updated, err := scanProject(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
+		if err != nil {
+			return fmt.Errorf("update project: %w", err)
+		}
+		item = updated
+		return nil
+	}); err != nil {
+		return Project{}, err
 	}
 	return item, nil
 }

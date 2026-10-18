@@ -31,6 +31,8 @@ type projectView struct {
 	Wired         []*domainView
 	Pagination    Pagination
 	HasMigrations bool
+	GoImage       string
+	CI            ciView
 }
 
 type dialectView struct {
@@ -69,6 +71,14 @@ func goStringLiteral(sql string) string {
 		parts[i] = strconv.Quote(line)
 	}
 	return strings.Join(parts, " +\n\t")
+}
+
+type serviceMethod struct {
+	Name    string
+	Params  string
+	Results string
+	Args    string
+	File    string
 }
 
 type enumConst struct {
@@ -214,6 +224,7 @@ type domainView struct {
 	PKParseItem      string
 	RequiredCreate   []*fieldView
 	MissingRefValue  string
+	ServiceMethods   []serviceMethod
 }
 
 func goBase(k schema.Kind) string {
@@ -514,9 +525,9 @@ func validValue(f *schema.Field, qualifier string, unique bool) string {
 			if f.Max != "" {
 				limit, _ = strconv.Atoi(f.Max)
 			}
-			return fmt.Sprintf("testEmail(%d)", limit)
+			return fmt.Sprintf("fixtureEmail(%d)", limit)
 		case unique:
-			return fmt.Sprintf("testString(%d)", uniqueLength(f))
+			return fmt.Sprintf("fixtureString(%d)", uniqueLength(f))
 		}
 		return strconv.Quote(strings.Repeat("a", stringLength(f)))
 	case schema.KindBytes:
@@ -546,7 +557,7 @@ func validValue(f *schema.Field, qualifier string, unique bool) string {
 			if !hasHi {
 				hi = 1 << 30
 			}
-			return fmt.Sprintf("testInt[%s](%d, %d)", goBase(f.Kind), lo, hi)
+			return fmt.Sprintf("fixtureInt[%s](%d, %d)", goBase(f.Kind), lo, hi)
 		}
 		v := int64(1)
 		if hasLo {

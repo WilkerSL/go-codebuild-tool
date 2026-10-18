@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"go/version"
 	"io/fs"
 	"path"
 	"slices"
@@ -48,9 +49,12 @@ const (
 )
 
 type File struct {
-	Path    string
-	Content []byte
-	Owner   Owner
+	Path          string
+	Content       []byte
+	Owner         Owner
+	Domain        string
+	ServiceType   bool
+	ServiceMethod string
 }
 
 type Options struct {
@@ -100,6 +104,8 @@ func Generate(opts Options) ([]File, error) {
 		Dialect:       newDialectView(opts.Dialect),
 		Pagination:    opts.Pagination,
 		HasMigrations: opts.HasMigrations,
+		GoImage:       strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
+		CI:            newCIView(opts.Dialect.Name()),
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {
@@ -122,10 +128,12 @@ func Generate(opts Options) ([]File, error) {
 	g.goFile("internal/platform/httpx/json_gen.go", "platform/json.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/request_gen.go", "platform/request.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/middleware_gen.go", "platform/middleware.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/health_gen.go", "platform/health.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
 	g.goFile("internal/platform/database/errors_gen.go", "platform/errors.go.tmpl", pv)
 	g.goFile("internal/platform/database/values_gen.go", "platform/values.go.tmpl", pv)
 	g.goFile("internal/platform/database/migrate_gen.go", "platform/migrate.go.tmpl", pv)
+	g.goFile("internal/platform/database/tx_gen.go", "platform/tx.go.tmpl", pv)
 	g.goFile("internal/platform/database/connect_gen.go", opts.Dialect.Name()+".connect", pv)
 	g.goFile("internal/app/routes_gen.go", "project/app.go.tmpl", pv)
 	g.goFile("migrations/embed_gen.go", "project/embed.go.tmpl", pv)
@@ -135,6 +143,9 @@ func Generate(opts Options) ([]File, error) {
 	g.userGoFile("cmd/migrate/main.go", "project/migrate.go.tmpl", pv)
 	g.userFile("AGENTS.md", "project/agents.md.tmpl", pv)
 	g.userFile(".gitignore", "project/gitignore.tmpl", pv)
+	g.userFile(".dockerignore", "project/dockerignore.tmpl", pv)
+	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
+	g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
 	for _, dv := range pv.Domains {
 		dir := "internal/" + dv.Package + "/"
 		g.goFile(dir+"model_gen.go", "domain/model.go.tmpl", dv)
@@ -151,6 +162,11 @@ func Generate(opts Options) ([]File, error) {
 			g.goFile(dir+"routes_gen.go", "domain/routes.go.tmpl", dv)
 		}
 		g.userGoFile(dir+"service.go", "domain/service.go.tmpl", dv)
+		g.tag(dv.Package, true, "")
+		for _, m := range dv.ServiceMethods {
+			g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, UUIDImport: dv.UUIDImport, Method: m})
+			g.tag(dv.Package, false, m.Name)
+		}
 	}
 	if g.err != nil {
 		return nil, g.err
@@ -207,4 +223,18 @@ func (g *generator) userFile(filePath, tmpl string, data any) {
 
 func noun(name string) string {
 	return strings.ReplaceAll(naming.Snake(name), "_", " ")
+}
+
+type serviceMethodView struct {
+	Package    string
+	UUIDImport string
+	Method     serviceMethod
+}
+
+func (g *generator) tag(domain string, serviceType bool, method string) {
+	if g.err != nil || len(g.files) == 0 {
+		return
+	}
+	last := &g.files[len(g.files)-1]
+	last.Domain, last.ServiceType, last.ServiceMethod = domain, serviceType, method
 }

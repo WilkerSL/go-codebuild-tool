@@ -421,3 +421,52 @@ func TestInspect(t *testing.T) {
 		t.Fatalf("info = %+v", info)
 	}
 }
+
+func TestServiceMethodScaffolds(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	servicePath := filepath.Join(dir, "internal", "users", "service.go")
+	service := readTestFile(t, servicePath)
+	for _, method := range []string{"List", "Get", "Create", "Update", "Delete", "ListOrgUsers", "ListTagUsers", "LinkTagUsers", "UnlinkTagUsers"} {
+		if !strings.Contains(service, "func (s *Service) "+method+"(") {
+			t.Fatalf("service.go lacks %s:\n%s", method, service)
+		}
+	}
+	deleteStart := strings.Index(service, "func (s *Service) Delete(")
+	deleteEnd := deleteStart + strings.Index(service[deleteStart:], "\n}\n") + 3
+	writeTestFile(t, servicePath, service[:deleteStart]+service[deleteEnd:])
+	plan := build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	scaffold := filepath.Join(dir, "internal", "users", "service_delete.go")
+	if !strings.Contains(readTestFile(t, scaffold), "func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {\n\treturn s.repo.Delete(ctx, id)\n}") {
+		t.Fatalf("unexpected scaffold:\n%s", readTestFile(t, scaffold))
+	}
+	idx := slices.IndexFunc(plan.Files, func(f FileChange) bool { return f.Path == "internal/users/service_delete.go" })
+	if idx < 0 || plan.Files[idx].Action != ActionCreate || !strings.Contains(plan.Files[idx].Reason, "Service.Delete") {
+		t.Fatalf("plan entry = %+v", plan.Files[idx])
+	}
+	again, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil || again.HasChanges() {
+		t.Fatalf("second plan: %v %v", err, again.HasChanges())
+	}
+
+	if err := os.Rename(servicePath, filepath.Join(dir, "internal", "users", "users_service.go")); err != nil {
+		t.Fatal(err)
+	}
+	again, err = BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil || again.HasChanges() {
+		t.Fatalf("plan after moving Service: %v %+v", err, again.Files)
+	}
+
+	writeTestFile(t, filepath.Join(dir, "specs", "badges.go"), "//go:build spec\n\npackage specs\n\ntype Badge struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tUsers []User `gen:\"rel=many_to_many:User,via=user_badges\"`\n}\n")
+	plan = build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	for _, name := range []string{"service_list_badge_users.go", "service_link_badge_users.go", "service_unlink_badge_users.go"} {
+		if !exists(filepath.Join(dir, "internal", "users", name)) {
+			t.Errorf("missing scaffold %s", name)
+		}
+	}
+	if exists(servicePath) {
+		t.Error("service.go was recreated although Service is declared in another file")
+	}
+	if plan.Migration == nil {
+		t.Error("expected a migration for the new tables")
+	}
+}

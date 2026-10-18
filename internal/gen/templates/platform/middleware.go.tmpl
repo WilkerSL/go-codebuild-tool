@@ -3,11 +3,77 @@
 package httpx
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
 	"time"
 )
+
+const RequestIDHeader = "X-Request-ID"
+
+type requestIDKey struct{}
+
+func RequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get(RequestIDHeader)
+		if !validRequestID(id) {
+			id = newRequestID()
+		}
+		w.Header().Set(RequestIDHeader, id)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id)))
+	})
+}
+
+func RequestIDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDKey{}).(string)
+	return id
+}
+
+func newRequestID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func validRequestID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	for _, c := range id {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '-', c == '_', c == '.':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+type contextLogHandler struct {
+	slog.Handler
+}
+
+func NewLogHandler(h slog.Handler) slog.Handler {
+	return contextLogHandler{Handler: h}
+}
+
+func (h contextLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	if id := RequestIDFrom(ctx); id != "" {
+		record.AddAttrs(slog.String("request_id", id))
+	}
+	return h.Handler.Handle(ctx, record)
+}
+
+func (h contextLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return contextLogHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h contextLogHandler) WithGroup(name string) slog.Handler {
+	return contextLogHandler{Handler: h.Handler.WithGroup(name)}
+}
 
 func Recover(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +132,11 @@ func AccessLog(logger *slog.Logger, next http.Handler) http.Handler {
 		if status == 0 {
 			status = http.StatusOK
 		}
-		logger.LogAttrs(r.Context(), slog.LevelInfo, "request",
+		level := slog.LevelInfo
+		if r.URL.Path == LivenessPath || r.URL.Path == ReadinessPath {
+			level = slog.LevelDebug
+		}
+		logger.LogAttrs(r.Context(), level, "request",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", status),

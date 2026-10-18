@@ -28,6 +28,14 @@ From that file codebuild generates `GET/POST /users` and `GET/PUT/DELETE /users/
 - **Version-aware.** The `go` directive of your `go.mod` decides which language and library features the generated code uses. A Go 1.26 project never receives Go 1.27 symbols; `go vet`'s `stdversion` check passes.
 - **Your code stays yours.** `*_gen.go` files are regenerated; services, `main.go`, configuration and applied migrations are never overwritten.
 
+## What a generated project contains
+
+- **Layers per domain**: generated handlers call your `Service`, which calls the generated repository explicitly. Services are written once with one method per operation and never regenerated; when a spec change needs a new method, codebuild adds it in a new file instead of editing yours.
+- **Transactions**: repositories accept `*sql.DB` or `*sql.Tx` (`WithTx`), and `database.InTx` wraps a unit of work.
+- **HTTP**: `net/http` routing patterns, RFC 9457 problem details, validation with field errors, paginated and filtered lists, request IDs propagated to every log line, `/livez` and `/readyz` probes, timeouts and graceful shutdown with a drain delay.
+- **Data**: SQL written for one dialect, incremental migrations with an embedded migrator, repository tests against a real database.
+- **Delivery**: a multi-stage `Dockerfile` with a distroless non-root image and a GitHub Actions workflow that runs vet, tests with the race detector against a database service container and the image build.
+
 ## Install
 
 ```bash

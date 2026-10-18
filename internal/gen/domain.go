@@ -133,6 +133,7 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		}
 	}
 	buildTestPlan(dv, m)
+	buildServiceMethods(dv)
 	return dv
 }
 
@@ -149,7 +150,7 @@ func newRelationView(d dialect.Dialect, source, target *schema.Entity, r *schema
 		SourceIDType:  goBase(spk.Kind),
 		SourceParse:   pathParse(spk, source.PathParam()),
 		SourcePackage: source.Domain,
-		SourceHelper:  "new" + source.Name,
+		SourceHelper:  "fixture" + source.Name,
 		Method:        "List" + source.Name + r.Name,
 		Handler:       "list" + source.Name + r.Name,
 		Path:          source.Path() + "/{" + source.PathParam() + "}/" + r.PathSegment(),
@@ -262,8 +263,8 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 			Entity:    x,
 			Package:   x.Domain,
 			Qualifier: x.Domain + ".",
-			Func:      "new" + x.Name,
-			InputFunc: "new" + x.Name + "Input",
+			Func:      "fixture" + x.Name,
+			InputFunc: "fixture" + x.Name + "Input",
 		}
 		imports[x.Domain] = true
 		for _, f := range x.Fields {
@@ -274,7 +275,7 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 			case f.Ref != nil && !f.Nullable:
 				parent := m.Entity(f.Ref.Entity)
 				v := parentVar(f, dv.TestImportNames())
-				h.Parents = append(h.Parents, parentRef{Var: v, Helper: "new" + parent.Name})
+				h.Parents = append(h.Parents, parentRef{Var: v, Helper: "fixture" + parent.Name})
 				h.Fields = append(h.Fields, fmt.Sprintf("%s: %s.%s,", f.Name, v, parent.PK().Name))
 			case f.Ref != nil || f.Nullable:
 			default:
@@ -287,8 +288,8 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 		dv.TestImports = append(dv.TestImports, dv.Module+"/internal/"+name)
 	}
 	slices.Sort(dv.TestImports)
-	dv.OwnHelper = "new" + e.Name
-	dv.OwnInputHelper = "new" + e.Name + "Input"
+	dv.OwnHelper = "fixture" + e.Name
+	dv.OwnInputHelper = "fixture" + e.Name + "Input"
 	for _, fv := range dv.Fields {
 		f := fv.F
 		if dv.UniqueTestField == nil && f.Unique && !f.Nullable && f.Ref == nil && f.InCreate() {
@@ -357,4 +358,38 @@ func missingValue(f *schema.Field) string {
 		return fmt.Sprintf("%q", strings.Repeat("z", n))
 	}
 	return missingID(f)
+}
+
+func buildServiceMethods(dv *domainView) {
+	e := dv.Entity
+	pk := goBase(e.PK().Kind)
+	add := func(name, params, results, args string) {
+		dv.ServiceMethods = append(dv.ServiceMethods, serviceMethod{
+			Name:    name,
+			Params:  "ctx context.Context, " + params,
+			Results: results,
+			Args:    "ctx, " + args,
+			File:    "service_" + naming.Snake(name) + ".go",
+		})
+	}
+	add("List", "p ListParams", "(Page, error)", "p")
+	add("Get", "id "+pk, "("+e.Name+", error)", "id")
+	if !e.ReadOnly {
+		add("Create", "in CreateInput", "("+e.Name+", error)", "in")
+		if dv.HasUpdate {
+			add("Update", "id "+pk+", in UpdateInput", "("+e.Name+", error)", "id, in")
+		}
+		add("Delete", "id "+pk, "error", "id")
+	}
+	if !dv.Routes {
+		return
+	}
+	for _, rv := range dv.Relations {
+		source := rv.SourceIDVar + " " + rv.SourceIDType
+		add(rv.Method, source+", p ListParams", "(Page, error)", rv.SourceIDVar+", p")
+		if rv.Writable {
+			add(rv.LinkMethod, source+", id "+pk, "error", rv.SourceIDVar+", id")
+			add(rv.UnlinkMethod, source+", id "+pk, "error", rv.SourceIDVar+", id")
+		}
+	}
 }

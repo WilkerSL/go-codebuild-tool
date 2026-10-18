@@ -19,7 +19,7 @@ import (
 	"example.com/saas/migrations"
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func openFixtureDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -36,37 +36,37 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
-func newOrgInput(t *testing.T, ctx context.Context, db *sql.DB) orgs.CreateInput {
+func fixtureOrgInput(t *testing.T, ctx context.Context, db *sql.DB) orgs.CreateInput {
 	t.Helper()
 	return orgs.CreateInput{
 		Name:   "a",
-		Slug:   testString(16),
+		Slug:   fixtureString(16),
 		Plan:   orgs.PlanFree,
 		Active: true,
 	}
 }
 
-func newOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
+func fixtureOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
 	t.Helper()
-	item, err := orgs.NewRepository(db).Create(ctx, newOrgInput(t, ctx, db))
+	item, err := orgs.NewRepository(db).Create(ctx, fixtureOrgInput(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create Org: %v", err)
 	}
@@ -74,10 +74,10 @@ func newOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
 }
 
 func TestRepositoryCRUD(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := orgs.NewRepository(db)
-	created := newOrg(t, ctx, db)
+	created := fixtureOrg(t, ctx, db)
 	got, err := repo.Get(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -129,11 +129,50 @@ func TestRepositoryCRUD(t *testing.T) {
 	}
 }
 
-func TestRepositoryUniqueConflict(t *testing.T) {
-	db := openTestDB(t)
+func TestRepositoryWithTx(t *testing.T) {
+	db := openFixtureDB(t)
 	ctx := context.Background()
-	first := newOrg(t, ctx, db)
-	in := newOrgInput(t, ctx, db)
+	repo := orgs.NewRepository(db)
+	in := fixtureOrgInput(t, ctx, db)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	created, err := repo.WithTx(tx).Create(ctx, in)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("create in transaction: %v", err)
+	}
+	if _, err := repo.WithTx(tx).Get(ctx, created.ID); err != nil {
+		tx.Rollback()
+		t.Fatalf("get in transaction: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if _, err := repo.Get(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("rolled back row is visible: %v", err)
+	}
+	next := fixtureOrgInput(t, ctx, db)
+	var committed orgs.Org
+	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		committed, err = repo.WithTx(tx).Create(ctx, next)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("InTx: %v", err)
+	}
+	if _, err := repo.Get(ctx, committed.ID); err != nil {
+		t.Fatalf("committed row is missing: %v", err)
+	}
+}
+
+func TestRepositoryUniqueConflict(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	first := fixtureOrg(t, ctx, db)
+	in := fixtureOrgInput(t, ctx, db)
 	in.Slug = first.Slug
 	_, err := orgs.NewRepository(db).Create(ctx, in)
 	ce, ok := errors.AsType[*database.ConstraintError](err)
