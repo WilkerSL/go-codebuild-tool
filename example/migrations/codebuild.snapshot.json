@@ -146,8 +146,8 @@
           "kind": "int32"
         },
         {
-          "name": "price",
-          "kind": "float64"
+          "name": "price_cents",
+          "kind": "int64"
         },
         {
           "name": "available",

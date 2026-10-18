@@ -18,7 +18,7 @@ func (in CreateInput) Validate() error {
 	checkISBN(&errs, in.ISBN)
 	checkGenre(&errs, in.Genre)
 	checkPages(&errs, in.Pages)
-	checkPrice(&errs, in.Price)
+	checkPriceCents(&errs, in.PriceCents)
 	return errs.Err()
 }
 
@@ -31,7 +31,7 @@ func (in UpdateInput) Validate() error {
 	checkISBN(&errs, in.ISBN)
 	checkGenre(&errs, in.Genre)
 	checkPages(&errs, in.Pages)
-	checkPrice(&errs, in.Price)
+	checkPriceCents(&errs, in.PriceCents)
 	return errs.Err()
 }
 
@@ -84,9 +84,9 @@ func checkPages(errs *validation.Errors, v int32) {
 
 }
 
-func checkPrice(errs *validation.Errors, v float64) {
+func checkPriceCents(errs *validation.Errors, v int64) {
 	if v < 0 {
-		errs.Add("price", "must be at least 0")
+		errs.Add("priceCents", "must be at least 0")
 	}
 
 }

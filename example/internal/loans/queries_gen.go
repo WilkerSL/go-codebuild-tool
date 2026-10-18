@@ -61,10 +61,8 @@ RETURNING
 const updateQuery = `
 UPDATE "loans"
 SET
-    "book_id" = ?,
     "borrower" = ?,
-    "due_at" = ?,
-    "returned_at" = ?
+    "due_at" = ?
 WHERE "id" = ?
 RETURNING
     "id",

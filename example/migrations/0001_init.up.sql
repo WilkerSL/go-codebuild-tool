@@ -23,7 +23,7 @@ CREATE TABLE "books" (
     "isbn" TEXT NOT NULL,
     "genre" TEXT NOT NULL DEFAULT 'fiction',
     "pages" INTEGER NOT NULL,
-    "price" REAL NOT NULL,
+    "price_cents" INTEGER NOT NULL,
     "available" BOOLEAN NOT NULL DEFAULT 1,
     "published_at" DATETIME,
     "created_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),

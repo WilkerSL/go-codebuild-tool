@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/WilkerSL/go-codebuild-tool/example/internal/app"
-	"github.com/WilkerSL/go-codebuild-tool/example/internal/books"
 	"github.com/WilkerSL/go-codebuild-tool/example/internal/loans"
 	"github.com/WilkerSL/go-codebuild-tool/example/internal/platform/config"
 	"github.com/WilkerSL/go-codebuild-tool/example/internal/platform/database"
@@ -33,7 +32,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	logger := slog.New(httpx.NewLogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -50,22 +49,16 @@ func run() error {
 	defer db.Close()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if err := db.PingContext(pingCtx); err != nil {
-			httpx.WriteError(w, r, logger, err)
-			return
-		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
+	health := httpx.NewHealth(db, logger)
+	health.RegisterRoutes(mux)
 	app.RegisterRoutes(mux, db, logger)
-	loanService := loans.NewService(loans.NewRepository(db), books.NewRepository(db))
-	loans.RegisterRoutes(mux, loans.NewHandler(loanService, logger))
+	loanHandler := loans.NewHandler(loans.NewService(db), logger)
+	loans.RegisterRoutes(mux, loanHandler)
+	loans.RegisterReturnRoute(mux, loanHandler)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpx.Recover(logger, httpx.AccessLog(logger, mux)),
+		Handler:           httpx.RequestID(httpx.Recover(logger, httpx.AccessLog(logger, mux))),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
@@ -88,7 +81,9 @@ func run() error {
 	case <-ctx.Done():
 	}
 
-	logger.Info("shutting down")
+	logger.Info("shutting down", slog.Duration("delay", cfg.ShutdownDelay))
+	health.Drain()
+	time.Sleep(cfg.ShutdownDelay)
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {

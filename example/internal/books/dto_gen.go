@@ -16,8 +16,7 @@ type CreateInput struct {
 	ISBN         string
 	Genre        string
 	Pages        int32
-	Price        float64
-	Available    bool
+	PriceCents   int64
 	PublishedAt  *time.Time
 }
 
@@ -28,8 +27,7 @@ type UpdateInput struct {
 	ISBN         string
 	Genre        string
 	Pages        int32
-	Price        float64
-	Available    bool
+	PriceCents   int64
 	PublishedAt  *time.Time
 }
 
@@ -44,15 +42,14 @@ type ListParams struct {
 }
 
 type createRequest struct {
-	AuthorID     *string  `json:"authorId"`
-	LanguageCode *string  `json:"languageCode"`
-	Title        *string  `json:"title"`
-	ISBN         *string  `json:"isbn"`
-	Genre        *string  `json:"genre"`
-	Pages        *int32   `json:"pages"`
-	Price        *float64 `json:"price"`
-	Available    *bool    `json:"available"`
-	PublishedAt  *string  `json:"publishedAt"`
+	AuthorID     *string `json:"authorId"`
+	LanguageCode *string `json:"languageCode"`
+	Title        *string `json:"title"`
+	ISBN         *string `json:"isbn"`
+	Genre        *string `json:"genre"`
+	Pages        *int32  `json:"pages"`
+	PriceCents   *int64  `json:"priceCents"`
+	PublishedAt  *string `json:"publishedAt"`
 }
 
 func (req createRequest) input() (CreateInput, error) {
@@ -89,13 +86,8 @@ func (req createRequest) input() (CreateInput, error) {
 		in.Pages = *req.Pages
 	}
 
-	if req.Price != nil {
-		in.Price = *req.Price
-	}
-
-	in.Available = true
-	if req.Available != nil {
-		in.Available = *req.Available
+	if req.PriceCents != nil {
+		in.PriceCents = *req.PriceCents
 	}
 
 	if req.PublishedAt != nil {
@@ -110,15 +102,14 @@ func (req createRequest) input() (CreateInput, error) {
 }
 
 type updateRequest struct {
-	AuthorID     *string  `json:"authorId"`
-	LanguageCode *string  `json:"languageCode"`
-	Title        *string  `json:"title"`
-	ISBN         *string  `json:"isbn"`
-	Genre        *string  `json:"genre"`
-	Pages        *int32   `json:"pages"`
-	Price        *float64 `json:"price"`
-	Available    *bool    `json:"available"`
-	PublishedAt  *string  `json:"publishedAt"`
+	AuthorID     *string `json:"authorId"`
+	LanguageCode *string `json:"languageCode"`
+	Title        *string `json:"title"`
+	ISBN         *string `json:"isbn"`
+	Genre        *string `json:"genre"`
+	Pages        *int32  `json:"pages"`
+	PriceCents   *int64  `json:"priceCents"`
+	PublishedAt  *string `json:"publishedAt"`
 }
 
 func (req updateRequest) input() (UpdateInput, error) {
@@ -155,13 +146,8 @@ func (req updateRequest) input() (UpdateInput, error) {
 		in.Pages = *req.Pages
 	}
 
-	if req.Price != nil {
-		in.Price = *req.Price
-	}
-
-	in.Available = true
-	if req.Available != nil {
-		in.Available = *req.Available
+	if req.PriceCents != nil {
+		in.PriceCents = *req.PriceCents
 	}
 
 	if req.PublishedAt != nil {

@@ -9,9 +9,9 @@ import (
 
 type Loan struct {
 	ID         int64      `gen:"pk,auto"`
-	BookID     uuid.UUID  `gen:"rel=belongs_to:Book,ondelete=cascade"`
+	BookID     uuid.UUID  `gen:"rel=belongs_to:Book,ondelete=cascade,omit=update"`
 	Borrower   string     `gen:"required,email,max=254,index"`
 	DueAt      time.Time  `gen:"required"`
-	ReturnedAt *time.Time `gen:"omit=create"`
+	ReturnedAt *time.Time `gen:"omit=create|update"`
 	CreatedAt  time.Time  `gen:"auto=create"`
 }

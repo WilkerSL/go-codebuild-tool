@@ -19,7 +19,7 @@ import (
 	"github.com/WilkerSL/go-codebuild-tool/example/migrations"
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func openFixtureDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -36,34 +36,34 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
-func newAuthorInput(t *testing.T, ctx context.Context, db *sql.DB) authors.CreateInput {
+func fixtureAuthorInput(t *testing.T, ctx context.Context, db *sql.DB) authors.CreateInput {
 	t.Helper()
 	return authors.CreateInput{
 		Name: "a",
 	}
 }
 
-func newAuthor(t *testing.T, ctx context.Context, db *sql.DB) authors.Author {
+func fixtureAuthor(t *testing.T, ctx context.Context, db *sql.DB) authors.Author {
 	t.Helper()
-	item, err := authors.NewRepository(db).Create(ctx, newAuthorInput(t, ctx, db))
+	item, err := authors.NewRepository(db).Create(ctx, fixtureAuthorInput(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create Author: %v", err)
 	}
@@ -71,10 +71,10 @@ func newAuthor(t *testing.T, ctx context.Context, db *sql.DB) authors.Author {
 }
 
 func TestRepositoryCRUD(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := authors.NewRepository(db)
-	created := newAuthor(t, ctx, db)
+	created := fixtureAuthor(t, ctx, db)
 	got, err := repo.Get(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -121,5 +121,44 @@ func TestRepositoryCRUD(t *testing.T) {
 	}
 	if _, err := repo.Get(ctx, uuid.New()); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get missing: %v", err)
+	}
+}
+
+func TestRepositoryWithTx(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	repo := authors.NewRepository(db)
+	in := fixtureAuthorInput(t, ctx, db)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	created, err := repo.WithTx(tx).Create(ctx, in)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("create in transaction: %v", err)
+	}
+	if _, err := repo.WithTx(tx).Get(ctx, created.ID); err != nil {
+		tx.Rollback()
+		t.Fatalf("get in transaction: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if _, err := repo.Get(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("rolled back row is visible: %v", err)
+	}
+	next := fixtureAuthorInput(t, ctx, db)
+	var committed authors.Author
+	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		committed, err = repo.WithTx(tx).Create(ctx, next)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("InTx: %v", err)
+	}
+	if _, err := repo.Get(ctx, committed.ID); err != nil {
+		t.Fatalf("committed row is missing: %v", err)
 	}
 }

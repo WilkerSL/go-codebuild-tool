@@ -16,8 +16,8 @@ type Book struct {
 	ISBN         string    `gen:"required,unique,min=10,max=13"`
 	Genre        string    `gen:"enum=fiction|nonfiction|science|history,default=fiction,index"`
 	Pages        int32     `gen:"min=1,max=20000"`
-	Price        float64   `gen:"min=0"`
-	Available    bool      `gen:"default=true,index"`
+	PriceCents   int64     `gen:"min=0"`
+	Available    bool      `gen:"default=true,index,omit=create|update"`
 	PublishedAt  *time.Time
 	Tags         []Tag     `gen:"rel=many_to_many:Tag,via=book_tags"`
 	Loans        []Loan    `gen:"rel=has_many:Loan"`

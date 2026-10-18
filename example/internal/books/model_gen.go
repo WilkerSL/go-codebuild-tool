@@ -22,7 +22,7 @@ type Book struct {
 	ISBN         string     `json:"isbn"`
 	Genre        string     `json:"genre"`
 	Pages        int32      `json:"pages"`
-	Price        float64    `json:"price"`
+	PriceCents   int64      `json:"priceCents"`
 	Available    bool       `json:"available"`
 	PublishedAt  *time.Time `json:"publishedAt"`
 	CreatedAt    time.Time  `json:"createdAt"`

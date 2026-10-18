@@ -14,11 +14,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanLoan(scan func(dest ...any) error) (Loan, error) {
@@ -66,7 +70,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Loan, error) {
 }
 
 func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (Loan, error) {
-	item, err := scanLoan(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.BookID), in.Borrower, database.TimeArg(in.DueAt), database.NullTimeArg(in.ReturnedAt), id).Scan)
+	item, err := scanLoan(r.db.QueryRowContext(ctx, updateQuery, in.Borrower, database.TimeArg(in.DueAt), id).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Loan{}, database.ErrNotFound
 	}

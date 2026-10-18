@@ -14,11 +14,15 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db database.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db database.DBTX) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 
 func scanBook(scan func(dest ...any) error) (Book, error) {
@@ -31,7 +35,7 @@ func scanBook(scan func(dest ...any) error) (Book, error) {
 		&item.ISBN,
 		&item.Genre,
 		&item.Pages,
-		&item.Price,
+		&item.PriceCents,
 		&item.Available,
 		database.ScanNullTime(&item.PublishedAt),
 		database.ScanTime(&item.CreatedAt),
@@ -65,7 +69,7 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Book, error) {
 	id := uuid.NewV7()
-	item, err := scanBook(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.AuthorID), in.LanguageCode, in.Title, in.ISBN, in.Genre, in.Pages, in.Price, in.Available, database.NullTimeArg(in.PublishedAt)).Scan)
+	item, err := scanBook(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.AuthorID), in.LanguageCode, in.Title, in.ISBN, in.Genre, in.Pages, in.PriceCents, database.NullTimeArg(in.PublishedAt)).Scan)
 	if err != nil {
 		return Book{}, writeError("create book", err)
 	}
@@ -73,7 +77,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Book, error) {
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Book, error) {
-	item, err := scanBook(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.AuthorID), in.LanguageCode, in.Title, in.ISBN, in.Genre, in.Pages, in.Price, in.Available, database.NullTimeArg(in.PublishedAt), database.UUIDArg(id)).Scan)
+	item, err := scanBook(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.AuthorID), in.LanguageCode, in.Title, in.ISBN, in.Genre, in.Pages, in.PriceCents, database.NullTimeArg(in.PublishedAt), database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Book{}, database.ErrNotFound
 	}

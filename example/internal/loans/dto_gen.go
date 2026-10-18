@@ -16,10 +16,8 @@ type CreateInput struct {
 }
 
 type UpdateInput struct {
-	BookID     uuid.UUID
-	Borrower   string
-	DueAt      time.Time
-	ReturnedAt *time.Time
+	Borrower string
+	DueAt    time.Time
 }
 
 type ListParams struct {
@@ -64,23 +62,13 @@ func (req createRequest) input() (CreateInput, error) {
 }
 
 type updateRequest struct {
-	BookID     *string `json:"bookId"`
-	Borrower   *string `json:"borrower"`
-	DueAt      *string `json:"dueAt"`
-	ReturnedAt *string `json:"returnedAt"`
+	Borrower *string `json:"borrower"`
+	DueAt    *string `json:"dueAt"`
 }
 
 func (req updateRequest) input() (UpdateInput, error) {
 	var in UpdateInput
 	var errs validation.Errors
-	if req.BookID == nil {
-		errs.Add("bookId", "is required")
-	} else if v, err := uuid.Parse(*req.BookID); err != nil {
-		errs.Add("bookId", "must be a valid UUID")
-	} else {
-		in.BookID = v
-	}
-
 	if req.Borrower == nil {
 		errs.Add("borrower", "is required")
 	} else {
@@ -93,14 +81,6 @@ func (req updateRequest) input() (UpdateInput, error) {
 		errs.Add("dueAt", "must be an RFC 3339 timestamp")
 	} else {
 		in.DueAt = v
-	}
-
-	if req.ReturnedAt != nil {
-		if v, err := time.Parse(time.RFC3339Nano, *req.ReturnedAt); err != nil {
-			errs.Add("returnedAt", "must be an RFC 3339 timestamp")
-		} else {
-			in.ReturnedAt = &v
-		}
 	}
 
 	return in, errs.Err()

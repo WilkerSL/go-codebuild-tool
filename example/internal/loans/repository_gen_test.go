@@ -23,7 +23,7 @@ import (
 	"github.com/WilkerSL/go-codebuild-tool/example/migrations"
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func openFixtureDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -40,76 +40,75 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func testString(n int) string {
+func fixtureString(n int) string {
 	b := make([]byte, (n+1)/2)
 	rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }
 
-func testEmail(limit int) string {
+func fixtureEmail(limit int) string {
 	domain := "@example.com"
 	if limit < len(domain)+4 {
 		domain = "@x.io"
 	}
-	return testString(max(1, min(16, limit-len(domain)))) + domain
+	return fixtureString(max(1, min(16, limit-len(domain)))) + domain
 }
 
-func testInt[T int16 | int32 | int | int64](lo, hi int64) T {
+func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
-func newAuthorInput(t *testing.T, ctx context.Context, db *sql.DB) authors.CreateInput {
+func fixtureAuthorInput(t *testing.T, ctx context.Context, db *sql.DB) authors.CreateInput {
 	t.Helper()
 	return authors.CreateInput{
 		Name: "a",
 	}
 }
 
-func newAuthor(t *testing.T, ctx context.Context, db *sql.DB) authors.Author {
+func fixtureAuthor(t *testing.T, ctx context.Context, db *sql.DB) authors.Author {
 	t.Helper()
-	item, err := authors.NewRepository(db).Create(ctx, newAuthorInput(t, ctx, db))
+	item, err := authors.NewRepository(db).Create(ctx, fixtureAuthorInput(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create Author: %v", err)
 	}
 	return item
 }
 
-func newBookInput(t *testing.T, ctx context.Context, db *sql.DB) books.CreateInput {
+func fixtureBookInput(t *testing.T, ctx context.Context, db *sql.DB) books.CreateInput {
 	t.Helper()
-	author := newAuthor(t, ctx, db)
+	author := fixtureAuthor(t, ctx, db)
 	return books.CreateInput{
-		AuthorID:  author.ID,
-		Title:     "a",
-		ISBN:      testString(13),
-		Genre:     books.GenreFiction,
-		Pages:     1,
-		Price:     0,
-		Available: true,
+		AuthorID:   author.ID,
+		Title:      "a",
+		ISBN:       fixtureString(13),
+		Genre:      books.GenreFiction,
+		Pages:      1,
+		PriceCents: 0,
 	}
 }
 
-func newBook(t *testing.T, ctx context.Context, db *sql.DB) books.Book {
+func fixtureBook(t *testing.T, ctx context.Context, db *sql.DB) books.Book {
 	t.Helper()
-	item, err := books.NewRepository(db).Create(ctx, newBookInput(t, ctx, db))
+	item, err := books.NewRepository(db).Create(ctx, fixtureBookInput(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create Book: %v", err)
 	}
 	return item
 }
 
-func newLoanInput(t *testing.T, ctx context.Context, db *sql.DB) loans.CreateInput {
+func fixtureLoanInput(t *testing.T, ctx context.Context, db *sql.DB) loans.CreateInput {
 	t.Helper()
-	book := newBook(t, ctx, db)
+	book := fixtureBook(t, ctx, db)
 	return loans.CreateInput{
 		BookID:   book.ID,
-		Borrower: testEmail(254),
+		Borrower: fixtureEmail(254),
 		DueAt:    time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC),
 	}
 }
 
-func newLoan(t *testing.T, ctx context.Context, db *sql.DB) loans.Loan {
+func fixtureLoan(t *testing.T, ctx context.Context, db *sql.DB) loans.Loan {
 	t.Helper()
-	item, err := loans.NewRepository(db).Create(ctx, newLoanInput(t, ctx, db))
+	item, err := loans.NewRepository(db).Create(ctx, fixtureLoanInput(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create Loan: %v", err)
 	}
@@ -117,10 +116,10 @@ func newLoan(t *testing.T, ctx context.Context, db *sql.DB) loans.Loan {
 }
 
 func TestRepositoryCRUD(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := loans.NewRepository(db)
-	created := newLoan(t, ctx, db)
+	created := fixtureLoan(t, ctx, db)
 	got, err := repo.Get(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -139,10 +138,8 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
 	}
 	updated, err := repo.Update(ctx, created.ID, loans.UpdateInput{
-		BookID:     created.BookID,
-		Borrower:   testEmail(254),
-		DueAt:      time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC),
-		ReturnedAt: created.ReturnedAt,
+		Borrower: fixtureEmail(254),
+		DueAt:    time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -151,10 +148,8 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("update returned %v, want %v", updated.ID, created.ID)
 	}
 	if _, err := repo.Update(ctx, -1, loans.UpdateInput{
-		BookID:     created.BookID,
-		Borrower:   testEmail(254),
-		DueAt:      time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC),
-		ReturnedAt: created.ReturnedAt,
+		Borrower: fixtureEmail(254),
+		DueAt:    time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC),
 	}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("update missing: %v", err)
 	}
@@ -172,10 +167,49 @@ func TestRepositoryCRUD(t *testing.T) {
 	}
 }
 
-func TestRepositoryMissingReference(t *testing.T) {
-	db := openTestDB(t)
+func TestRepositoryWithTx(t *testing.T) {
+	db := openFixtureDB(t)
 	ctx := context.Background()
-	in := newLoanInput(t, ctx, db)
+	repo := loans.NewRepository(db)
+	in := fixtureLoanInput(t, ctx, db)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	created, err := repo.WithTx(tx).Create(ctx, in)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("create in transaction: %v", err)
+	}
+	if _, err := repo.WithTx(tx).Get(ctx, created.ID); err != nil {
+		tx.Rollback()
+		t.Fatalf("get in transaction: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if _, err := repo.Get(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("rolled back row is visible: %v", err)
+	}
+	next := fixtureLoanInput(t, ctx, db)
+	var committed loans.Loan
+	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
+		var err error
+		committed, err = repo.WithTx(tx).Create(ctx, next)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("InTx: %v", err)
+	}
+	if _, err := repo.Get(ctx, committed.ID); err != nil {
+		t.Fatalf("committed row is missing: %v", err)
+	}
+}
+
+func TestRepositoryMissingReference(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	in := fixtureLoanInput(t, ctx, db)
 	in.BookID = uuid.New()
 	_, err := loans.NewRepository(db).Create(ctx, in)
 	errs, ok := errors.AsType[validation.Errors](err)
@@ -185,10 +219,10 @@ func TestRepositoryMissingReference(t *testing.T) {
 }
 
 func TestRepositoryListBookLoans(t *testing.T) {
-	db := openTestDB(t)
+	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := loans.NewRepository(db)
-	in := newLoanInput(t, ctx, db)
+	in := fixtureLoanInput(t, ctx, db)
 	created, err := repo.Create(ctx, in)
 	if err != nil {
 		t.Fatalf("create: %v", err)
