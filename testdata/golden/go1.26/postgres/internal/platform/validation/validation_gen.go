@@ -3,6 +3,7 @@
 package validation
 
 import (
+	"errors"
 	"net/mail"
 	"slices"
 	"strings"
@@ -36,6 +37,26 @@ func (e Errors) Err() error {
 		return nil
 	}
 	return e
+}
+
+func Merge(errs ...error) error {
+	var out Errors
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		fields, ok := errors.AsType[Errors](err)
+		if !ok {
+			return err
+		}
+		reported := slices.Clone(out)
+		for _, fe := range fields {
+			if !reported.Has(fe.Field) {
+				out = append(out, fe)
+			}
+		}
+	}
+	return out.Err()
 }
 
 func Email(s string) bool {

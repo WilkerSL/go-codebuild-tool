@@ -38,3 +38,19 @@ func TestEmail(t *testing.T) {
 		}
 	}
 }
+
+func TestMerge(t *testing.T) {
+	parse := Errors{ {Field: "id", Message: "must be a valid UUID"}, {Field: "name", Message: "is required"} }
+	rules := Errors{ {Field: "name", Message: "must not be empty"}, {Field: "email", Message: "must be a valid email address"}, {Field: "email", Message: "must be at most 5 characters"} }
+	merged, ok := errors.AsType[Errors](Merge(parse, nil, rules))
+	if !ok || len(merged) != 4 || merged[1].Message != "is required" || !merged.Has("email") {
+		t.Fatalf("Merge = %v", merged)
+	}
+	if Merge(nil, Errors{}) != nil {
+		t.Fatal("Merge of empty errors must be nil")
+	}
+	other := errors.New("boom")
+	if !errors.Is(Merge(parse, other), other) {
+		t.Fatal("Merge must return non-validation errors")
+	}
+}

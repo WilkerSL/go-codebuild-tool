@@ -72,9 +72,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in, err := req.input()
-	if err == nil {
-		err = in.Validate()
-	}
+	err = validation.Merge(err, in.Validate())
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -100,9 +98,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in, err := req.input()
-	if err == nil {
-		err = in.Validate()
-	}
+	err = validation.Merge(err, in.Validate())
 	if err != nil {
 		h.fail(w, r, err)
 		return
