@@ -43,31 +43,6 @@ jobs:
       - name: Unit tests
         run: go test -short -count=1 ./...
 
-  example:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - dir: examples/saas
-            go: "1.26.x"
-          - dir: example
-            go: "1.27.x"
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: ${{ matrix.go }}
-      - name: Example matches its specs
-        run: go run ./cmd/codebuild plan --exit-code --dir ${{ matrix.dir }}
-      - name: Build, vet and test the example
-        working-directory: ${{ matrix.dir }}
-        run: |
-          go build ./...
-          go vet ./...
-          test -z "$(gofmt -l .)"
-          go test -count=1 ./...
-
   end-to-end:
     needs: test
     strategy:

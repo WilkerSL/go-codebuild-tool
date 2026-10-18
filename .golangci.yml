@@ -28,8 +28,6 @@ linters:
   exclusions:
     paths:
       - testdata
-      - examples
-      - example
     rules:
       - path: _test\.go
         linters:
@@ -42,5 +40,3 @@ formatters:
   exclusions:
     paths:
       - testdata
-      - examples
-      - example

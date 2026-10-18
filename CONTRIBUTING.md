@@ -28,12 +28,6 @@ go test ./internal/spec -update
 git diff testdata docs/spec-reference.md
 ```
 
-Keep the example in sync:
-
-```bash
-go run ./cmd/codebuild build --dir examples/saas
-```
-
 ## End-to-end tests
 
 The end-to-end test downloads modules and builds generated projects, so it is skipped with `-short`. Start the databases you want to test against:

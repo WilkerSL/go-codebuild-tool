@@ -20,7 +20,6 @@ All notable changes to this project are documented in this file. The format foll
 - File ownership rules: regenerated `*_gen.go` files, user files created once, refusal to overwrite generated files whose header was removed, stale file detection and `--prune`.
 - CLI commands `build`, `check`, `plan`, `mcp` and `version` with `--json`, `--upgrade-go` and documented exit codes.
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
-- Examples: `examples/saas` on PostgreSQL and Go 1.26, and `example/`, a library API on SQLite and Go 1.27 with transactions, a custom endpoint, manual wiring, a seed migration and tests of business rules.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
 [Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.1.0...HEAD
