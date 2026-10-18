@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/WilkerSL/go-codebuild-tool/internal/cli"
+	"github.com/WilkerSL/go-codebuild-tool/internal/mcpserver"
 )
 
 var version = ""
@@ -29,6 +30,7 @@ func main() {
 		Stderr:      os.Stderr,
 		Interactive: cli.IsTerminal(os.Stdin),
 		Version:     buildVersion(),
+		ServeMCP:    mcpserver.Serve(buildVersion()),
 	}
 	code := app.Run(ctx, os.Args[1:])
 	stop()

@@ -153,7 +153,7 @@ type planner struct {
 }
 
 func BuildPlan(ctx context.Context, opts Options) (*Plan, error) {
-	p := &planner{opts: opts, plan: &Plan{Starter: opts.Starter}}
+	p := &planner{opts: opts, plan: &Plan{Starter: opts.Starter, Domains: []string{}, Files: []FileChange{}}}
 	steps := []func(context.Context) error{
 		p.locate, p.loadConfig, p.resolveGo, p.loadSpecs, p.planMigrations, p.generate, p.planGoMod, p.classify,
 	}
