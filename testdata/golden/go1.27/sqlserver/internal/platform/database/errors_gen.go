@@ -26,6 +26,7 @@ const (
 type ConstraintError struct {
 	Kind       ConstraintKind
 	Constraint string
+	Message    string
 	Columns    []string
 	PrimaryKey bool
 	Field      string
@@ -48,7 +49,15 @@ func (e *ConstraintError) Unwrap() error {
 }
 
 func (e *ConstraintError) Matches(constraint, column string) bool {
-	return strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column)
+	if strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column) {
+		return true
+	}
+	for _, quote := range []string{"'", "\"", "`"} {
+		if strings.Contains(e.Message, quote+constraint+quote) || strings.Contains(e.Message, "."+constraint+quote) {
+			return true
+		}
+	}
+	return false
 }
 
 func Constraint(err error) (*ConstraintError, bool) {
@@ -58,24 +67,11 @@ func Constraint(err error) (*ConstraintError, bool) {
 	}
 	switch msErr.Number {
 	case 2601, 2627:
-		return &ConstraintError{Kind: UniqueViolation, Constraint: quotedConstraint(msErr.Message), Err: err}, true
+		return &ConstraintError{Kind: UniqueViolation, Message: msErr.Message, Err: err}, true
 	case 547:
-		if strings.Contains(msErr.Message, "FOREIGN KEY") || strings.Contains(msErr.Message, "REFERENCE") {
-			return &ConstraintError{Kind: ForeignKeyViolation, Constraint: quotedConstraint(msErr.Message), Err: err}, true
+		if strings.Contains(msErr.Message, "FOREIGN KEY") || strings.Contains(msErr.Message, "REFERENCE") || strings.Contains(msErr.Message, "\"fk_") {
+			return &ConstraintError{Kind: ForeignKeyViolation, Message: msErr.Message, Err: err}, true
 		}
 	}
 	return nil, false
-}
-
-func quotedConstraint(message string) string {
-	for _, marker := range []string{"constraint '", "constraint \"", "unique index '"} {
-		_, rest, ok := strings.Cut(message, marker)
-		if !ok {
-			continue
-		}
-		if end := strings.IndexAny(rest, "'\""); end >= 0 {
-			return rest[:end]
-		}
-	}
-	return ""
 }

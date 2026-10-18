@@ -26,6 +26,7 @@ const (
 type ConstraintError struct {
 	Kind       ConstraintKind
 	Constraint string
+	Message    string
 	Columns    []string
 	PrimaryKey bool
 	Field      string
@@ -48,7 +49,15 @@ func (e *ConstraintError) Unwrap() error {
 }
 
 func (e *ConstraintError) Matches(constraint, column string) bool {
-	return strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column)
+	if strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column) {
+		return true
+	}
+	for _, quote := range []string{"'", "\"", "`"} {
+		if strings.Contains(e.Message, quote+constraint+quote) || strings.Contains(e.Message, "."+constraint+quote) {
+			return true
+		}
+	}
+	return false
 }
 
 func Constraint(err error) (*ConstraintError, bool) {
@@ -58,31 +67,10 @@ func Constraint(err error) (*ConstraintError, bool) {
 	}
 	switch myErr.Number {
 	case 1062:
-		key := duplicateKey(myErr.Message)
-		return &ConstraintError{Kind: UniqueViolation, Constraint: key, PrimaryKey: key == "PRIMARY", Err: err}, true
+		primary := strings.Contains(myErr.Message, ".PRIMARY'") || strings.Contains(myErr.Message, "'PRIMARY'")
+		return &ConstraintError{Kind: UniqueViolation, Message: myErr.Message, PrimaryKey: primary, Err: err}, true
 	case 1451, 1452:
-		return &ConstraintError{Kind: ForeignKeyViolation, Constraint: foreignKeyName(myErr.Message), Err: err}, true
+		return &ConstraintError{Kind: ForeignKeyViolation, Message: myErr.Message, Err: err}, true
 	}
 	return nil, false
-}
-
-func duplicateKey(message string) string {
-	i := strings.LastIndex(message, " for key '")
-	if i < 0 {
-		return ""
-	}
-	key := strings.TrimSuffix(message[i+len(" for key '"):], "'")
-	if dot := strings.LastIndex(key, "."); dot >= 0 {
-		key = key[dot+1:]
-	}
-	return key
-}
-
-func foreignKeyName(message string) string {
-	_, rest, ok := strings.Cut(message, "CONSTRAINT `")
-	if !ok {
-		return ""
-	}
-	name, _, _ := strings.Cut(rest, "`")
-	return name
 }

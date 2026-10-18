@@ -1,7 +1,6 @@
 package goversion
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"go/version"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -31,9 +29,9 @@ func NormalizeGoVersion(goversion string) (string, error) {
 }
 
 func DetectToolchain(ctx context.Context) (Toolchain, error) {
-	cmd := exec.CommandContext(ctx, "go", "env", "-json", "GOVERSION", "GOENV", "GOROOT", "GOEXPERIMENT")
+	cmd := exec.CommandContext(ctx, "go", "env", "-json", "GOVERSION", "GOTOOLCHAIN", "GOEXPERIMENT")
 	cmd.Dir = os.TempDir()
-	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOFLAGS=")
+	cmd.Env = append(os.Environ(), "GOFLAGS=")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -42,8 +40,7 @@ func DetectToolchain(ctx context.Context) (Toolchain, error) {
 	}
 	var env struct {
 		GOVERSION    string
-		GOENV        string
-		GOROOT       string
+		GOTOOLCHAIN  string
 		GOEXPERIMENT string
 	}
 	if err := json.Unmarshal(out, &env); err != nil {
@@ -53,36 +50,11 @@ func DetectToolchain(ctx context.Context) (Toolchain, error) {
 	if err != nil {
 		return Toolchain{}, err
 	}
-	setting := os.Getenv("GOTOOLCHAIN")
-	if setting == "" {
-		setting = readEnvFile(env.GOENV, "GOTOOLCHAIN")
-	}
-	if setting == "" && env.GOROOT != "" {
-		setting = readEnvFile(filepath.Join(env.GOROOT, "go.env"), "GOTOOLCHAIN")
-	}
+	setting := env.GOTOOLCHAIN
 	if setting == "" {
 		setting = "local"
 	}
 	return Toolchain{Local: "go" + local, Setting: setting, Experiment: env.GOEXPERIMENT}, nil
-}
-
-func readEnvFile(path, key string) string {
-	if path == "" || path == "off" {
-		return ""
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	value := ""
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if k, v, ok := strings.Cut(line, "="); ok && strings.TrimSpace(k) == key {
-			value = strings.TrimSpace(v)
-		}
-	}
-	return value
 }
 
 type ToolchainCheck struct {

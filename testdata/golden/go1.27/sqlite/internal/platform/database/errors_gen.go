@@ -27,6 +27,7 @@ const (
 type ConstraintError struct {
 	Kind       ConstraintKind
 	Constraint string
+	Message    string
 	Columns    []string
 	PrimaryKey bool
 	Field      string
@@ -49,7 +50,15 @@ func (e *ConstraintError) Unwrap() error {
 }
 
 func (e *ConstraintError) Matches(constraint, column string) bool {
-	return strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column)
+	if strings.EqualFold(e.Constraint, constraint) || slices.Contains(e.Columns, column) {
+		return true
+	}
+	for _, quote := range []string{"'", "\"", "`"} {
+		if strings.Contains(e.Message, quote+constraint+quote) || strings.Contains(e.Message, "."+constraint+quote) {
+			return true
+		}
+	}
+	return false
 }
 
 func Constraint(err error) (*ConstraintError, bool) {

@@ -211,17 +211,3 @@ func TestDetectToolchain(t *testing.T) {
 		t.Errorf("unexpected toolchain: %+v", tc)
 	}
 }
-
-func TestReadEnvFile(t *testing.T) {
-	dir := t.TempDir()
-	path := dir + "/go.env"
-	if err := writeFile(path, "GOPROXY=https://proxy.golang.org\nGOTOOLCHAIN=auto\n"); err != nil {
-		t.Fatal(err)
-	}
-	if got := readEnvFile(path, "GOTOOLCHAIN"); got != "auto" {
-		t.Errorf("readEnvFile = %q", got)
-	}
-	if got := readEnvFile(dir+"/missing", "GOTOOLCHAIN"); got != "" {
-		t.Errorf("readEnvFile(missing) = %q", got)
-	}
-}
