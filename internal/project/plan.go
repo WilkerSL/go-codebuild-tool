@@ -505,7 +505,9 @@ func (p *planner) generate(context.Context) error {
 		}
 		p.add(f.Path, f.Content, owner)
 	}
-	p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)
+	if !p.cfgExisted || p.plan.PreviousDialect != "" {
+		p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)
+	}
 	return nil
 }
 
@@ -621,7 +623,10 @@ func (p *planner) classify(context.Context) error {
 				return nil
 			}
 			content, err := os.ReadFile(full)
-			if err != nil || !hasHeader(content) {
+			if err != nil {
+				return err
+			}
+			if !hasHeader(content) {
 				return nil
 			}
 			change := FileChange{Path: rel, Owner: OwnerGenerated, old: normalize(content), Action: ActionStale,

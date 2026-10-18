@@ -16,13 +16,6 @@ func (rc renderContext) afterColumn(table, column string) *schema.Column {
 	return nil
 }
 
-func (rc renderContext) beforeColumn(table, column string) *schema.Column {
-	if t := rc.before.Table(table); t != nil {
-		return t.Column(column)
-	}
-	return nil
-}
-
 type ddl interface {
 	createTable(rc renderContext, c schema.Change) []string
 	dropTable(rc renderContext, c schema.Change) []string
