@@ -552,7 +552,7 @@ func (p *planner) planGoMod(context.Context) error {
 		data = modfile.Format(f.Syntax)
 	}
 	p.add("go.mod", data, OwnerGoMod)
-	if p.plan.Target.Caps.StdUUID && slices.ContainsFunc(f.Require, func(r *modfile.Require) bool { return r.Mod.Path == googleUUIDModule }) {
+	if p.plan.Target.Caps.StdUUID && slices.ContainsFunc(f.Require, func(r *modfile.Require) bool { return r.Mod.Path == googleUUIDModule && !r.Indirect }) {
 		p.plan.Warnings = append(p.plan.Warnings, "the generated code uses the standard library uuid package; github.com/google/uuid stays in go.mod until go mod tidy removes it")
 	}
 	return nil
@@ -662,8 +662,9 @@ func (p *planner) nextSteps() {
 	if p.plan.Migration != nil {
 		steps = append(steps, "go run ./cmd/migrate up")
 	}
+	mainGo, _ := os.ReadFile(filepath.Join(p.root, "cmd", "api", "main.go"))
 	for _, name := range p.cfg.ManualWiring {
-		if slices.Contains(p.plan.Domains, name) {
+		if slices.Contains(p.plan.Domains, name) && !bytes.Contains(mainGo, []byte(name+".RegisterRoutes(")) {
 			steps = append(steps, fmt.Sprintf("wire %s by hand in cmd/api/main.go: %s.RegisterRoutes(mux, %s.NewHandler(%s.NewService(%s.NewRepository(db)), logger))", name, name, name, name, name))
 		}
 	}

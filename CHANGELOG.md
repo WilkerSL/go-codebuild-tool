@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `example/`: a library API on SQLite and Go 1.27 that runs without a database server and shows service rules, manual wiring and a hand-written seed migration.
+
+### Changed
+
+- The hint to wire a `manualWiring` domain by hand is no longer printed once `cmd/api/main.go` registers its routes.
+
 ## [0.1.0] - 2026-10-18
 
 ### Added

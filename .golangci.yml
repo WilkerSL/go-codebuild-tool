@@ -29,6 +29,7 @@ linters:
     paths:
       - testdata
       - examples
+      - example
     rules:
       - path: _test\.go
         linters:
@@ -42,3 +43,4 @@ formatters:
     paths:
       - testdata
       - examples
+      - example

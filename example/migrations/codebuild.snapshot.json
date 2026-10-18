@@ -1,0 +1,382 @@
+{
+  "version": 1,
+  "dialect": "sqlite",
+  "tables": [
+    {
+      "name": "authors",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "email",
+          "kind": "string",
+          "size": 254,
+          "nullable": true
+        },
+        {
+          "name": "bio",
+          "kind": "string",
+          "size": 2000,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_authors",
+        "columns": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "book_tags",
+      "columns": [
+        {
+          "name": "book_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "tag_id",
+          "kind": "int64"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_book_tags",
+        "columns": [
+          "book_id",
+          "tag_id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_book_tags_tag_id",
+          "columns": [
+            "tag_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_book_tags_book_id",
+          "columns": [
+            "book_id"
+          ],
+          "refTable": "books",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "fk_book_tags_tag_id",
+          "columns": [
+            "tag_id"
+          ],
+          "refTable": "tags",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "books",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "author_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "language_code",
+          "kind": "string",
+          "size": 2,
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "kind": "string",
+          "size": 200
+        },
+        {
+          "name": "isbn",
+          "kind": "string",
+          "size": 13
+        },
+        {
+          "name": "genre",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "fiction"
+          }
+        },
+        {
+          "name": "pages",
+          "kind": "int32"
+        },
+        {
+          "name": "price",
+          "kind": "float64"
+        },
+        {
+          "name": "available",
+          "kind": "bool",
+          "default": {
+            "kind": "literal",
+            "value": "true"
+          }
+        },
+        {
+          "name": "published_at",
+          "kind": "time",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_books",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_books_author_id",
+          "columns": [
+            "author_id"
+          ]
+        },
+        {
+          "name": "ix_books_available",
+          "columns": [
+            "available"
+          ]
+        },
+        {
+          "name": "ix_books_genre",
+          "columns": [
+            "genre"
+          ]
+        },
+        {
+          "name": "ix_books_language_code",
+          "columns": [
+            "language_code"
+          ]
+        },
+        {
+          "name": "ux_books_isbn",
+          "columns": [
+            "isbn"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_books_author_id",
+          "columns": [
+            "author_id"
+          ],
+          "refTable": "authors",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "fk_books_language_code",
+          "columns": [
+            "language_code"
+          ],
+          "refTable": "languages",
+          "refColumns": [
+            "code"
+          ],
+          "onDelete": "restrict"
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_books_genre",
+          "column": "genre",
+          "values": [
+            "fiction",
+            "nonfiction",
+            "science",
+            "history"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "languages",
+      "columns": [
+        {
+          "name": "code",
+          "kind": "string",
+          "size": 2
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 60
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_languages",
+        "columns": [
+          "code"
+        ]
+      }
+    },
+    {
+      "name": "loans",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "book_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "borrower",
+          "kind": "string",
+          "size": 254
+        },
+        {
+          "name": "due_at",
+          "kind": "time"
+        },
+        {
+          "name": "returned_at",
+          "kind": "time",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_loans",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_loans_book_id",
+          "columns": [
+            "book_id"
+          ]
+        },
+        {
+          "name": "ix_loans_borrower",
+          "columns": [
+            "borrower"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_loans_book_id",
+          "columns": [
+            "book_id"
+          ],
+          "refTable": "books",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "tags",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 40
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_tags",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_tags_name",
+          "columns": [
+            "name"
+          ],
+          "unique": true
+        }
+      ]
+    }
+  ]
+}

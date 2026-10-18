@@ -168,7 +168,8 @@ Choose **sqlc** when you want to write every query yourself and keep full contro
 - [File ownership](docs/file-ownership.md): what is regenerated and what is never touched.
 - [MCP](docs/mcp.md): client configuration and recommended flow.
 - [Architecture](docs/architecture.md): internals for contributors.
-- [Example project](examples/saas): organizations, users, tags and projects.
+- [Library example](example): a SQLite project on Go 1.27 that runs without a database server, with business rules, manual wiring and a hand-written seed migration.
+- [SaaS example](examples/saas): organizations, users, tags and projects on PostgreSQL and Go 1.26.
 
 ## License
 
