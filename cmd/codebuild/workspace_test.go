@@ -161,7 +161,13 @@ func composeCheck(t *testing.T, dir string) {
 	t.Cleanup(func() {
 		run(dir, nil, "", "docker", append(slices.Clone(project), "down", "--volumes", "--rmi", "all")...)
 	})
-	compose("config", "--quiet")
+	override := "services:\n  gateway:\n    environment:\n      AUTH_LOGIN_LIMIT: \"5\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "docker-compose.override.yml"), []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out := compose("config"); !strings.Contains(out, "AUTH_LOGIN_LIMIT") {
+		t.Fatalf("docker compose ignores docker-compose.override.yml:\n%s", out)
+	}
 	compose("up", "--detach", "--build")
 	c := client{t: t, base: "http://localhost:8080"}
 	waitReady(t, c.base, func() string {
