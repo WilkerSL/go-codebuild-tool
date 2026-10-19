@@ -1,0 +1,142 @@
+{{.Header}}
+
+package grpcx
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"{{.UUIDImport}}"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	commonv1 "{{.Workspace.Contracts}}/common/v1"
+	"{{.Module}}/internal/platform/httpx"
+	"{{.Module}}/internal/platform/validation"
+)
+
+var bearer = http.Header{"Www-Authenticate": {"Bearer"}}
+
+var fallbacks = map[codes.Code]struct {
+	status int
+	detail string
+}{
+	codes.InvalidArgument:    {http.StatusBadRequest, "the request is invalid"},
+	codes.Unauthenticated:    {http.StatusUnauthorized, "authentication is required"},
+	codes.PermissionDenied:   {http.StatusForbidden, "the caller is not allowed to perform this operation"},
+	codes.NotFound:           {http.StatusNotFound, "the requested resource does not exist"},
+	codes.AlreadyExists:      {http.StatusConflict, "a resource with the same unique value already exists"},
+	codes.FailedPrecondition: {http.StatusConflict, "the request conflicts with the current state of the resource"},
+	codes.ResourceExhausted:  {http.StatusTooManyRequests, "too many requests"},
+	codes.Unavailable:        {http.StatusServiceUnavailable, "a backend service is unavailable"},
+	codes.DeadlineExceeded:   {http.StatusGatewayTimeout, "a backend service did not answer in time"},
+}
+
+func HTTPError(ctx context.Context, logger *slog.Logger, err error) error {
+	if err == nil {
+		return nil
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return err
+	}
+	if st.Code() == codes.Canceled {
+		return context.Canceled
+	}
+	for _, d := range st.Details() {
+		p, ok := d.(*commonv1.Problem)
+		if !ok || p.GetStatus() == 0 {
+			continue
+		}
+		e := &httpx.Error{Status: int(p.GetStatus()), Detail: st.Message(), Err: err}
+		for _, f := range p.GetErrors() {
+			e.Errors = append(e.Errors, validation.FieldError{Field: f.GetField(), Message: f.GetMessage()})
+		}
+		if e.Status == http.StatusUnauthorized {
+			e.Header = bearer
+		}
+		if e.Status >= http.StatusInternalServerError {
+			logger.WarnContext(ctx, "backend call failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
+		}
+		return e
+	}
+	fallback, ok := fallbacks[st.Code()]
+	if !ok {
+		return err
+	}
+	if fallback.status >= http.StatusInternalServerError {
+		logger.WarnContext(ctx, "backend call failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
+	}
+	e := &httpx.Error{Status: fallback.status, Detail: fallback.detail, Err: err}
+	if e.Status == http.StatusUnauthorized {
+		e.Header = bearer
+	}
+	return e
+}
+
+func ParseTime(value *string, field string, errs *validation.Errors) *timestamppb.Timestamp {
+	if value == nil {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, *value)
+	if err != nil {
+		errs.Add(field, "must be an RFC 3339 timestamp")
+		return nil
+	}
+	return timestamppb.New(t)
+}
+
+func NullTime(ts *timestamppb.Timestamp) *time.Time {
+	if ts == nil {
+		return nil
+	}
+	t := ts.AsTime()
+	return &t
+}
+
+func UUIDString(id *uuid.UUID) *string {
+	if id == nil {
+		return nil
+	}
+	s := id.String()
+	return &s
+}
+
+type number interface {
+	~int16 | ~int32 | ~int | ~int64 | ~float32 | ~float64
+}
+
+func Convert[From, To number](v *From) *To {
+	if v == nil {
+		return nil
+	}
+	out := To(*v)
+	return &out
+}
+
+func Bytes(v *[]byte) []byte {
+	if v == nil {
+		return nil
+	}
+	if *v == nil {
+		return []byte{}
+	}
+	return *v
+}
+
+func BytesPtr(v []byte) *[]byte {
+	if v == nil {
+		return nil
+	}
+	return &v
+}
+
+func NonNil(v []byte) []byte {
+	if v == nil {
+		return []byte{}
+	}
+	return v
+}

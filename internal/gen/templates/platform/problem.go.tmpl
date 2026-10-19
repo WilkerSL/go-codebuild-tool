@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"slices"
 
+{{- if not .Gateway}}
 	"{{.Module}}/internal/platform/database"
+{{- end}}
 	"{{.Module}}/internal/platform/validation"
 )
 
@@ -77,6 +79,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err
 		WriteProblem(w, p)
 		return
 	}
+{{- if not .Gateway}}
 	if ce, ok := errors.AsType[*database.ConstraintError](err); ok && ce.Kind == database.UniqueViolation {
 		p.Status, p.Detail = http.StatusConflict, "a resource with the same unique value already exists"
 		if ce.Field != "" {
@@ -85,11 +88,14 @@ func WriteError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err
 		WriteProblem(w, p)
 		return
 	}
+{{- end}}
 	switch {
+{{- if not .Gateway}}
 	case errors.Is(err, database.ErrNotFound):
 		p.Status, p.Detail = http.StatusNotFound, "the requested resource does not exist"
 	case errors.Is(err, database.ErrReferenced):
 		p.Status, p.Detail = http.StatusConflict, "the resource is still referenced by other resources"
+{{- end}}
 	case errors.Is(err, context.Canceled):
 		logger.DebugContext(r.Context(), "request canceled", slog.String("method", r.Method), slog.String("path", r.URL.Path))
 		return

@@ -54,7 +54,7 @@ func TestGenerateShopWorkspace(t *testing.T) {
 	for _, f := range ws.Files {
 		paths[f.Path] = true
 	}
-	for _, p := range []string{"services/billing/internal/invoices/grpc_gen.go", "services/identity/internal/users/auth_grpc_gen.go", "contracts/billing/v1/billing_grpc.pb.go", "databases/shared/migrations/embed_gen.go"} {
+	for _, p := range []string{"services/billing/internal/invoices/grpc_gen.go", "services/identity/internal/users/auth_grpc_gen.go", "contracts/billing/v1/billing_grpc.pb.go", "databases/shared/migrations/embed_gen.go", "gateway/internal/invoices/handler_gen.go", "gateway/internal/users/auth_handler_gen.go", "gateway/cmd/devcerts/main_gen.go"} {
 		if !paths[p] {
 			t.Errorf("missing %s", p)
 		}

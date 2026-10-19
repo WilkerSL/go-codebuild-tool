@@ -38,6 +38,8 @@ type projectView struct {
 	Workspace        *workspaceView
 	Current          *serviceView
 	MigrationsImport string
+	Gateway          bool
+	Edge             *edgeView
 }
 
 type dialectView struct {
@@ -246,6 +248,7 @@ type domainView struct {
 	ServiceMethods   []serviceMethod
 	AuthMethods      []serviceMethod
 	GRPC             *grpcView
+	Proxy            *proxyView
 	Guarded          bool
 	IsAuth           bool
 	RouteLines       []string

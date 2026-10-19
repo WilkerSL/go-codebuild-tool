@@ -1,0 +1,381 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	{{.Proxy.Alias}} "{{.Proxy.Import}}"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	"{{.Module}}/internal/platform/auth"
+	"{{.Module}}/internal/platform/grpcx"
+	"{{.Module}}/internal/platform/httpx"
+	"{{.Module}}/internal/platform/validation"
+)
+
+func Authenticator(client {{.Proxy.Alias}}.AuthServiceClient, logger *slog.Logger) auth.Authenticator {
+	return func(ctx context.Context, token string) (auth.Principal, error) {
+		p, err := client.Authenticate(ctx, &{{.Proxy.Alias}}.AuthenticateRequest{Token: token})
+		if err != nil {
+			return auth.Principal{}, grpcx.HTTPError(ctx, logger, err)
+		}
+		return auth.Principal{ID: p.GetId(), Role: p.GetRole(), Method: auth.Method(p.GetMethod()), CredentialID: p.GetCredentialId()}, nil
+	}
+}
+
+type loginRequest struct {
+	Identity *string `json:"{{.Auth.Identity.InputJSON}}"`
+	Password *string `json:"{{.Auth.Password.InputJSON}}"`
+}
+
+func (req loginRequest) message() (*{{.Proxy.Alias}}.LoginRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.LoginRequest{}
+	if req.Identity == nil || *req.Identity == "" {
+		errs.Add("{{.Auth.Identity.InputJSON}}", "is required")
+	} else {
+		m.Identity = *req.Identity
+	}
+	if req.Password == nil || *req.Password == "" {
+		errs.Add("{{.Auth.Password.InputJSON}}", "is required")
+	} else {
+		m.Password = *req.Password
+	}
+	return m, errs.Err()
+}
+
+func normalizeIdentity(identity string) string {
+{{- if .Auth.EmailIdentity}}
+	return strings.ToLower(identity)
+{{- else}}
+	return identity
+{{- end}}
+}
+
+type passwordRequest struct {
+	CurrentPassword *string `json:"currentPassword"`
+	NewPassword     *string `json:"newPassword"`
+}
+
+func (req passwordRequest) message() (*{{.Proxy.Alias}}.ChangePasswordRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.ChangePasswordRequest{}
+	if req.CurrentPassword == nil {
+		errs.Add("currentPassword", "is required")
+	} else {
+		m.CurrentPassword = *req.CurrentPassword
+	}
+	if req.NewPassword == nil {
+		errs.Add("newPassword", "is required")
+	} else {
+		m.NewPassword = *req.NewPassword
+	}
+	return m, errs.Err()
+}
+{{- if .Auth.Register}}
+
+type registerRequest struct {
+{{- range .Create}}{{if not .F.Role}}
+	{{.Input}} {{.RequestType}} `json:"{{.InputJSON}}"`
+{{- end}}{{end}}
+}
+
+func (req registerRequest) message() (*{{.Proxy.Alias}}.{{.Name}}CreateRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.{{.Name}}CreateRequest{
+{{- range .Proxy.Register}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+	return m, errs.Err()
+}
+{{- end}}
+{{- if .Auth.JWT}}
+
+type refreshRequest struct {
+	RefreshToken *string `json:"refreshToken"`
+}
+{{- end}}
+{{- if .Auth.APIKey}}
+
+type apiKeyRequest struct {
+	Name      *string `json:"name"`
+	ExpiresAt *string `json:"expiresAt"`
+}
+
+func (req apiKeyRequest) message() (*{{.Proxy.Alias}}.APIKeyCreateRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.APIKeyCreateRequest{}
+	switch {
+	case req.Name == nil:
+		errs.Add("name", "is required")
+	case strings.TrimSpace(*req.Name) == "":
+		errs.Add("name", "must not be empty")
+	case utf8.RuneCountInString(*req.Name) > 120:
+		errs.Add("name", "must be at most 120 characters")
+	default:
+		m.Name = *req.Name
+	}
+	m.ExpiresAt = grpcx.ParseTime(req.ExpiresAt, "expiresAt", &errs)
+	return m, errs.Err()
+}
+
+type APIKey struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Prefix    string     `json:"prefix"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+}
+
+type CreatedAPIKey struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Prefix    string     `json:"prefix"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+	Key       string     `json:"key"`
+}
+
+type apiKeyList struct {
+	Items []APIKey `json:"items"`
+}
+
+func apiKeyFrom(k *{{.Proxy.Alias}}.APIKey) APIKey {
+	return APIKey{ID: k.GetId(), Name: k.GetName(), Prefix: k.GetPrefix(), CreatedAt: k.GetCreatedAt().AsTime(), ExpiresAt: grpcx.NullTime(k.GetExpiresAt())}
+}
+{{- end}}
+
+func tokensFrom(t *{{.Proxy.Alias}}.Tokens) auth.Tokens {
+	return auth.Tokens{
+		AccessToken: t.GetAccessToken(),
+		TokenType:   t.GetTokenType(),
+		ExpiresAt:   t.GetExpiresAt().AsTime(),
+{{- if .Auth.JWT}}
+		RefreshToken:     t.GetRefreshToken(),
+		RefreshExpiresAt: t.GetRefreshExpiresAt().AsTime(),
+{{- end}}
+	}
+}
+
+type AuthHandler struct {
+	client  {{.Proxy.Alias}}.AuthServiceClient
+	guard   *auth.Guard
+	cfg     auth.Config
+	logger  *slog.Logger
+	logins  *auth.Limiter
+	clients *auth.Limiter
+}
+
+func NewAuthHandler(client {{.Proxy.Alias}}.AuthServiceClient, guard *auth.Guard, cfg auth.Config, logger *slog.Logger) *AuthHandler {
+	return &AuthHandler{
+		client:  client,
+		guard:   guard,
+		cfg:     cfg,
+		logger:  logger,
+		logins:  auth.NewLimiter(cfg.LoginLimit, cfg.LoginWindow),
+		clients: auth.NewLimiter(cfg.LoginLimit*10, cfg.LoginWindow),
+	}
+}
+
+func (h *AuthHandler) fail(w http.ResponseWriter, r *http.Request, err error) {
+	httpx.WriteError(w, r, h.logger, grpcx.HTTPError(r.Context(), h.logger, err))
+}
+
+func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
+	auth.SetCookie(w, h.cfg, auth.CredentialCookie, tokens.AccessToken, "/", tokens.ExpiresAt)
+{{- if .Auth.JWT}}
+	auth.SetCookie(w, h.cfg, auth.RefreshCookie, tokens.RefreshToken, "/auth", tokens.RefreshExpiresAt)
+{{- end}}
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.WriteJSON(w, http.StatusOK, tokens)
+}
+{{- if .Auth.Register}}
+
+func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
+	if err := h.clients.Allow(auth.ClientIP(r, h.cfg.TrustForwardedFor)); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req registerRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	created, err := h.client.Register(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item := fromMessage(created)
+{{- if .Routes}}
+	w.Header().Set("Location", "{{.Path}}/"+{{.Proxy.Location}})
+{{- end}}
+	httpx.WriteJSON(w, http.StatusCreated, item)
+}
+{{- end}}
+
+func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	ip := auth.ClientIP(r, h.cfg.TrustForwardedFor)
+	key := ip + "|" + normalizeIdentity(msg.GetIdentity())
+	if err := h.clients.Allow(ip); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.logins.Allow(key); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	tokens, err := h.client.Login(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.logins.Reset(key)
+	h.writeTokens(w, tokensFrom(tokens))
+}
+{{- if .Auth.JWT}}
+
+func (h *AuthHandler) refresh(w http.ResponseWriter, r *http.Request) {
+	token := ""
+	if r.ContentLength != 0 {
+		var req refreshRequest
+		if err := httpx.DecodeJSON(w, r, &req); err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		if req.RefreshToken != nil {
+			token = *req.RefreshToken
+		}
+	}
+	if token == "" {
+		c, err := r.Cookie(auth.RefreshCookie)
+		if err != nil || c.Value == "" {
+			h.fail(w, r, auth.ErrUnauthenticated)
+			return
+		}
+		if err := h.guard.CheckOrigin(r); err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		token = c.Value
+	}
+	tokens, err := h.client.Refresh(r.Context(), &{{.Proxy.Alias}}.RefreshRequest{RefreshToken: token})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.writeTokens(w, tokensFrom(tokens))
+}
+{{- end}}
+
+func (h *AuthHandler) logout(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.client.Logout(r.Context(), &emptypb.Empty{}); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	auth.ClearCookie(w, h.cfg, auth.CredentialCookie, "/")
+{{- if .Auth.JWT}}
+	auth.ClearCookie(w, h.cfg, auth.RefreshCookie, "/auth")
+{{- end}}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AuthHandler) me(w http.ResponseWriter, r *http.Request) {
+	item, err := h.client.Me(r.Context(), &emptypb.Empty{})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+
+func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
+	var req passwordRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if _, err := h.client.ChangePassword(r.Context(), msg); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- if .Auth.APIKey}}
+
+func (h *AuthHandler) createAPIKey(w http.ResponseWriter, r *http.Request) {
+	var req apiKeyRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	k, err := h.client.CreateAPIKey(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Location", "/auth/api-keys/"+url.PathEscape(k.GetId()))
+	httpx.WriteJSON(w, http.StatusCreated, CreatedAPIKey{ID: k.GetId(), Name: k.GetName(), Prefix: k.GetPrefix(), CreatedAt: k.GetCreatedAt().AsTime(), ExpiresAt: grpcx.NullTime(k.GetExpiresAt()), Key: k.GetKey()})
+}
+
+func (h *AuthHandler) listAPIKeys(w http.ResponseWriter, r *http.Request) {
+	list, err := h.client.ListAPIKeys(r.Context(), &emptypb.Empty{})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	items := make([]APIKey, len(list.GetItems()))
+	for i, k := range list.GetItems() {
+		items[i] = apiKeyFrom(k)
+	}
+	httpx.WriteJSON(w, http.StatusOK, apiKeyList{Items: items})
+}
+
+func (h *AuthHandler) deleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.PathString(r, "id")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if _, err := h.client.DeleteAPIKey(r.Context(), &{{.Proxy.Alias}}.APIKeyDeleteRequest{Id: id}); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end}}

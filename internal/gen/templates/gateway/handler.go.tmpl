@@ -1,0 +1,177 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	{{.Proxy.Alias}} "{{.Proxy.Import}}"
+
+	"{{.Module}}/internal/platform/grpcx"
+	"{{.Module}}/internal/platform/httpx"
+)
+
+type Handler struct {
+	client {{.Proxy.Alias}}.{{.Proxy.Client}}
+	logger *slog.Logger
+}
+
+func NewHandler(client {{.Proxy.Alias}}.{{.Proxy.Client}}, logger *slog.Logger) *Handler {
+	return &Handler{client: client, logger: logger}
+}
+
+func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
+	httpx.WriteError(w, r, h.logger, grpcx.HTTPError(r.Context(), h.logger, err))
+}
+
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	p, err := listParams(r)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	page, err := h.client.List(r.Context(), p.message())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromPage(page))
+}
+
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.client.Get(r.Context(), &{{.Proxy.Alias}}.{{.Name}}GetRequest{Id: {{.Proxy.IDProto}}})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+{{- if not .ReadOnly}}
+
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	var req createRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message()
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	created, err := h.client.Create(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item := fromMessage(created)
+	w.Header().Set("Location", "{{.Path}}/"+{{.Proxy.Location}})
+	httpx.WriteJSON(w, http.StatusCreated, item)
+}
+{{- if .HasUpdate}}
+
+func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message(id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.client.Update(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+{{- end}}
+
+func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if _, err := h.client.Delete(r.Context(), &{{.Proxy.Alias}}.{{.Name}}DeleteRequest{Id: {{.Proxy.IDProto}}}); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end}}
+{{- range .Proxy.Relations}}
+
+func (h *Handler) {{.Handler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	p, err := listParams(r)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	page, err := h.client.{{.Method}}(r.Context(), p.{{.ParamsFunc}}({{.SourceIDVar}}))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromPage(page))
+}
+{{- if .Writable}}
+
+func (h *Handler) {{.LinkHandler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	id, err := {{$.PKParseItem}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if _, err := h.client.{{.LinkMethod}}(r.Context(), &{{$.Proxy.Alias}}.{{.LinkMethod}}Request{SourceId: {{.SourceProto}}, Id: {{$.Proxy.IDProto}}}); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) {{.UnlinkHandler}}(w http.ResponseWriter, r *http.Request) {
+	{{.SourceIDVar}}, err := {{.SourceParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	id, err := {{$.PKParseItem}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if _, err := h.client.{{.UnlinkMethod}}(r.Context(), &{{$.Proxy.Alias}}.{{.UnlinkMethod}}Request{SourceId: {{.SourceProto}}, Id: {{$.Proxy.IDProto}}}); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end}}
+{{- end}}

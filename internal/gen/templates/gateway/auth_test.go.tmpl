@@ -1,0 +1,131 @@
+{{.Header}}
+
+package auth
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"{{.Module}}/internal/platform/grpcx"
+)
+
+func testSigner(t *testing.T) (*Signer, *Verifier) {
+	t.Helper()
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewSigner(private), NewVerifier(public)
+}
+
+func TestSignerRoundTrip(t *testing.T) {
+	signer, verifier := testSigner(t)
+	token, err := signer.Sign(Principal{ID: "42"{{if .Identity.Role}}, Role: "admin"{{end}}, Method: "session", CredentialID: "c1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := verifier.Claims(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Subject != "42"{{if .Identity.Role}} || c.Role != "admin"{{end}} || c.Method != "session" || c.Credential != "c1" {
+		t.Fatalf("claims = %+v", c)
+	}
+	if c.ExpiresAt-c.IssuedAt != int64(InternalTokenTTL/time.Second) {
+		t.Fatalf("lifetime = %d", c.ExpiresAt-c.IssuedAt)
+	}
+	other, _ := testSigner(t)
+	forged, _ := other.Sign(Principal{ID: "42"})
+	if _, err := verifier.Claims(forged); err == nil {
+		t.Fatal("a token signed by another key was accepted")
+	}
+	signer.now = func() time.Time { return time.Now().Add(-time.Hour) }
+	expired, _ := signer.Sign(Principal{ID: "42"})
+	if _, err := verifier.Claims(expired); err == nil {
+		t.Fatal("an expired token was accepted")
+	}
+}
+
+func TestAnonymousAttachesToken(t *testing.T) {
+	signer, verifier := testSigner(t)
+	var token string
+	h := Anonymous(signer, slog.New(slog.NewTextHandler(io.Discard, nil)), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token = grpcx.TokenFrom(r.Context())
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	c, err := verifier.Claims(token)
+	if err != nil || c.Subject != "" {
+		t.Fatalf("anonymous token = %+v, %v", c, err)
+	}
+}
+
+func TestGuardProtect(t *testing.T) {
+	signer, verifier := testSigner(t)
+	authenticate := func(_ context.Context, token string) (Principal, error) {
+		if token != "good" {
+			return Principal{}, ErrInvalidToken
+		}
+		return Principal{ID: "7", Role: "member", Method: "session", CredentialID: "s1"}, nil
+	}
+	guard, err := NewGuard(authenticate, signer, Config{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen Principal
+	var token string
+	next := func(w http.ResponseWriter, r *http.Request) {
+		seen, _ = FromContext(r.Context())
+		token = grpcx.TokenFrom(r.Context())
+	}
+	serve := func(h http.Handler, header string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodGet, "/things", nil)
+		if header != "" {
+			r.Header.Set("Authorization", header)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	if rec := serve(guard.Protect(next), ""); rec.Code != http.StatusUnauthorized || rec.Header().Get("Www-Authenticate") != "Bearer" {
+		t.Fatalf("missing credential = %d %q", rec.Code, rec.Header().Get("Www-Authenticate"))
+	}
+	if rec := serve(guard.Protect(next), "Bearer bad"); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("invalid credential = %d", rec.Code)
+	}
+	if rec := serve(guard.Protect(next), "Bearer good"); rec.Code != http.StatusOK || seen.ID != "7" {
+		t.Fatalf("valid credential = %d %+v", rec.Code, seen)
+	}
+	c, err := verifier.Claims(token)
+	if err != nil || c.Subject != "7" || c.Credential != "s1" {
+		t.Fatalf("forwarded token = %+v, %v", c, err)
+	}
+{{- if .Auth.Role}}
+	if rec := serve(guard.Protect(next, "admin"), "Bearer good"); rec.Code != http.StatusForbidden {
+		t.Fatalf("missing role = %d", rec.Code)
+	}
+{{- end}}
+}
+
+func TestCookieNeedsSameOrigin(t *testing.T) {
+	signer, _ := testSigner(t)
+	authenticate := func(context.Context, string) (Principal, error) { return Principal{ID: "1"}, nil }
+	guard, err := NewGuard(authenticate, signer, Config{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "http://api.example.com/things", nil)
+	r.AddCookie(&http.Cookie{Name: CredentialCookie, Value: "token"})
+	r.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec := httptest.NewRecorder()
+	guard.Protect(func(http.ResponseWriter, *http.Request) {}).ServeHTTP(rec, r)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-site cookie = %d", rec.Code)
+	}
+}

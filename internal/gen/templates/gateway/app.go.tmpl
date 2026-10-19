@@ -1,0 +1,78 @@
+{{.Header}}
+
+package app
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+
+	"google.golang.org/grpc"
+{{- range .Workspace.Services}}
+	{{.Alias}} "{{.Import}}"
+{{- end}}
+
+	"{{.Module}}/internal/platform/auth"
+	"{{.Module}}/internal/platform/grpcx"
+{{- range .Domains}}
+	"{{.Import}}"
+{{- end}}
+)
+
+type Backends struct {
+	conns []*grpc.ClientConn
+{{- range .Workspace.Services}}
+	{{.Field}} *grpc.ClientConn
+{{- end}}
+}
+
+func Dial(getenv func(string) string, cfg grpcx.TLSConfig) (*Backends, error) {
+	b := &Backends{}
+	var err error
+{{- range .Workspace.Services}}
+	if b.{{.Field}}, err = b.dial(getenv, "{{.Env}}", cfg); err != nil {
+		return nil, errors.Join(err, b.Close())
+	}
+{{- end}}
+	return b, nil
+}
+
+func (b *Backends) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig) (*grpc.ClientConn, error) {
+	addr := getenv(key)
+	if addr == "" {
+		return nil, fmt.Errorf("%s is required: the host:port of the service", key)
+	}
+	conn, err := grpcx.Dial(addr, cfg)
+	if err != nil {
+		return nil, err
+	}
+	b.conns = append(b.conns, conn)
+	return conn, nil
+}
+
+func (b *Backends) Close() error {
+	var errs []error
+	for _, conn := range b.conns {
+		errs = append(errs, conn.Close())
+	}
+	return errors.Join(errs...)
+}
+
+func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger *slog.Logger) error {
+	cfg, err := auth.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	authClient := {{.Edge.AuthAlias}}.NewAuthServiceClient(b.{{.Edge.AuthBackend}})
+	guard, err := auth.NewGuard({{.Auth.Package}}.Authenticator(authClient, logger), signer, cfg, logger)
+	if err != nil {
+		return err
+	}
+	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler(authClient, guard, cfg, logger))
+{{- range .Wired}}
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Proxy.Alias}}.New{{.Proxy.Client}}(b.{{.Proxy.Backend}}), logger), guard)
+{{- end}}
+	return nil
+}

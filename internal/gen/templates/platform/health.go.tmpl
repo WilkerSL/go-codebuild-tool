@@ -17,14 +17,21 @@ const (
 )
 
 type Health struct {
+{{- if not .Gateway}}
 	db       *sql.DB
+{{- end}}
 	logger   *slog.Logger
 	draining atomic.Bool
 }
-
+{{if .Gateway}}
+func NewHealth(logger *slog.Logger) *Health {
+	return &Health{logger: logger}
+}
+{{- else}}
 func NewHealth(db *sql.DB, logger *slog.Logger) *Health {
 	return &Health{db: db, logger: logger}
 }
+{{- end}}
 
 func (h *Health) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+LivenessPath, h.live)
@@ -44,6 +51,7 @@ func (h *Health) ready(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, Problem{Status: http.StatusServiceUnavailable, Detail: "the server is shutting down", Instance: r.URL.Path})
 		return
 	}
+{{- if not .Gateway}}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	if err := h.db.PingContext(ctx); err != nil {
@@ -51,5 +59,6 @@ func (h *Health) ready(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, Problem{Status: http.StatusServiceUnavailable, Detail: "the database is not reachable", Instance: r.URL.Path})
 		return
 	}
+{{- end}}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }

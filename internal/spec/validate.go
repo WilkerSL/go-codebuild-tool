@@ -321,6 +321,10 @@ func (p *parser) checkServices(m *schema.Model) {
 			p.errorf(e.Pos, CodeEntityCount, "", "the project declares microservices (%s), so %s must be a field of one of them", m.Services[0].TypeName, e.Name)
 		}
 	}
+	if m.AuthEntity() == nil {
+		p.errorf(m.Services[0].Pos, CodeEntityCount, "",
+			"the project declares microservices, so one entity must declare auth= (for example _ struct{} `gen:\"auth=session\"` on the account entity): the gateway authenticates every request through the service that owns it")
+	}
 	for _, e := range m.Entities {
 		if e.Service == nil {
 			continue

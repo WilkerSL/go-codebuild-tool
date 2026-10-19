@@ -64,6 +64,8 @@ type serviceView struct {
 	Peers    []*peerService
 	Imports  []goImport
 	Port     int
+	Field    string
+	Env      string
 }
 
 type workspaceView struct {
@@ -104,6 +106,8 @@ func GenerateWorkspace(opts WorkspaceOptions) (*Workspace, error) {
 			Own:      s.Database == schema.DatabaseOwn,
 			Database: s.DatabaseName(),
 			Port:     9001 + i,
+			Field:    naming.Pascal(s.Name),
+			Env:      strings.ToUpper(s.Name) + "_GRPC_ADDR",
 		}
 		if auth := opts.Model.AuthEntity(); auth != nil && auth.Service == s {
 			sv.Identity = true
@@ -131,6 +135,16 @@ func GenerateWorkspace(opts WorkspaceOptions) (*Workspace, error) {
 		}
 		ws.Modules = append(ws.Modules, mod)
 	}
+	files, err := generateGateway(opts, wv)
+	if err != nil {
+		return nil, err
+	}
+	ws.Files = append(ws.Files, files...)
+	gateway := Module{Dir: GatewayDir, Path: opts.Module + "/" + GatewayDir, Requires: [][2]string{{GRPCModule, GRPCVersion}, {ProtobufModule, ProtobufVersion}}, Locals: []string{contract.ContractsDir}}
+	if !opts.Caps.StdUUID {
+		gateway.Requires = append(gateway.Requires, [2]string{googleUUID, googleUUIDVersion})
+	}
+	ws.Modules = append(ws.Modules, gateway)
 	if wv.Shared {
 		files, err := generateShared(opts, wv)
 		if err != nil {

@@ -13,7 +13,9 @@ import (
 	"strings"
 	"testing"
 
+{{- if not .Gateway}}
 	"{{.Module}}/internal/platform/database"
+{{- end}}
 	"{{.Module}}/internal/platform/validation"
 )
 
@@ -70,10 +72,14 @@ func TestWriteError(t *testing.T) {
 		status int
 		body   string
 	}{
+{{- if not .Gateway}}
 		{err: database.ErrNotFound, status: http.StatusNotFound},
 		{err: database.ErrReferenced, status: http.StatusConflict},
+{{- end}}
 		{err: validation.Errors{ {Field: "name", Message: "is required"} }, status: http.StatusUnprocessableEntity, body: `"field":"name"`},
+{{- if not .Gateway}}
 		{err: &database.ConstraintError{Kind: database.UniqueViolation, Field: "email"}, status: http.StatusConflict, body: `"field":"email"`},
+{{- end}}
 		{err: BadRequest("bad"), status: http.StatusBadRequest, body: `"detail":"bad"`},
 		{err: errors.New("secret failure"), status: http.StatusInternalServerError, body: `"detail":"an unexpected error occurred"`},
 	}
@@ -181,7 +187,7 @@ func TestLogHandlerAddsRequestID(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
-	health := NewHealth(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	health := NewHealth({{if not .Gateway}}nil, {{end}}slog.New(slog.NewTextHandler(io.Discard, nil)))
 	mux := http.NewServeMux()
 	health.RegisterRoutes(mux)
 	rec := httptest.NewRecorder()

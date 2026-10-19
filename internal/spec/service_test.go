@@ -100,6 +100,11 @@ func TestServiceDiagnostics(t *testing.T) {
 			want: []wantDiag{{file: "specs/identity.go", at: "rel=many_to_many:Tag", code: CodeInvalidCombination, contains: "different databases"}},
 		},
 		{
+			name:  "microservices without an account entity",
+			files: map[string]string{"specs/billing.go": header + "type BillingService struct {\n\t_       struct{} `gen:\"database=own\"`\n\tInvoice struct {\n\t\tID int64 `gen:\"pk,auto\"`\n\t}\n}\n"},
+			want:  []wantDiag{{at: "BillingService", code: CodeEntityCount, contains: "gateway authenticates every request"}},
+		},
+		{
 			name:  "service marker on an entity",
 			files: map[string]string{"specs/billing.go": header + "type BillingService struct {\n\t_       struct{} `gen:\"database=own\"`\n\tInvoice struct {\n\t\t_  struct{} `gen:\"database=own\"`\n\t\tID int64    `gen:\"pk,auto\"`\n\t}\n}\n"},
 			want:  []wantDiag{{at: "database=own\"`\n\t\tID", code: CodeMarkerScope}},

@@ -1,0 +1,71 @@
+{{.Header}}
+
+package auth
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Config struct {
+	CookieSecure      bool
+	TrustedOrigins    []string
+	LoginLimit        int
+	LoginWindow       time.Duration
+	TrustForwardedFor bool
+}
+
+func LoadConfig(getenv func(string) string) (Config, error) {
+	var errs []error
+	boolean := func(key string, fallback bool) bool {
+		v := getenv(key)
+		if v == "" {
+			return fallback
+		}
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s must be true or false, got %q", key, v))
+			return fallback
+		}
+		return b
+	}
+	cfg := Config{
+		CookieSecure:      boolean("AUTH_COOKIE_SECURE", true),
+		LoginLimit:        10,
+		LoginWindow:       15 * time.Minute,
+		TrustForwardedFor: boolean("AUTH_TRUST_FORWARDED_FOR", false),
+	}
+	if v := getenv("AUTH_LOGIN_WINDOW"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			errs = append(errs, fmt.Errorf("AUTH_LOGIN_WINDOW must be a positive duration such as 15m, got %q", v))
+		} else {
+			cfg.LoginWindow = d
+		}
+	}
+	if v := getenv("AUTH_LOGIN_LIMIT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			errs = append(errs, fmt.Errorf("AUTH_LOGIN_LIMIT must be a non-negative integer (0 disables the limit), got %q", v))
+		} else {
+			cfg.LoginLimit = n
+		}
+	}
+	origins := http.NewCrossOriginProtection()
+	for origin := range strings.SplitSeq(getenv("AUTH_TRUSTED_ORIGINS"), ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if err := origins.AddTrustedOrigin(origin); err != nil {
+			errs = append(errs, fmt.Errorf("AUTH_TRUSTED_ORIGINS: %w", err))
+			continue
+		}
+		cfg.TrustedOrigins = append(cfg.TrustedOrigins, origin)
+	}
+	return cfg, errors.Join(errs...)
+}

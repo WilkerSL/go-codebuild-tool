@@ -1,0 +1,134 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"net/http"
+	"time"
+
+	"{{.UUIDImport}}"
+	{{.Proxy.Alias}} "{{.Proxy.Import}}"
+
+	"{{.Module}}/internal/platform/grpcx"
+	"{{.Module}}/internal/platform/httpx"
+	"{{.Module}}/internal/platform/validation"
+)
+{{- if .Enums}}
+
+const (
+{{- range .Enums}}
+	{{.Name}} = {{.Value}}
+{{- end}}
+)
+{{- end}}
+
+type {{.Name}} struct {
+{{- range .Proxy.Fields}}
+	{{.Name}} {{.Type}} `json:"{{.JSON}}"`
+{{- end}}
+}
+
+type Page struct {
+	Items  []{{.Name}} `json:"items"`
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+	Total  int64 `json:"total"`
+}
+
+func fromMessage(m *{{.Proxy.Alias}}.{{.Name}}) {{.Name}} {
+	return {{.Name}}{
+{{- range .Proxy.Fields}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+}
+
+func fromPage(m *{{.Proxy.Alias}}.{{.Name}}Page) Page {
+	items := make([]{{.Name}}, len(m.GetItems()))
+	for i, item := range m.GetItems() {
+		items[i] = fromMessage(item)
+	}
+	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.GetTotal()}
+}
+
+type ListParams struct {
+	Limit  int
+	Offset int
+{{- range .Filters}}
+	{{.Name}} {{.FilterType}}
+{{- end}}
+}
+
+func listParams(r *http.Request) (ListParams, error) {
+	q := r.URL.Query()
+	var errs validation.Errors
+	var p ListParams
+	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+{{- range .Filters}}
+	{{.FilterParse}}
+{{- end}}
+	if len(errs) > 0 {
+		return ListParams{}, httpx.BadRequest("the query string contains invalid parameters", errs...)
+	}
+	return p, nil
+}
+
+func (p ListParams) message() *{{.Proxy.Alias}}.{{.Name}}ListRequest {
+	return &{{.Proxy.Alias}}.{{.Name}}ListRequest{
+		Limit:  int32(p.Limit),
+		Offset: int32(p.Offset),
+{{- range .Proxy.Filters}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+}
+{{- range .Proxy.Relations}}
+
+func (p ListParams) {{.ParamsFunc}}({{.SourceIDVar}} {{.SourceIDType}}) *{{$.Proxy.Alias}}.{{.Method}}Request {
+	return &{{$.Proxy.Alias}}.{{.Method}}Request{
+		SourceId: {{.SourceProto}},
+		Limit:    int32(p.Limit),
+		Offset:   int32(p.Offset),
+{{- range .Filters}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+}
+{{- end}}
+{{- if not .ReadOnly}}
+
+type createRequest struct {
+{{- range .Create}}
+	{{.Input}} {{.RequestType}} `json:"{{.InputJSON}}"`
+{{- end}}
+}
+
+func (req createRequest) message() (*{{.Proxy.Alias}}.{{.Name}}CreateRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.{{.Name}}CreateRequest{
+{{- range .Proxy.Create}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+	return m, errs.Err()
+}
+{{- if .HasUpdate}}
+
+type updateRequest struct {
+{{- range .Update}}
+	{{.Input}} {{.RequestType}} `json:"{{.InputJSON}}"`
+{{- end}}
+}
+
+func (req updateRequest) message(id {{.Proxy.IDType}}) (*{{.Proxy.Alias}}.{{.Name}}UpdateRequest, error) {
+	var errs validation.Errors
+	m := &{{.Proxy.Alias}}.{{.Name}}UpdateRequest{
+		Id: {{.Proxy.IDProto}},
+{{- range .Proxy.Update}}
+		{{.Name}}: {{.From}},
+{{- end}}
+	}
+	return m, errs.Err()
+}
+{{- end}}
+{{- end}}
