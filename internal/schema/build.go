@@ -46,11 +46,15 @@ func Build(m *Model) *Database {
 			db.Tables = append(db.Tables, buildJoinTable(r.Via, e, target))
 		}
 	}
+	db.Tables = append(db.Tables, authTables(m.AuthEntity())...)
 	slices.SortFunc(db.Tables, func(a, b *Table) int { return cmp.Compare(a.Name, b.Name) })
 	return db
 }
 
 func ColumnSize(f *Field) int {
+	if f.Password {
+		return PasswordSize
+	}
 	switch f.Kind {
 	case KindString:
 		if f.Max != "" {

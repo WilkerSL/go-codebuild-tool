@@ -6,13 +6,35 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+{{- if .Auth}}
+	"os"
+{{- end}}
 {{range .Wired}}
 	"{{.Import}}"
 {{- end}}
+{{- if .Auth}}
+{{- if not .Auth.Wired}}
+	"{{.Auth.Import}}"
+{{- end}}
+	"{{.Module}}/internal/platform/auth"
+{{- end}}
 )
 
-func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) {
-{{- range .Wired}}
-	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger))
+func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
+{{- if .Auth}}
+	cfg, err := auth.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	accounts := {{.Auth.Package}}.NewAccounts(db, cfg)
+	guard, err := auth.NewGuard(accounts.Authenticate, cfg, logger)
+	if err != nil {
+		return err
+	}
+	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler({{.Auth.Package}}.NewAuthService(db, accounts), guard, cfg, logger))
 {{- end}}
+{{- range .Wired}}
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger){{if $.Auth}}, guard{{end}})
+{{- end}}
+	return nil
 }

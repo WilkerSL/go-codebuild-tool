@@ -33,6 +33,7 @@ From that file codebuild generates `GET/POST /users` and `GET/PUT/DELETE /users/
 - **Layers per domain**: generated handlers call your `Service`, which calls the generated repository explicitly. Services are written once with one method per operation and never regenerated; when a spec change needs a new method, codebuild adds it in a new file instead of editing yours.
 - **Transactions**: repositories accept `*sql.DB` or `*sql.Tx` (`WithTx`), and `database.InTx` wraps a unit of work.
 - **HTTP**: `net/http` routing patterns, RFC 9457 problem details, validation with field errors, paginated and filtered lists, request IDs propagated to every log line, `/livez` and `/readyz` probes, timeouts and graceful shutdown with a drain delay.
+- **Authentication**: mark an account entity with `auth=session`, `auth=jwt` and optionally `apikey` to get login, registration, PBKDF2 password hashing, revocable sessions or rotating refresh tokens, API keys, routes protected by default, roles and per-user ownership of rows, all with the standard library. See [docs/authentication.md](docs/authentication.md).
 - **Data**: SQL written for one dialect, incremental migrations with an embedded migrator, repository tests against a real database.
 - **Delivery**: a multi-stage `Dockerfile` with a distroless non-root image and a GitHub Actions workflow that runs vet, tests with the race detector against a database service container and the image build.
 
@@ -173,6 +174,7 @@ Choose **sqlc** when you want to write every query yourself and keep full contro
 - [Spec reference](docs/spec-reference.md): every marker with an example and its common error.
 - [Go versions](docs/go-versions.md): capability matrix and upgrade behavior.
 - [Dialects](docs/dialects.md): SQL differences side by side.
+- [Authentication](docs/authentication.md): methods, markers, endpoints, configuration and customization.
 - [File ownership](docs/file-ownership.md): what is regenerated and what is never touched.
 - [MCP](docs/mcp.md): client configuration and recommended flow.
 - [Architecture](docs/architecture.md): internals for contributors.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"{{.Module}}/internal/platform/database"
 	"{{.Module}}/internal/platform/validation"
@@ -28,6 +29,7 @@ type Error struct {
 	Status int
 	Detail string
 	Errors []validation.FieldError
+	Header http.Header
 	Err    error
 }
 
@@ -63,6 +65,9 @@ func WriteProblem(w http.ResponseWriter, p Problem) {
 func WriteError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
 	p := Problem{Instance: r.URL.Path}
 	if httpErr, ok := errors.AsType[*Error](err); ok {
+		for key, values := range httpErr.Header {
+			w.Header()[key] = slices.Clone(values)
+		}
 		p.Status, p.Detail, p.Errors = httpErr.Status, httpErr.Detail, httpErr.Errors
 		WriteProblem(w, p)
 		return

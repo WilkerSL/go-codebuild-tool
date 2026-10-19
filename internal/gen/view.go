@@ -33,6 +33,7 @@ type projectView struct {
 	HasMigrations bool
 	GoImage       string
 	CI            ciView
+	Auth          *authView
 }
 
 type dialectView struct {
@@ -78,6 +79,7 @@ type serviceMethod struct {
 	Params  string
 	Results string
 	Args    string
+	Body    string
 	File    string
 }
 
@@ -90,6 +92,8 @@ type fieldView struct {
 	F            *schema.Field
 	Name         string
 	JSON         string
+	Input        string
+	InputJSON    string
 	GoType       string
 	BaseType     string
 	ModelTag     string
@@ -150,6 +154,13 @@ type relationView struct {
 	TestCreate      bool
 	TestLink        bool
 	MissingSourceID string
+	Owned           bool
+	OwnerParam      string
+	OwnerArg        string
+	TestOwnerArg    string
+	ExplicitParent  bool
+	SourceCall      string
+	FKIsOwner       bool
 }
 
 type helperView struct {
@@ -160,11 +171,12 @@ type helperView struct {
 	InputFunc string
 	Parents   []parentRef
 	Fields    []string
+	OwnerType string
 }
 
 type parentRef struct {
-	Var    string
-	Helper string
+	Var  string
+	Call string
 }
 
 type domainView struct {
@@ -199,7 +211,6 @@ type domainView struct {
 	CreateArgs       string
 	UpdateArgs       string
 	DeleteArgs       string
-	SelectAfterIDArg string
 	ConstraintCases  []constraintCase
 	FKFallback       string
 	Relations        []*relationView
@@ -225,6 +236,25 @@ type domainView struct {
 	RequiredCreate   []*fieldView
 	MissingRefValue  string
 	ServiceMethods   []serviceMethod
+	AuthMethods      []serviceMethod
+	Guarded          bool
+	IsAuth           bool
+	RouteLines       []string
+	Owned            bool
+	OwnerParam       string
+	OwnerArg         string
+	SelectAfterArgs  string
+	TestOwner        string
+	TestOwnerArg     string
+	TestOwnerSuffix  string
+	MissingOwner     string
+	OwnedRefs        []ownedRef
+}
+
+type ownedRef struct {
+	Field *fieldView
+	Const string
+	Args  string
 }
 
 func goBase(k schema.Kind) string {
@@ -281,6 +311,10 @@ func queryArgs(q dialect.Query, sourceVar string) string {
 			out = append(out, "p.Offset")
 		case dialect.ArgSourceID:
 			out = append(out, argExpr(nonNull(a.Field), sourceVar))
+		case dialect.ArgOwner:
+			out = append(out, argExpr(nonNull(a.Field), "ownerID"))
+		case dialect.ArgPassword:
+			out = append(out, "passwordHash")
 		}
 	}
 	return strings.Join(out, ", ")
@@ -329,9 +363,9 @@ func defaultLiteral(f *schema.Field) string {
 }
 
 func convertBlock(f *schema.Field) string {
-	req := "req." + f.Name
-	in := "in." + f.Name
-	j := strconv.Quote(f.JSON)
+	req := "req." + f.InputName()
+	in := "in." + f.InputName()
+	j := strconv.Quote(f.InputJSON())
 	var b strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
 	switch f.Kind {
@@ -351,6 +385,8 @@ func convertBlock(f *schema.Field) string {
 		}
 	default:
 		switch {
+		case f.Required && f.Identity && f.Email:
+			w("if %s == nil {\nerrs.Add(%s, \"is required\")\n} else {\n%s = strings.ToLower(*%s)\n}\n", req, j, in, req)
 		case f.Required:
 			w("if %s == nil {\nerrs.Add(%s, \"is required\")\n} else {\n%s = *%s\n}\n", req, j, in, req)
 		case f.Nullable && f.HasDefault:
@@ -370,6 +406,15 @@ func hasRules(f *schema.Field) bool {
 	return f.NotEmpty || f.Min != "" || f.Max != "" || f.Email || len(f.Enum) > 0
 }
 
+const maxPasswordLength = 1024
+
+func fieldMax(f *schema.Field) string {
+	if f.Password {
+		return strconv.Itoa(maxPasswordLength)
+	}
+	return f.Max
+}
+
 func enumList(f *schema.Field) (string, string) {
 	consts := make([]string, len(f.Enum))
 	for i, item := range f.Enum {
@@ -379,7 +424,7 @@ func enumList(f *schema.Field) (string, string) {
 }
 
 func checkBody(f *schema.Field) string {
-	j := strconv.Quote(f.JSON)
+	j := strconv.Quote(f.InputJSON())
 	var b strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
 	switch {
@@ -387,13 +432,13 @@ func checkBody(f *schema.Field) string {
 		if f.NotEmpty {
 			w("if strings.TrimSpace(v) == \"\" {\nerrs.Add(%s, \"must not be empty\")\n}\n", j)
 		}
-		if f.Min != "" || f.Max != "" {
+		if limit := fieldMax(f); f.Min != "" || limit != "" {
 			w("n := utf8.RuneCountInString(v)\n")
 			if f.Min != "" {
 				w("if n < %s {\nerrs.Add(%s, \"must be at least %s characters\")\n}\n", f.Min, j, f.Min)
 			}
-			if f.Max != "" {
-				w("if n > %s {\nerrs.Add(%s, \"must be at most %s characters\")\n}\n", f.Max, j, f.Max)
+			if limit != "" {
+				w("if n > %s {\nerrs.Add(%s, \"must be at most %s characters\")\n}\n", limit, j, limit)
 			}
 		}
 		if f.Email {
@@ -425,10 +470,11 @@ func checkBody(f *schema.Field) string {
 }
 
 func validateCall(f *schema.Field) string {
+	in := f.InputName()
 	if f.Nullable {
-		return fmt.Sprintf("if in.%s != nil {\ncheck%s(&errs, *in.%s)\n}", f.Name, f.Name, f.Name)
+		return fmt.Sprintf("if in.%s != nil {\ncheck%s(&errs, *in.%s)\n}", in, f.Name, in)
 	}
-	return fmt.Sprintf("check%s(&errs, in.%s)", f.Name, f.Name)
+	return fmt.Sprintf("check%s(&errs, in.%s)", f.Name, in)
 }
 
 func filterParse(f *schema.Field) string {
@@ -592,8 +638,8 @@ func failingCases(f *schema.Field) []failingCase {
 				add("min", strconv.Quote(strings.Repeat("a", n-1)))
 			}
 		}
-		if f.Max != "" {
-			n, _ := strconv.Atoi(f.Max)
+		if limit := fieldMax(f); limit != "" {
+			n, _ := strconv.Atoi(limit)
 			add("max", fmt.Sprintf("strings.Repeat(%q, %d)", "a", n+1))
 		}
 		if f.Email {
@@ -660,6 +706,8 @@ func newFieldView(f *schema.Field, dv dialectView) *fieldView {
 		F:           f,
 		Name:        f.Name,
 		JSON:        f.JSON,
+		Input:       f.InputName(),
+		InputJSON:   f.InputJSON(),
 		GoType:      goType(f),
 		BaseType:    goBase(f.Kind),
 		RequestType: requestType(f),

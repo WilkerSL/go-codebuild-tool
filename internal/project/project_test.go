@@ -33,7 +33,12 @@ func fakeToolchain(local string) func(context.Context) (goversion.Toolchain, err
 
 func copySpecs(t *testing.T, dir string) {
 	t.Helper()
-	src := filepath.Join(repoRoot(t), "testdata", "specs", "saas")
+	copySpecSet(t, dir, "saas")
+}
+
+func copySpecSet(t *testing.T, dir, set string) {
+	t.Helper()
+	src := filepath.Join(repoRoot(t), "testdata", "specs", set)
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		t.Fatal(err)
@@ -107,37 +112,67 @@ func treeFiles(t *testing.T, root string) map[string][]byte {
 	return files
 }
 
+var goldenProjects = []struct {
+	name     string
+	specs    string
+	jwt      bool
+	versions []string
+}{
+	{name: "saas", specs: "saas", versions: []string{"1.26.0", "1.27.0"}},
+	{name: "secure", specs: "secure", versions: []string{"1.26.0", "1.27.0"}},
+	{name: "secure-jwt", specs: "secure", jwt: true, versions: []string{"1.27.0"}},
+}
+
+func secureStarter(t *testing.T, goVersion, dialectName string, jwt bool) string {
+	t.Helper()
+	dir := t.TempDir()
+	copySpecSet(t, dir, "secure")
+	if jwt {
+		spec := filepath.Join(dir, "specs", "users.go")
+		writeTestFile(t, spec, strings.Replace(readTestFile(t, spec), "auth=session|apikey", "auth=jwt|apikey", 1))
+	}
+	build(t, Options{Dir: dir, Starter: true, Module: "example.com/secure", Dialect: dialectName, Toolchain: fakeToolchain("go" + goVersion)})
+	return dir
+}
+
 func TestGoldenProjects(t *testing.T) {
-	for _, goVersion := range []string{"1.26.0", "1.27.0"} {
-		for _, name := range dialect.Names() {
-			t.Run("go"+goVersion+"/"+name, func(t *testing.T) {
-				dir := starter(t, goVersion, name)
-				release := goVersion[:strings.LastIndex(goVersion, ".")]
-				golden := filepath.Join(repoRoot(t), "testdata", "golden", "go"+release, name)
-				got := treeFiles(t, dir)
-				if *update {
-					if err := os.RemoveAll(golden); err != nil {
-						t.Fatal(err)
+	for _, project := range goldenProjects {
+		for _, goVersion := range project.versions {
+			for _, name := range dialect.Names() {
+				t.Run(project.name+"/go"+goVersion+"/"+name, func(t *testing.T) {
+					dir := ""
+					if project.specs == "saas" {
+						dir = starter(t, goVersion, name)
+					} else {
+						dir = secureStarter(t, goVersion, name, project.jwt)
 					}
+					release := goVersion[:strings.LastIndex(goVersion, ".")]
+					golden := filepath.Join(repoRoot(t), "testdata", "golden", project.name, "go"+release, name)
+					got := treeFiles(t, dir)
+					if *update {
+						if err := os.RemoveAll(golden); err != nil {
+							t.Fatal(err)
+						}
+						for rel, data := range got {
+							writeTestFile(t, filepath.Join(golden, filepath.FromSlash(rel)), string(data))
+						}
+						return
+					}
+					want := treeFiles(t, golden)
 					for rel, data := range got {
-						writeTestFile(t, filepath.Join(golden, filepath.FromSlash(rel)), string(data))
+						if w, ok := want[rel]; !ok {
+							t.Errorf("unexpected file %s (run go test ./internal/project -update)", rel)
+						} else if !bytes.Equal(w, data) {
+							t.Errorf("%s differs from the golden file (run go test ./internal/project -update)", rel)
+						}
 					}
-					return
-				}
-				want := treeFiles(t, golden)
-				for rel, data := range got {
-					if w, ok := want[rel]; !ok {
-						t.Errorf("unexpected file %s (run go test ./internal/project -update)", rel)
-					} else if !bytes.Equal(w, data) {
-						t.Errorf("%s differs from the golden file (run go test ./internal/project -update)", rel)
+					for rel := range want {
+						if _, ok := got[rel]; !ok {
+							t.Errorf("missing file %s", rel)
+						}
 					}
-				}
-				for rel := range want {
-					if _, ok := got[rel]; !ok {
-						t.Errorf("missing file %s", rel)
-					}
-				}
-			})
+				})
+			}
 		}
 	}
 }
@@ -471,5 +506,39 @@ func TestServiceMethodScaffolds(t *testing.T) {
 	}
 	if plan.Migration == nil {
 		t.Error("expected a migration for the new tables")
+	}
+}
+
+func TestAuthServiceScaffolds(t *testing.T) {
+	dir := t.TempDir()
+	copySpecSet(t, dir, "secure")
+	spec := filepath.Join(dir, "specs", "users.go")
+	writeTestFile(t, spec, strings.Replace(readTestFile(t, spec), ",register", "", 1))
+	build(t, Options{Dir: dir, Starter: true, Module: "example.com/secure", Toolchain: fakeToolchain("go1.27.0")})
+	service := filepath.Join(dir, "internal", "users", "auth_service.go")
+	if content := readTestFile(t, service); strings.Contains(content, "Register") || !strings.Contains(content, "func (s *AuthService) Login(") {
+		t.Fatalf("auth_service.go:\n%s", content)
+	}
+	writeTestFile(t, spec, strings.Replace(readTestFile(t, spec), "auth=session|apikey", "auth=session|apikey,register", 1))
+	plan := build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	scaffold := "internal/users/auth_service_register.go"
+	i := slices.IndexFunc(plan.Files, func(f FileChange) bool { return f.Path == scaffold })
+	if i < 0 || plan.Files[i].Action != ActionCreate || plan.Files[i].Reason != "adds AuthService.Register, which the generated handler now requires" {
+		t.Fatalf("scaffold plan = %+v", plan.Files)
+	}
+	if content := readTestFile(t, filepath.Join(dir, filepath.FromSlash(scaffold))); !strings.Contains(content, "func (s *AuthService) Register(ctx context.Context, in CreateInput) (User, error) {\n\treturn s.repo.Create(ctx, in)\n}") {
+		t.Fatalf("scaffold:\n%s", content)
+	}
+	if strings.Contains(readTestFile(t, service), "Register") {
+		t.Fatal("auth_service.go was edited")
+	}
+	mainGo := filepath.Join(dir, "cmd", "api", "main.go")
+	writeTestFile(t, mainGo, strings.Replace(readTestFile(t, mainGo), "if err := app.RegisterRoutes(mux, db, logger); err != nil {\n\t\treturn err\n\t}", "app.RegisterRoutes(mux, db, logger)", 1))
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "ignores the error returned by app.RegisterRoutes") }) {
+		t.Fatalf("warnings = %v", plan.Warnings)
 	}
 }

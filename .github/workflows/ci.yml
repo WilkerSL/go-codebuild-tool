@@ -94,6 +94,7 @@ jobs:
       CODEBUILD_TEST_POSTGRES_DSN: postgres://app:app@localhost:5432/app?sslmode=disable
       CODEBUILD_TEST_SQLSERVER_DSN: sqlserver://sa:Codebuild_Passw0rd@localhost:1433?database=codebuild&encrypt=disable
       CODEBUILD_TEST_MYSQL_DSN: app:app@tcp(localhost:3306)/app
+      CODEBUILD_E2E_DOCKER: ${{ matrix.go == '1.27.x' && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -101,8 +102,8 @@ jobs:
           go-version: ${{ matrix.go }}
       - name: Create the SQL Server database
         run: docker exec ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Codebuild_Passw0rd -C -Q "CREATE DATABASE codebuild"
-      - name: Generate, build, test and exercise every dialect against real databases
-        run: go test -count=1 -timeout 30m -run TestEndToEnd -v ./cmd/codebuild
+      - name: Generate, build, test and exercise every project and dialect against real databases
+        run: go test -count=1 -timeout 60m -run TestEndToEnd -v ./cmd/codebuild
 
   build:
     needs: test

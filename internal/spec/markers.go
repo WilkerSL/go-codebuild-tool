@@ -78,6 +78,56 @@ var markerDefs = []markerDef{
 		},
 	},
 	{
+		name: "auth", scope: scopeEntity, value: valueRequired,
+		doc: MarkerDoc{
+			Syntax:      "auth=<method>|<method>",
+			AppliesTo:   "entity (`_ struct{}`) of the account entity; one entity per project",
+			Description: "Turns the entity into the account entity and generates authentication. Methods: `session` (opaque tokens stored as SHA-256 hashes in `auth_sessions`) or `jwt` (HS256 access tokens plus rotating refresh tokens in `auth_refresh_tokens`), optionally combined with `apikey` (keys stored as hashes in `auth_api_keys`). The entity needs one `identity` and one `password` field. Once a project has an account entity, every route requires authentication unless the entity says `public`.",
+			Example:     "_ struct{} `gen:\"auth=session|apikey,register,roles=admin\"`",
+			CommonError: "`auth=session|jwt` fails with invalid_value: choose one login method, session or jwt.",
+		},
+	},
+	{
+		name: "register", scope: scopeEntity, value: valueNone,
+		doc: MarkerDoc{
+			Syntax:      "register",
+			AppliesTo:   "the entity with `auth=`",
+			Description: "Generates `POST /auth/register`, which creates an account from the create fields plus `password`. The `role` field is not accepted there and always takes its default. The endpoint is rate limited per client IP.",
+			Example:     "_ struct{} `gen:\"auth=jwt,register\"`",
+			CommonError: "`register` with a `role` field that has no `default=` fails with invalid_combination.",
+		},
+	},
+	{
+		name: "public", scope: scopeEntity, value: valueOptional,
+		doc: MarkerDoc{
+			Syntax:      "public | public=read|create|update|delete",
+			AppliesTo:   "entities of a project with an account entity",
+			Description: "Opens the listed operations to anonymous callers; without a value every operation is public. `read` covers list, get and relation listings. Everything else keeps requiring authentication.",
+			Example:     "_ struct{} `gen:\"public=read,writeroles=admin\"`",
+			CommonError: "`public` on an entity with an `owner` field fails with invalid_combination: owned rows always need a caller.",
+		},
+	},
+	{
+		name: "roles", scope: scopeEntity, value: valueRequired,
+		doc: MarkerDoc{
+			Syntax:      "roles=<role>|<role>",
+			AppliesTo:   "entities of a project whose account entity has a `role` field",
+			Description: "Restricts every protected operation to callers with one of the roles. Callers without it get HTTP 403. Roles must be items of the `role` enum.",
+			Example:     "_ struct{} `gen:\"roles=admin\"`",
+			CommonError: "`roles=root` fails with invalid_value when root is not an item of the role enum.",
+		},
+	},
+	{
+		name: "writeroles", scope: scopeEntity, value: valueRequired,
+		doc: MarkerDoc{
+			Syntax:      "writeroles=<role>|<role>",
+			AppliesTo:   "entities of a project whose account entity has a `role` field",
+			Description: "Roles required for create, update, delete, link and unlink. Overrides `roles` for those operations, so `roles=admin|member,writeroles=admin` lets members read and only admins write.",
+			Example:     "_ struct{} `gen:\"public=read,writeroles=admin\"`",
+			CommonError: "`writeroles` on a readonly entity fails with invalid_combination: it has no write operations.",
+		},
+	},
+	{
 		name: "pk", scope: scopeField, value: valueNone,
 		doc: MarkerDoc{
 			Syntax:      "pk",
@@ -235,6 +285,46 @@ var markerDefs = []markerDef{
 			Description: "Chooses which `belongs_to` field of the child entity backs the relation. Needed only when the child references the parent more than once.",
 			Example:     "Owned []Project `gen:\"rel=has_many:Project,fk=OwnerID\"`",
 			CommonError: "A child with two references to the parent and no fk= fails with relation_ambiguous.",
+		},
+	},
+	{
+		name: "identity", scope: scopeField, value: valueNone,
+		doc: MarkerDoc{
+			Syntax:      "identity",
+			AppliesTo:   "`string` field of the account entity, together with `unique`",
+			Description: "The login name sent to `POST /auth/login` under the field's JSON name. Email identities are lowercased on create, update and login.",
+			Example:     "Email string `gen:\"required,unique,email,max=254,identity\"`",
+			CommonError: "`identity` without `unique` fails with invalid_combination.",
+		},
+	},
+	{
+		name: "password", scope: scopeField, value: valueNone,
+		doc: MarkerDoc{
+			Syntax:      "password",
+			AppliesTo:   "`string` field of the account entity, conventionally named `PasswordHash`",
+			Description: "Stores a PBKDF2-SHA256 hash (600,000 iterations, random salt). Requests send the plain text as `password` (the field name without the `Hash` suffix) on create and register only; responses never include it. `min=` sets the minimum length (default and lowest value 8); the maximum is 1024 characters. Passwords change through `PUT /auth/password`.",
+			Example:     "PasswordHash string `gen:\"password,min=12\"`",
+			CommonError: "`password,max=64` fails with invalid_combination: the column size is fixed for the hash.",
+		},
+	},
+	{
+		name: "role", scope: scopeField, value: valueNone,
+		doc: MarkerDoc{
+			Syntax:      "role",
+			AppliesTo:   "`string` field with `enum=` on the account entity",
+			Description: "The role checked by `roles=` and `writeroles=`. Write operations on the account entity must then be restricted with `roles=` or `writeroles=`, otherwise any user could promote themselves.",
+			Example:     "Role string `gen:\"enum=admin|member,default=member,role\"`",
+			CommonError: "`role` without `enum=` fails with invalid_combination.",
+		},
+	},
+	{
+		name: "owner", scope: scopeField, value: valueNone,
+		doc: MarkerDoc{
+			Syntax:      "owner",
+			AppliesTo:   "non-pointer `rel=belongs_to:<account entity>` field",
+			Description: "Scopes every query of the entity to the authenticated caller: the field is filled from the caller on create, never accepted in requests, and rows of other owners answer 404. Repository and service methods take the owner as an explicit parameter.",
+			Example:     "OwnerID uuid.UUID `gen:\"rel=belongs_to:User,ondelete=cascade,owner\"`",
+			CommonError: "`owner` on a reference to an entity without `auth=` fails with invalid_combination.",
 		},
 	},
 	{

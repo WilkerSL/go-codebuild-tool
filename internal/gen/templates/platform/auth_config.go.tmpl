@@ -1,0 +1,101 @@
+{{.Header}}
+
+package auth
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Config struct {
+{{- if .Auth.Session}}
+	SessionTTL time.Duration
+{{- end}}
+{{- if .Auth.JWT}}
+	AccessTTL      time.Duration
+	RefreshTTL     time.Duration
+	Secret         []byte
+	PreviousSecret []byte
+{{- end}}
+	CookieSecure      bool
+	TrustedOrigins    []string
+	LoginLimit        int
+	LoginWindow       time.Duration
+	TrustForwardedFor bool
+}
+
+func LoadConfig(getenv func(string) string) (Config, error) {
+	var errs []error
+	duration := func(key string, fallback time.Duration) time.Duration {
+		v := getenv(key)
+		if v == "" {
+			return fallback
+		}
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			errs = append(errs, fmt.Errorf("%s must be a positive duration such as 15m, got %q", key, v))
+			return fallback
+		}
+		return d
+	}
+	boolean := func(key string, fallback bool) bool {
+		v := getenv(key)
+		if v == "" {
+			return fallback
+		}
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s must be true or false, got %q", key, v))
+			return fallback
+		}
+		return b
+	}
+	cfg := Config{
+{{- if .Auth.Session}}
+		SessionTTL: duration("AUTH_SESSION_TTL", 24*time.Hour),
+{{- end}}
+{{- if .Auth.JWT}}
+		AccessTTL:      duration("AUTH_ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:     duration("AUTH_REFRESH_TTL", 30*24*time.Hour),
+		Secret:         []byte(getenv("AUTH_JWT_SECRET")),
+		PreviousSecret: []byte(getenv("AUTH_JWT_PREVIOUS_SECRET")),
+{{- end}}
+		CookieSecure:      boolean("AUTH_COOKIE_SECURE", true),
+		LoginLimit:        10,
+		LoginWindow:       duration("AUTH_LOGIN_WINDOW", 15*time.Minute),
+		TrustForwardedFor: boolean("AUTH_TRUST_FORWARDED_FOR", false),
+	}
+	if v := getenv("AUTH_LOGIN_LIMIT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			errs = append(errs, fmt.Errorf("AUTH_LOGIN_LIMIT must be a non-negative integer (0 disables the limit), got %q", v))
+		} else {
+			cfg.LoginLimit = n
+		}
+	}
+	origins := http.NewCrossOriginProtection()
+	for origin := range strings.SplitSeq(getenv("AUTH_TRUSTED_ORIGINS"), ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if err := origins.AddTrustedOrigin(origin); err != nil {
+			errs = append(errs, fmt.Errorf("AUTH_TRUSTED_ORIGINS: %w", err))
+			continue
+		}
+		cfg.TrustedOrigins = append(cfg.TrustedOrigins, origin)
+	}
+{{- if .Auth.JWT}}
+	if len(cfg.Secret) < MinSecretLength {
+		errs = append(errs, fmt.Errorf("AUTH_JWT_SECRET must contain at least %d bytes; generate one with: openssl rand -base64 48", MinSecretLength))
+	}
+	if len(cfg.PreviousSecret) > 0 && len(cfg.PreviousSecret) < MinSecretLength {
+		errs = append(errs, fmt.Errorf("AUTH_JWT_PREVIOUS_SECRET must contain at least %d bytes", MinSecretLength))
+	}
+{{- end}}
+	return cfg, errors.Join(errs...)
+}

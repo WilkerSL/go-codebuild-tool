@@ -15,13 +15,13 @@ import (
 )
 
 type serviceState struct {
-	declared bool
-	methods  map[string]bool
-	err      error
+	types   map[string]bool
+	methods map[string]map[string]bool
+	err     error
 }
 
 func readServiceState(dir string) serviceState {
-	st := serviceState{methods: map[string]bool{}}
+	st := serviceState{types: map[string]bool{}, methods: map[string]map[string]bool{}}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return st
@@ -56,14 +56,19 @@ func readServiceState(dir string) serviceState {
 					continue
 				}
 				for _, spec := range d.Specs {
-					if ts, ok := spec.(*ast.TypeSpec); ok && ts.Name.Name == "Service" {
-						st.declared = true
+					if ts, ok := spec.(*ast.TypeSpec); ok {
+						st.types[ts.Name.Name] = true
 					}
 				}
 			case *ast.FuncDecl:
-				if d.Recv != nil && len(d.Recv.List) == 1 && receiverName(d.Recv.List[0].Type) == "Service" {
-					st.methods[d.Name.Name] = true
+				if d.Recv == nil || len(d.Recv.List) != 1 {
+					continue
 				}
+				recv := receiverName(d.Recv.List[0].Type)
+				if st.methods[recv] == nil {
+					st.methods[recv] = map[string]bool{}
+				}
+				st.methods[recv][d.Name.Name] = true
 			}
 		}
 	}
@@ -95,24 +100,24 @@ func (p *planner) resolveServices(context.Context) error {
 	}
 	kept := p.files[:0]
 	for _, f := range p.files {
-		if f.domain == "" || (!f.service && f.method == "") {
+		if f.domain == "" || (f.service == "" && f.method == "") {
 			kept = append(kept, f)
 			continue
 		}
 		st := state(f.domain)
 		full := filepath.Join(p.root, filepath.FromSlash(f.Path))
 		switch {
-		case f.service:
-			if st.declared && !exists(full) {
+		case f.service != "":
+			if st.types[f.service] && !exists(full) {
 				continue
 			}
-		case st.err != nil || !st.declared || st.methods[f.method]:
+		case st.err != nil || !st.types[f.receiver] || st.methods[f.receiver][f.method]:
 			continue
 		case exists(full):
 			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
-				"Service in internal/%s lacks the method %s required by the generated handler, and %s already exists; add the method by hand", f.domain, f.method, path.Base(f.Path)))
+				"%s in internal/%s lacks the method %s required by the generated handler, and %s already exists; add the method by hand", f.receiver, f.domain, f.method, path.Base(f.Path)))
 		default:
-			f.Reason = "adds Service." + f.method + ", which the generated handler now requires"
+			f.Reason = "adds " + f.receiver + "." + f.method + ", which the generated handler now requires"
 		}
 		kept = append(kept, f)
 	}

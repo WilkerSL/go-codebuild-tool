@@ -1,0 +1,439 @@
+{
+  "version": 1,
+  "dialect": "sqlite",
+  "tables": [
+    {
+      "name": "auth_api_keys",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "string",
+          "size": 32
+        },
+        {
+          "name": "user_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "prefix",
+          "kind": "string",
+          "size": 16
+        },
+        {
+          "name": "key_hash",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "created_at",
+          "kind": "time"
+        },
+        {
+          "name": "expires_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_auth_api_keys",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_auth_api_keys_user_id",
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "ux_auth_api_keys_key_hash",
+          "columns": [
+            "key_hash"
+          ],
+          "unique": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_auth_api_keys_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "auth_sessions",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "user_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "created_at",
+          "kind": "time"
+        },
+        {
+          "name": "expires_at",
+          "kind": "time"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_auth_sessions",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_auth_sessions_user_id",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_auth_sessions_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "folders",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "owner_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 80
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_folders",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_folders_owner_id",
+          "columns": [
+            "owner_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_folders_owner_id",
+          "columns": [
+            "owner_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "labels",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 40
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_labels",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_labels_name",
+          "columns": [
+            "name"
+          ],
+          "unique": true
+        }
+      ]
+    },
+    {
+      "name": "note_labels",
+      "columns": [
+        {
+          "name": "label_id",
+          "kind": "int64"
+        },
+        {
+          "name": "note_id",
+          "kind": "uuid"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_note_labels",
+        "columns": [
+          "label_id",
+          "note_id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_note_labels_note_id",
+          "columns": [
+            "note_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_note_labels_label_id",
+          "columns": [
+            "label_id"
+          ],
+          "refTable": "labels",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "fk_note_labels_note_id",
+          "columns": [
+            "note_id"
+          ],
+          "refTable": "notes",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "notes",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "owner_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "folder_id",
+          "kind": "int64",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "kind": "string",
+          "size": 200
+        },
+        {
+          "name": "body",
+          "kind": "string",
+          "size": 5000,
+          "nullable": true
+        },
+        {
+          "name": "pinned",
+          "kind": "bool",
+          "default": {
+            "kind": "literal",
+            "value": "false"
+          }
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_notes",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_notes_folder_id",
+          "columns": [
+            "folder_id"
+          ]
+        },
+        {
+          "name": "ix_notes_owner_id",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "ix_notes_pinned",
+          "columns": [
+            "pinned"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_notes_folder_id",
+          "columns": [
+            "folder_id"
+          ],
+          "refTable": "folders",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "restrict"
+        },
+        {
+          "name": "fk_notes_owner_id",
+          "columns": [
+            "owner_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "email",
+          "kind": "string",
+          "size": 254
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "password_hash",
+          "kind": "string",
+          "size": 255
+        },
+        {
+          "name": "role",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "member"
+          }
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_users",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_users_email",
+          "columns": [
+            "email"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_users_role",
+          "column": "role",
+          "values": [
+            "admin",
+            "member"
+          ]
+        }
+      ]
+    }
+  ]
+}

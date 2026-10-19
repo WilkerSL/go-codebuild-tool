@@ -1,0 +1,22 @@
+{{.Header}}
+
+package auth
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+)
+
+func NewToken(prefix string) string {
+	return prefix + rand.Text()
+}
+
+func NewID() string {
+	return rand.Text()
+}
+
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}

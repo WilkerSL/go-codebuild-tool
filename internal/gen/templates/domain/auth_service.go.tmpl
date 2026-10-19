@@ -1,0 +1,23 @@
+package {{.Package}}
+
+import (
+	"context"
+	"database/sql"
+
+	"{{.Module}}/internal/platform/auth"
+)
+
+type AuthService struct {
+	accounts *Accounts
+	repo     *Repository
+}
+
+func NewAuthService(db *sql.DB, accounts *Accounts) *AuthService {
+	return &AuthService{accounts: accounts, repo: NewRepository(db)}
+}
+{{- range .AuthMethods}}
+
+func (s *AuthService) {{.Name}}({{.Params}}) {{.Results}} {
+	{{.Body}}
+}
+{{- end}}

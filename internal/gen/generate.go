@@ -53,7 +53,8 @@ type File struct {
 	Content       []byte
 	Owner         Owner
 	Domain        string
-	ServiceType   bool
+	ServiceType   string
+	Receiver      string
 	ServiceMethod string
 }
 
@@ -114,11 +115,19 @@ func Generate(opts Options) ([]File, error) {
 	if pv.Dialect.MigrateCode, err = render(opts.Dialect.Name()+".migrate", pv); err != nil {
 		return nil, err
 	}
+	pv.Auth = newAuthView(pv, opts.Dialect, opts.Model)
+	var authDomain *domainView
 	for _, e := range opts.Model.Entities {
 		dv := newDomainView(pv, opts.Dialect, opts.Model, e)
 		pv.Domains = append(pv.Domains, dv)
 		if dv.Routes && !slices.Contains(opts.ManualWiring, e.Domain) {
 			pv.Wired = append(pv.Wired, dv)
+			if dv.IsAuth {
+				pv.Auth.Wired = true
+			}
+		}
+		if dv.IsAuth {
+			authDomain = dv
 		}
 	}
 	g := &generator{module: opts.Module}
@@ -163,11 +172,14 @@ func Generate(opts Options) ([]File, error) {
 			g.goFile(dir+"routes_gen.go", "domain/routes.go.tmpl", dv)
 		}
 		g.userGoFile(dir+"service.go", "domain/service.go.tmpl", dv)
-		g.tag(dv.Package, true, "")
+		g.tag(dv.Package, "Service", "", "")
 		for _, m := range dv.ServiceMethods {
-			g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, UUIDImport: dv.UUIDImport, Method: m})
-			g.tag(dv.Package, false, m.Name)
+			g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "Service", Method: m})
+			g.tag(dv.Package, "", "Service", m.Name)
 		}
+	}
+	if authDomain != nil {
+		g.authFiles(pv, authDomain)
 	}
 	if g.err != nil {
 		return nil, g.err
@@ -228,14 +240,46 @@ func noun(name string) string {
 
 type serviceMethodView struct {
 	Package    string
+	Module     string
 	UUIDImport string
+	Receiver   string
 	Method     serviceMethod
 }
 
-func (g *generator) tag(domain string, serviceType bool, method string) {
+func (g *generator) tag(domain, serviceType, receiver, method string) {
 	if g.err != nil || len(g.files) == 0 {
 		return
 	}
 	last := &g.files[len(g.files)-1]
-	last.Domain, last.ServiceType, last.ServiceMethod = domain, serviceType, method
+	last.Domain, last.ServiceType, last.Receiver, last.ServiceMethod = domain, serviceType, receiver, method
+}
+
+func (g *generator) authFiles(pv *projectView, dv *domainView) {
+	av := pv.Auth
+	g.goFile("internal/platform/auth/auth_gen.go", "platform/auth.go.tmpl", pv)
+	g.goFile("internal/platform/auth/config_gen.go", "platform/auth_config.go.tmpl", pv)
+	g.goFile("internal/platform/auth/password_gen.go", "platform/auth_password.go.tmpl", pv)
+	g.goFile("internal/platform/auth/token_gen.go", "platform/auth_token.go.tmpl", pv)
+	g.goFile("internal/platform/auth/guard_gen.go", "platform/auth_guard.go.tmpl", pv)
+	g.goFile("internal/platform/auth/limiter_gen.go", "platform/auth_limiter.go.tmpl", pv)
+	g.goFile("internal/platform/auth/auth_gen_test.go", "platform/auth_test.go.tmpl", pv)
+	if av.JWT {
+		g.goFile("internal/platform/auth/jwt_gen.go", "platform/auth_jwt.go.tmpl", pv)
+	}
+	g.goFile("internal/app/accounts_gen.go", "project/accounts.go.tmpl", pv)
+	g.userGoFile("cmd/accounts/main.go", "project/accounts_main.go.tmpl", pv)
+	dir := "internal/" + dv.Package + "/"
+	g.goFile(dir+"auth_queries_gen.go", "domain/auth_queries.go.tmpl", dv)
+	g.goFile(dir+"accounts_gen.go", "domain/accounts.go.tmpl", dv)
+	g.goFile(dir+"auth_handler_gen.go", "domain/auth_handler.go.tmpl", dv)
+	g.goFile(dir+"auth_routes_gen.go", "domain/auth_routes.go.tmpl", dv)
+	if dv.Creatable {
+		g.goFile(dir+"accounts_gen_test.go", "domain/accounts_test.go.tmpl", dv)
+	}
+	g.userGoFile(dir+"auth_service.go", "domain/auth_service.go.tmpl", dv)
+	g.tag(dv.Package, "AuthService", "", "")
+	for _, m := range dv.AuthMethods {
+		g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "AuthService", Method: m})
+		g.tag(dv.Package, "", "AuthService", m.Name)
+	}
 }

@@ -54,7 +54,7 @@ func LoadDir(root, dir string) ([]Source, error) {
 var domainPattern = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 
 var reservedDomains = map[string]bool{
-	"app": true, "bytes": true, "cmd": true, "config": true, "context": true,
+	"app": true, "auth": true, "bytes": true, "cmd": true, "config": true, "context": true,
 	"database": true, "errors": true, "fmt": true, "http": true, "httpx": true,
 	"internal": true, "io": true, "json": true, "main": true, "migrations": true,
 	"os": true, "platform": true, "slog": true, "specs": true, "sql": true,
@@ -63,8 +63,9 @@ var reservedDomains = map[string]bool{
 }
 
 var reservedEntityNames = map[string]bool{
-	"CreateInput": true, "Handler": true, "ListParams": true, "Page": true,
-	"Repository": true, "Service": true, "UpdateInput": true,
+	"APIKey": true, "APIKeyInput": true, "Accounts": true, "AuthHandler": true, "AuthService": true,
+	"CreateInput": true, "CreatedAPIKey": true, "Handler": true, "ListParams": true, "LoginInput": true,
+	"Page": true, "PasswordChange": true, "Repository": true, "Service": true, "UpdateInput": true,
 }
 
 var reservedFieldNames = map[string]bool{
@@ -462,6 +463,207 @@ func (p *parser) buildMeta(e *schema.Entity, field *ast.Field, markers []marker,
 	e.SoftDelete = set.has("softdelete")
 	e.NoRoutes = set.has("noroutes")
 	e.ReadOnly = set.has("readonly")
+	if set.has("auth") {
+		e.Auth = p.parseMethods(set.get("auth"))
+	}
+	e.Register = set.has("register")
+	if set.has("public") {
+		e.Public = p.parsePublic(set.get("public"))
+	}
+	if set.has("roles") {
+		e.Roles = p.parseRoles(set.get("roles"))
+	}
+	if set.has("writeroles") {
+		e.WriteRoles = p.parseRoles(set.get("writeroles"))
+	}
+}
+
+func (p *parser) parseMethods(m marker) []schema.Method {
+	names := make([]string, len(schema.Methods))
+	for i, method := range schema.Methods {
+		names[i] = string(method)
+	}
+	seen := map[schema.Method]bool{}
+	for _, item := range strings.Split(m.value, "|") {
+		method := schema.Method(item)
+		switch {
+		case !slices.Contains(schema.Methods, method):
+			p.errorf(m.pos, CodeInvalidValue, naming.Suggest(item, names), "unknown authentication method %q; use session, jwt or apikey", item)
+			return nil
+		case seen[method]:
+			p.errorf(m.pos, CodeInvalidValue, "", "authentication method %q is listed more than once", item)
+			return nil
+		}
+		seen[method] = true
+	}
+	switch {
+	case seen[schema.MethodSession] && seen[schema.MethodJWT]:
+		p.errorf(m.pos, CodeInvalidValue, "", "auth combines session and jwt; choose one login method and optionally add apikey")
+		return nil
+	case !seen[schema.MethodSession] && !seen[schema.MethodJWT]:
+		p.errorf(m.pos, CodeInvalidValue, "session|"+m.value, "auth needs a login method, session or jwt; API keys are created by logged-in users")
+		return nil
+	}
+	var methods []schema.Method
+	for _, method := range schema.Methods {
+		if seen[method] {
+			methods = append(methods, method)
+		}
+	}
+	return methods
+}
+
+func (p *parser) parsePublic(m marker) schema.Operations {
+	var ops schema.Operations
+	if !m.hasValue {
+		for _, op := range schema.AllOperations {
+			ops.Set(op)
+		}
+		return ops
+	}
+	names := make([]string, len(schema.AllOperations))
+	for i, op := range schema.AllOperations {
+		names[i] = string(op)
+	}
+	for _, item := range strings.Split(m.value, "|") {
+		op := schema.Operation(item)
+		switch {
+		case !slices.Contains(schema.AllOperations, op):
+			p.errorf(m.pos, CodeInvalidValue, naming.Suggest(item, names), "unknown operation %q; use read, create, update or delete", item)
+			return schema.Operations{}
+		case ops.Has(op):
+			p.errorf(m.pos, CodeInvalidValue, "", "operation %q is listed more than once", item)
+			return schema.Operations{}
+		}
+		ops.Set(op)
+	}
+	return ops
+}
+
+func (p *parser) entityPos(e *schema.Entity, key string) schema.Pos {
+	if set, ok := p.entityMarkers[e]; ok && set.has(key) {
+		return set.get(key).pos
+	}
+	return e.Pos
+}
+
+func (p *parser) fieldPos(f *schema.Field, key string) schema.Pos {
+	if set, ok := p.fieldMarkers[f]; ok && set.has(key) {
+		return set.get(key).pos
+	}
+	return f.Pos
+}
+
+func (p *parser) checkAccess(e *schema.Entity) {
+	routed := len(e.Roles) > 0 || len(e.WriteRoles) > 0 || e.Public.Any()
+	switch {
+	case e.NoRoutes && routed:
+		for _, key := range []string{"public", "roles", "writeroles"} {
+			if set := p.entityMarkers[e]; set.has(key) {
+				p.errorf(set.get(key).pos, CodeInvalidCombination, "", "%s has no effect on %s, which has noroutes", key, e.Name)
+			}
+		}
+	case e.ReadOnly && len(e.WriteRoles) > 0:
+		p.errorf(p.entityPos(e, "writeroles"), CodeInvalidCombination, "", "writeroles has no effect on readonly entity %s, which has no write operations", e.Name)
+	case e.ReadOnly && (e.Public.Create || e.Public.Update || e.Public.Delete):
+		p.errorf(p.entityPos(e, "public"), CodeInvalidCombination, "read", "readonly entity %s only has read operations; use public=read", e.Name)
+	}
+	var owners []*schema.Field
+	for _, f := range e.Fields {
+		if f.Owner {
+			owners = append(owners, f)
+		}
+	}
+	for _, f := range owners[min(1, len(owners)):] {
+		p.errorf(p.fieldPos(f, "owner"), CodeInvalidCombination, "", "entity %s declares more than one owner field (%s and %s)", e.Name, owners[0].Name, f.Name)
+	}
+	if len(owners) > 0 && e.Public.Any() {
+		p.errorf(p.entityPos(e, "public"), CodeInvalidCombination, "", "%s has the owner field %s, so its rows always belong to a caller and cannot be public", e.Name, owners[0].Name)
+	}
+}
+
+func (p *parser) checkAuthFields(e *schema.Entity, jsonNames map[string]*schema.Field) {
+	byFlag := map[string][]*schema.Field{}
+	for _, f := range e.Fields {
+		for key, on := range map[string]bool{"identity": f.Identity, "password": f.Password, "role": f.Role} {
+			if on {
+				byFlag[key] = append(byFlag[key], f)
+			}
+		}
+	}
+	if !e.IsAuth() {
+		for _, key := range []string{"identity", "password", "role"} {
+			for _, f := range byFlag[key] {
+				p.errorf(p.fieldPos(f, key), CodeInvalidCombination, "", "%s is only valid on the entity that declares auth=; add auth=session to %s or remove the marker", key, e.Name)
+			}
+		}
+		if e.Register {
+			p.errorf(p.entityPos(e, "register"), CodeInvalidCombination, "", "register needs auth= on the same entity")
+		}
+		return
+	}
+	authPos := p.entityPos(e, "auth")
+	for _, key := range []string{"identity", "password"} {
+		if len(byFlag[key]) == 0 {
+			p.errorf(authPos, CodeInvalidCombination, "", "account entity %s needs a field marked %s", e.Name, key)
+		}
+	}
+	for _, key := range []string{"identity", "password", "role"} {
+		for _, f := range byFlag[key][min(1, len(byFlag[key])):] {
+			p.errorf(p.fieldPos(f, key), CodeInvalidCombination, "", "account entity %s declares more than one %s field (%s and %s)", e.Name, key, byFlag[key][0].Name, f.Name)
+		}
+	}
+	switch {
+	case e.ReadOnly:
+		p.errorf(p.entityPos(e, "readonly"), CodeInvalidCombination, "", "account entity %s cannot be readonly: accounts are created by register or POST %s", e.Name, e.Path())
+	case e.Public.Any():
+		p.errorf(p.entityPos(e, "public"), CodeInvalidCombination, "register", "account entity %s cannot be public; use register for self sign-up", e.Name)
+	}
+	for _, f := range e.Fields {
+		if f.Owner {
+			p.errorf(p.fieldPos(f, "owner"), CodeInvalidCombination, "", "the account entity %s cannot have an owner field", e.Name)
+		}
+	}
+	if pw := e.Password(); pw != nil {
+		if pw.InputName() != pw.Name && e.Field(pw.InputName()) != nil {
+			p.errorf(pw.Pos, CodeNameCollision, "", "password field %s is sent as %s, which collides with the field %s", pw.Name, pw.InputName(), pw.InputName())
+		}
+		if other, ok := jsonNames[pw.InputJSON()]; ok && other != pw {
+			p.errorf(pw.Pos, CodeNameCollision, "", "password field %s is sent as the JSON member %s, which collides with the field %s", pw.Name, pw.InputJSON(), other.Name)
+		}
+	}
+	if role := e.Role(); role != nil {
+		if e.Register && !role.HasDefault {
+			p.errorf(p.fieldPos(role, "role"), CodeInvalidCombination, "default="+firstOr(role.Enum, "member"), "register creates accounts without a role, so role %s needs default=", role.Name)
+		}
+		if !e.NoRoutes && len(e.Roles) == 0 && len(e.WriteRoles) == 0 {
+			p.errorf(p.fieldPos(role, "role"), CodeInvalidCombination, "writeroles="+firstOr(role.Enum, "admin"),
+				"%s has the role field %s but its routes are open to every authenticated user, who could change their own role; add roles= or writeroles= to %s", e.Name, role.Name, e.Name)
+		}
+	}
+}
+
+func firstOr(items []string, fallback string) string {
+	if len(items) > 0 {
+		return items[0]
+	}
+	return fallback
+}
+
+func (p *parser) parseRoles(m marker) []string {
+	var roles []string
+	for _, item := range strings.Split(m.value, "|") {
+		switch {
+		case !enumItemPattern.MatchString(item):
+			p.errorf(m.pos, CodeInvalidValue, "", "role %q may only contain letters, digits, '_', '-' and '.'", item)
+			return nil
+		case slices.Contains(roles, item):
+			p.errorf(m.pos, CodeInvalidValue, "", "role %q is listed more than once", item)
+			return nil
+		}
+		roles = append(roles, item)
+	}
+	return roles
 }
 
 func sqlIdentifierSuggestion(s string) string {
@@ -714,6 +916,8 @@ func (p *parser) checkEntity(e *schema.Entity) {
 			p.errorf(f.Pos, CodeDuplicateColumn, "", "softdelete adds the deleted_at column automatically; remove field %s", f.Name)
 		}
 	}
+	p.checkAccess(e)
+	p.checkAuthFields(e, jsonNames)
 	generated := map[string]string{
 		e.Name: "entity", "Repository": "type", "NewRepository": "function", "Service": "type",
 		"NewService": "function", "Handler": "type", "NewHandler": "function", "RegisterRoutes": "function",

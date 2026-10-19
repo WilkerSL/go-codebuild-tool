@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Authentication generated from the specs with the standard library only. The entity marker `auth=session|jwt[|apikey]` turns an entity into the account entity, with the field markers `identity`, `password` and `role` and the entity marker `register`. Sessions are opaque tokens stored as SHA-256 hashes; JWT uses HS256 access tokens with rotating refresh tokens and reuse detection; API keys are hashed and cannot manage other keys. Passwords use PBKDF2-SHA256 with 600,000 iterations and constant-time, timing-equalized verification.
+- Routes are protected by default once a project has an account entity. The entity markers `public`, `roles` and `writeroles` open or restrict operations, and relation routes combine the rules of both entities.
+- The field marker `owner` scopes every query of an entity to the caller, takes the owner as an explicit repository and service parameter, and rejects references to rows of other owners.
+- `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`, `PUT /auth/password` and `/auth/api-keys`, with `HttpOnly` `SameSite=Strict` cookies checked by `http.CrossOriginProtection`, an in-memory login rate limiter, `WWW-Authenticate` and `Retry-After` headers, and configuration through `AUTH_*` variables.
+- A user-owned `AuthService` composed from generated `Accounts` primitives, scaffolded method by method like `Service`, and a `cmd/accounts` command to set roles, reset passwords and revoke credentials.
+- `httpx.Error` carries response headers.
+- `docs/authentication.md`, the `secure` and `secure-jwt` golden projects and their end-to-end HTTP tests; with `CODEBUILD_E2E_DOCKER=1` the end-to-end test also builds and starts the image of SQLite projects.
+
+### Changed
+
+- `app.RegisterRoutes` returns an error and new `main.go` files check it. `codebuild plan` warns when an authenticated project still ignores it.
+- The manual wiring hint uses `NewService(db)`.
+- Golden projects live in `testdata/golden/<project>/go1.NN/<dialect>`.
+
 ## [0.1.0] - 2026-10-18
 
 ### Added

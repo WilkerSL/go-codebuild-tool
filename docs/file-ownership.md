@@ -7,7 +7,8 @@ codebuild decides what it may write by who owns each file. `codebuild plan` show
 | `**/*_gen.go`, `**/*_gen_test.go` | codebuild | Regenerated on every build. |
 | `internal/<domain>/service.go` | you | Created once with explicit methods that call the repository, never touched again. |
 | `internal/<domain>/service_<method>.go` | you | Created when the generated handler needs a service method you do not have yet; never touched again. |
-| `cmd/api/main.go`, `cmd/migrate/main.go` | you | Created once. |
+| `internal/<domain>/auth_service.go`, `auth_service_<method>.go` | you | With authentication: created once in the account domain; missing `AuthService` methods get new files. See [authentication.md](authentication.md). |
+| `cmd/api/main.go`, `cmd/migrate/main.go`, `cmd/accounts/main.go` | you | Created once. `cmd/accounts` exists only with authentication. |
 | `internal/platform/config/config.go` | you | Created once. |
 | `internal/platform/database/database.go` | you | Created once; it calls the generated `Connect`. |
 | `AGENTS.md`, `.gitignore`, `.gitattributes`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml` | you | Created once. `.gitattributes` keeps LF line endings even when Git converts them on Windows. |

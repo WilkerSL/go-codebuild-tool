@@ -1,0 +1,459 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"{{.UUIDImport}}"
+
+	"{{.Module}}/internal/platform/auth"
+	"{{.Module}}/internal/platform/database"
+	"{{.Module}}/internal/platform/httpx"
+	"{{.Module}}/internal/platform/validation"
+)
+{{- $id := print .Auth.IDArgOpen "id" .Auth.IDArgClose}}
+{{- $callerID := print .Auth.IDArgOpen "caller.ID" .Auth.IDArgClose}}
+{{- $userID := print .Auth.IDArgOpen "user." .PK.Name .Auth.IDArgClose}}
+
+type LoginInput struct {
+	Identity string
+	Password string
+}
+
+type PasswordChange struct {
+	Current string
+	New     string
+}
+{{- if .Auth.APIKey}}
+
+const maxAPIKeys = 100
+
+type APIKey struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Prefix    string     `json:"prefix"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+}
+
+type CreatedAPIKey struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Prefix    string     `json:"prefix"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+	Key       string     `json:"key"`
+}
+
+type APIKeyInput struct {
+	Name      string
+	ExpiresAt *time.Time
+}
+{{- end}}
+
+type Accounts struct {
+	db   *sql.DB
+	repo *Repository
+	cfg  auth.Config
+}
+
+func NewAccounts(db *sql.DB, cfg auth.Config) *Accounts {
+	return &Accounts{db: db, repo: NewRepository(db), cfg: cfg}
+}
+
+func authNow() time.Time {
+	return time.Now().UTC().Truncate(time.Microsecond)
+}
+
+func normalizeIdentity(identity string) string {
+{{- if .Auth.EmailIdentity}}
+	return strings.ToLower(identity)
+{{- else}}
+	return identity
+{{- end}}
+}
+
+func checkNewPassword(field, password string) error {
+	n := utf8.RuneCountInString(password)
+	switch {
+	case n < auth.MinPasswordLength:
+		return validation.Errors{ {Field: field, Message: "must be at least " + strconv.Itoa(auth.MinPasswordLength) + " characters"} }
+	case n > auth.MaxPasswordLength:
+		return validation.Errors{ {Field: field, Message: "must be at most " + strconv.Itoa(auth.MaxPasswordLength) + " characters"} }
+	}
+	return nil
+}
+{{- if .Auth.JWT}}
+
+func parseAccountID(s string) ({{.Auth.IDType}}, error) {
+	{{.Auth.IDParse}}
+}
+
+func formatAccountID(id {{.Auth.IDType}}) string {
+	return {{.Auth.IDFormat}}
+}
+{{- end}}
+
+func (a *Accounts) findByIdentity(ctx context.Context, identity string) ({{.Name}}, error) {
+	item, err := scan{{.Name}}(a.db.QueryRowContext(ctx, userByIdentityQuery, normalizeIdentity(identity)).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return {{.Name}}{}, database.ErrNotFound
+	}
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("find {{.Noun}}: %w", err)
+	}
+	return item, nil
+}
+
+func (a *Accounts) VerifyPassword(ctx context.Context, identity, password string) ({{.Name}}, error) {
+	item, err := a.findByIdentity(ctx, identity)
+	if errors.Is(err, database.ErrNotFound) {
+		auth.RejectPassword(password)
+		return {{.Name}}{}, auth.ErrInvalidCredentials
+	}
+	if err != nil {
+		return {{.Name}}{}, err
+	}
+	ok, rehash := auth.VerifyPassword(item.{{.Auth.Password.Name}}, password)
+	if !ok {
+		return {{.Name}}{}, auth.ErrInvalidCredentials
+	}
+	if rehash {
+		if err := a.setPassword(ctx, item.{{.PK.Name}}, password); err != nil {
+			return {{.Name}}{}, err
+		}
+	}
+	return item, nil
+}
+
+func (a *Accounts) setPassword(ctx context.Context, id {{.Auth.IDType}}, password string) error {
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+	res, err := a.db.ExecContext(ctx, setPasswordQuery, hash, {{$id}})
+	if err != nil {
+		return fmt.Errorf("set password: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set password: %w", err)
+	}
+	if n == 0 {
+		return database.ErrNotFound
+	}
+	return nil
+}
+
+func (a *Accounts) Issue(ctx context.Context, user {{.Name}}) (auth.Tokens, error) {
+	issued := authNow()
+{{- if .Auth.Session}}
+	if _, err := a.db.ExecContext(ctx, deleteExpiredSessionsQuery, {{$userID}}, database.TimeArg(issued)); err != nil {
+		return auth.Tokens{}, fmt.Errorf("issue session: %w", err)
+	}
+	token := auth.NewToken(auth.SessionPrefix)
+	expires := issued.Add(a.cfg.SessionTTL)
+	if _, err := a.db.ExecContext(ctx, insertSessionQuery, auth.HashToken(token), {{$userID}}, database.TimeArg(issued), database.TimeArg(expires)); err != nil {
+		return auth.Tokens{}, fmt.Errorf("issue session: %w", err)
+	}
+	return auth.Tokens{AccessToken: token, TokenType: "Bearer", ExpiresAt: expires}, nil
+{{- else}}
+	if _, err := a.db.ExecContext(ctx, deleteExpiredRefreshQuery, {{$userID}}, database.TimeArg(issued)); err != nil {
+		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
+	}
+	return a.issueTokens(ctx, user.{{.PK.Name}}{{if .Auth.Role}}, user.{{.Auth.Role.Name}}{{end}}, auth.NewID(), issued)
+{{- end}}
+}
+{{- if .Auth.JWT}}
+
+func (a *Accounts) issueTokens(ctx context.Context, id {{.Auth.IDType}}{{if .Auth.Role}}, role string{{end}}, family string, issued time.Time) (auth.Tokens, error) {
+	refresh := auth.NewToken(auth.RefreshPrefix)
+	refreshExpires := issued.Add(a.cfg.RefreshTTL)
+	if _, err := a.db.ExecContext(ctx, insertRefreshQuery, auth.HashToken(refresh), family, {{$id}}, database.TimeArg(issued), database.TimeArg(refreshExpires)); err != nil {
+		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
+	}
+	expires := issued.Add(a.cfg.AccessTTL).Truncate(time.Second)
+	access, err := auth.SignJWT(a.cfg.Secret, auth.Claims{
+		Subject: formatAccountID(id),
+{{- if .Auth.Role}}
+		Role: role,
+{{- end}}
+		Session:   family,
+		ID:        auth.NewID(),
+		IssuedAt:  issued.Unix(),
+		ExpiresAt: expires.Unix(),
+	})
+	if err != nil {
+		return auth.Tokens{}, err
+	}
+	return auth.Tokens{AccessToken: access, TokenType: "Bearer", ExpiresAt: expires, RefreshToken: refresh, RefreshExpiresAt: refreshExpires}, nil
+}
+
+func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, error) {
+	if !strings.HasPrefix(token, auth.RefreshPrefix) || len(token) > 256 {
+		return auth.Tokens{}, auth.ErrInvalidToken
+	}
+	issued := authNow()
+	hash := auth.HashToken(token)
+	var (
+		family string
+		used   *time.Time
+		id     {{.Auth.IDType}}
+{{- if .Auth.Role}}
+		role string
+{{- end}}
+	)
+	err := a.db.QueryRowContext(ctx, refreshTokenQuery, hash, database.TimeArg(issued)).Scan(&family, {{if .Auth.ScanTime}}database.ScanNullTime(&used){{else}}&used{{end}}, {{.Auth.IDScanOpen}}&id{{.Auth.IDScanClose}}{{if .Auth.Role}}, &role{{end}})
+	if errors.Is(err, sql.ErrNoRows) {
+		return auth.Tokens{}, auth.ErrInvalidToken
+	}
+	if err != nil {
+		return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
+	}
+	if used == nil {
+		res, err := a.db.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash)
+		if err != nil {
+			return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
+		}
+		if n == 1 {
+			return a.issueTokens(ctx, id{{if .Auth.Role}}, role{{end}}, family, issued)
+		}
+	}
+	if _, err := a.db.ExecContext(ctx, deleteFamilyQuery, family); err != nil {
+		return auth.Tokens{}, fmt.Errorf("revoke reused refresh token: %w", err)
+	}
+	return auth.Tokens{}, auth.ErrInvalidToken
+}
+{{- end}}
+
+func (a *Accounts) Authenticate(ctx context.Context, token string) (auth.Principal, error) {
+	switch {
+{{- if .Auth.Session}}
+	case strings.HasPrefix(token, auth.SessionPrefix):
+		p := auth.Principal{Method: auth.MethodSession, CredentialID: auth.HashToken(token)}
+		err := a.db.QueryRowContext(ctx, sessionPrincipalQuery, p.CredentialID, database.TimeArg(authNow())).Scan({{.Auth.IDScanOpen}}&p.ID{{.Auth.IDScanClose}}{{if .Auth.Role}}, &p.Role{{end}})
+		return foundPrincipal(p, err)
+{{- end}}
+{{- if .Auth.APIKey}}
+	case strings.HasPrefix(token, auth.APIKeyPrefix):
+		p := auth.Principal{Method: auth.MethodAPIKey}
+		err := a.db.QueryRowContext(ctx, apiKeyPrincipalQuery, auth.HashToken(token), database.TimeArg(authNow())).Scan(&p.CredentialID, {{.Auth.IDScanOpen}}&p.ID{{.Auth.IDScanClose}}{{if .Auth.Role}}, &p.Role{{end}})
+		return foundPrincipal(p, err)
+{{- end}}
+{{- if .Auth.JWT}}
+	case strings.Count(token, ".") == 2:
+		claims, err := auth.ParseJWT(token, time.Now(), a.cfg.Secret, a.cfg.PreviousSecret)
+		if err != nil {
+			return auth.Principal{}, err
+		}
+		id, err := parseAccountID(claims.Subject)
+		if err != nil {
+			return auth.Principal{}, auth.ErrInvalidToken
+		}
+		return auth.Principal{ID: id{{if .Auth.Role}}, Role: claims.Role{{end}}, Method: auth.MethodJWT, CredentialID: claims.Session}, nil
+{{- end}}
+	}
+	return auth.Principal{}, auth.ErrInvalidToken
+}
+{{- if or .Auth.Session .Auth.APIKey}}
+
+func foundPrincipal(p auth.Principal, err error) (auth.Principal, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return auth.Principal{}, auth.ErrInvalidToken
+	}
+	if err != nil {
+		return auth.Principal{}, fmt.Errorf("authenticate: %w", err)
+	}
+	return p, nil
+}
+{{- end}}
+
+func (a *Accounts) Revoke(ctx context.Context, caller auth.Principal) error {
+	switch caller.Method {
+{{- if .Auth.Session}}
+	case auth.MethodSession:
+		if _, err := a.db.ExecContext(ctx, deleteSessionQuery, caller.CredentialID); err != nil {
+			return fmt.Errorf("revoke session: %w", err)
+		}
+{{- end}}
+{{- if .Auth.JWT}}
+	case auth.MethodJWT:
+		if _, err := a.db.ExecContext(ctx, deleteFamilyQuery, caller.CredentialID); err != nil {
+			return fmt.Errorf("revoke tokens: %w", err)
+		}
+{{- end}}
+	default:
+		return httpx.BadRequest("only login credentials can be revoked here{{if .Auth.APIKey}}; delete API keys with DELETE /auth/api-keys/{id}{{end}}")
+	}
+	return nil
+}
+
+func (a *Accounts) ChangePassword(ctx context.Context, caller auth.Principal, in PasswordChange) error {
+{{- if .Auth.APIKey}}
+	if caller.Method == auth.MethodAPIKey {
+		return auth.ErrForbidden
+	}
+{{- end}}
+	item, err := a.repo.Get(ctx, caller.ID)
+	if errors.Is(err, database.ErrNotFound) {
+		return auth.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if ok, _ := auth.VerifyPassword(item.{{.Auth.Password.Name}}, in.Current); !ok {
+		return validation.Errors{ {Field: "currentPassword", Message: "is incorrect"} }
+	}
+	if err := checkNewPassword("newPassword", in.New); err != nil {
+		return err
+	}
+	if err := a.setPassword(ctx, caller.ID, in.New); err != nil {
+		return err
+	}
+{{- if .Auth.Session}}
+	if _, err := a.db.ExecContext(ctx, deleteOtherSessionsQuery, {{$callerID}}, caller.CredentialID); err != nil {
+		return fmt.Errorf("revoke other sessions: %w", err)
+	}
+{{- else}}
+	if _, err := a.db.ExecContext(ctx, deleteOtherFamiliesQuery, {{$callerID}}, caller.CredentialID); err != nil {
+		return fmt.Errorf("revoke other refresh tokens: %w", err)
+	}
+{{- end}}
+	return nil
+}
+{{- if .Auth.Role}}
+
+func (a *Accounts) SetRole(ctx context.Context, identity, role string) error {
+	switch role {
+	case {{.Auth.RoleConsts}}:
+	default:
+		return fmt.Errorf("role must be one of: {{.Auth.RoleItems}}")
+	}
+	res, err := a.db.ExecContext(ctx, setRoleQuery, role, normalizeIdentity(identity))
+	if err != nil {
+		return fmt.Errorf("set role: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set role: %w", err)
+	}
+	if n == 0 {
+		return database.ErrNotFound
+	}
+	return nil
+}
+{{- end}}
+
+func (a *Accounts) SetPassword(ctx context.Context, identity, password string) error {
+	item, err := a.findByIdentity(ctx, identity)
+	if err != nil {
+		return err
+	}
+	if err := checkNewPassword("password", password); err != nil {
+		return err
+	}
+	if err := a.setPassword(ctx, item.{{.PK.Name}}, password); err != nil {
+		return err
+	}
+	return a.revokeAll(ctx, item.{{.PK.Name}})
+}
+
+func (a *Accounts) RevokeAll(ctx context.Context, identity string) error {
+	item, err := a.findByIdentity(ctx, identity)
+	if err != nil {
+		return err
+	}
+	return a.revokeAll(ctx, item.{{.PK.Name}})
+}
+
+func (a *Accounts) revokeAll(ctx context.Context, id {{.Auth.IDType}}) error {
+	for _, query := range []string{ {{- if .Auth.Session}}deleteUserSessionsQuery, {{end}}{{if .Auth.JWT}}deleteUserRefreshQuery, {{end}}{{if .Auth.APIKey}}deleteUserAPIKeysQuery{{end -}} } {
+		if _, err := a.db.ExecContext(ctx, query, {{$id}}); err != nil {
+			return fmt.Errorf("revoke credentials: %w", err)
+		}
+	}
+	return nil
+}
+{{- if .Auth.APIKey}}
+
+func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in APIKeyInput) (CreatedAPIKey, error) {
+	if caller.Method == auth.MethodAPIKey {
+		return CreatedAPIKey{}, auth.ErrForbidden
+	}
+	created := authNow()
+	if in.ExpiresAt != nil && !in.ExpiresAt.After(created) {
+		return CreatedAPIKey{}, validation.Errors{ {Field: "expiresAt", Message: "must be in the future"} }
+	}
+	var count int
+	if err := a.db.QueryRowContext(ctx, countAPIKeysQuery, {{$callerID}}).Scan(&count); err != nil {
+		return CreatedAPIKey{}, fmt.Errorf("count API keys: %w", err)
+	}
+	if count >= maxAPIKeys {
+		return CreatedAPIKey{}, httpx.NewError(http.StatusConflict, fmt.Sprintf("an account holds at most %d API keys; delete unused keys first", maxAPIKeys))
+	}
+	key := auth.NewToken(auth.APIKeyPrefix)
+	item := CreatedAPIKey{ID: auth.NewID(), Name: in.Name, Prefix: key[:12], CreatedAt: created, Key: key}
+	if in.ExpiresAt != nil {
+		expires := in.ExpiresAt.UTC().Truncate(time.Microsecond)
+		item.ExpiresAt = &expires
+	}
+	if _, err := a.db.ExecContext(ctx, insertAPIKeyQuery, item.ID, {{$callerID}}, item.Name, item.Prefix, auth.HashToken(key), database.TimeArg(created), database.NullTimeArg(item.ExpiresAt)); err != nil {
+		return CreatedAPIKey{}, fmt.Errorf("create API key: %w", err)
+	}
+	return item, nil
+}
+
+func (a *Accounts) ListAPIKeys(ctx context.Context, caller auth.Principal) ([]APIKey, error) {
+	if caller.Method == auth.MethodAPIKey {
+		return nil, auth.ErrForbidden
+	}
+	rows, err := a.db.QueryContext(ctx, listAPIKeysQuery, {{$callerID}})
+	if err != nil {
+		return nil, fmt.Errorf("list API keys: %w", err)
+	}
+	defer rows.Close()
+	keys := []APIKey{}
+	for rows.Next() {
+		var k APIKey
+		if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, {{if .Auth.ScanTime}}database.ScanTime(&k.CreatedAt), database.ScanNullTime(&k.ExpiresAt){{else}}&k.CreatedAt, &k.ExpiresAt{{end}}); err != nil {
+			return nil, fmt.Errorf("list API keys: %w", err)
+		}
+		keys = append(keys, k)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list API keys: %w", err)
+	}
+	return keys, nil
+}
+
+func (a *Accounts) DeleteAPIKey(ctx context.Context, caller auth.Principal, id string) error {
+	if caller.Method == auth.MethodAPIKey {
+		return auth.ErrForbidden
+	}
+	res, err := a.db.ExecContext(ctx, deleteAPIKeyQuery, id, {{$callerID}})
+	if err != nil {
+		return fmt.Errorf("delete API key: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete API key: %w", err)
+	}
+	if n == 0 {
+		return database.ErrNotFound
+	}
+	return nil
+}
+{{- end}}

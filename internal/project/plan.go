@@ -66,17 +66,18 @@ const (
 )
 
 type FileChange struct {
-	Path    string `json:"path"`
-	Action  Action `json:"action"`
-	Owner   Owner  `json:"owner"`
-	Added   int    `json:"added,omitempty"`
-	Removed int    `json:"removed,omitempty"`
-	Reason  string `json:"reason,omitempty"`
-	content []byte
-	old     []byte
-	domain  string
-	service bool
-	method  string
+	Path     string `json:"path"`
+	Action   Action `json:"action"`
+	Owner    Owner  `json:"owner"`
+	Added    int    `json:"added,omitempty"`
+	Removed  int    `json:"removed,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	content  []byte
+	old      []byte
+	domain   string
+	service  string
+	receiver string
+	method   string
 }
 
 type GoUpgrade struct {
@@ -508,7 +509,7 @@ func (p *planner) generate(context.Context) error {
 		}
 		p.add(f.Path, f.Content, owner)
 		last := &p.files[len(p.files)-1]
-		last.domain, last.service, last.method = f.Domain, f.ServiceType, f.ServiceMethod
+		last.domain, last.service, last.receiver, last.method = f.Domain, f.ServiceType, f.Receiver, f.ServiceMethod
 	}
 	if !p.cfgExisted || p.plan.PreviousDialect != "" {
 		p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)
@@ -668,10 +669,23 @@ func (p *planner) nextSteps() {
 		steps = append(steps, "go run ./cmd/migrate up")
 	}
 	mainGo, _ := os.ReadFile(filepath.Join(p.root, "cmd", "api", "main.go"))
+	authenticated := p.model != nil && p.model.AuthEntity() != nil
+	guard := ""
+	if authenticated {
+		guard = ", guard"
+	}
 	for _, name := range p.cfg.ManualWiring {
 		if slices.Contains(p.plan.Domains, name) && !bytes.Contains(mainGo, []byte(name+".RegisterRoutes(")) {
-			steps = append(steps, fmt.Sprintf("wire %s by hand in cmd/api/main.go: %s.RegisterRoutes(mux, %s.NewHandler(%s.NewService(%s.NewRepository(db)), logger))", name, name, name, name, name))
+			step := fmt.Sprintf("wire %s by hand in cmd/api/main.go: %s.RegisterRoutes(mux, %s.NewHandler(%s.NewService(db), logger)%s)", name, name, name, name, guard)
+			if authenticated {
+				step += ", with the auth.Guard built as in internal/app/routes_gen.go"
+			}
+			steps = append(steps, step)
 		}
+	}
+	if authenticated && bytes.Contains(mainGo, []byte("\tapp.RegisterRoutes(")) {
+		p.plan.Warnings = append(p.plan.Warnings, "cmd/api/main.go ignores the error returned by app.RegisterRoutes, which reports invalid AUTH_* settings; "+
+			"call it as: if err := app.RegisterRoutes(mux, db, logger); err != nil { return err }")
 	}
 	if p.opts.Starter {
 		if len(p.plan.Domains) == 0 {

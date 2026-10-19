@@ -133,6 +133,7 @@ func (b *fieldBuilder) apply() {
 		f.HasDefault = true
 		f.Default = set.get("default").value
 	}
+	b.applyAuth()
 	b.checkCombinations()
 	if f.HasDefault && !b.failed {
 		b.applyDefault()
@@ -329,6 +330,64 @@ func (b *fieldBuilder) applyOnDelete() {
 		return
 	}
 	b.f.Ref.OnDelete = schema.OnDelete(m.value)
+}
+
+const MinPasswordLength = 8
+
+func (b *fieldBuilder) exclusive(key string, others []string, reason string) {
+	for _, other := range others {
+		if b.set.has(other) {
+			b.fail(other, CodeInvalidCombination, "", "%s cannot be combined with %s: %s", other, key, reason)
+		}
+	}
+}
+
+func (b *fieldBuilder) applyAuth() {
+	f, set := b.f, b.set
+	isString := func(k schema.Kind) bool { return k == schema.KindString }
+	if set.has("identity") && b.kindAllowed("identity", isString, "string") {
+		b.exclusive("identity", []string{"pk", "default", "omit", "rel", "enum", "password", "role", "owner"}, "the identity is the login name of an account")
+		switch {
+		case f.Nullable:
+			b.fail("identity", CodeInvalidCombination, "", "identity %s cannot be nullable; remove the *", f.Name)
+		case !set.has("unique"):
+			b.fail("identity", CodeInvalidCombination, "unique", "identity %s must also be unique so one login name maps to one account", f.Name)
+		}
+		f.Identity, f.Required, f.NotEmpty = true, true, true
+	}
+	if set.has("password") && b.kindAllowed("password", isString, "string") {
+		b.exclusive("password", []string{"pk", "auto", "required", "notempty", "unique", "index", "max", "email", "enum", "default", "omit", "rel", "role", "owner"},
+			"password fields store a hash managed by the generated code")
+		if f.Nullable {
+			b.fail("password", CodeInvalidCombination, "", "password %s cannot be nullable; remove the *", f.Name)
+		}
+		if f.Min == "" {
+			f.Min = strconv.Itoa(MinPasswordLength)
+		} else if n, _ := strconv.Atoi(f.Min); n < MinPasswordLength {
+			b.fail("min", CodeInvalidValue, strconv.Itoa(MinPasswordLength), "passwords need at least %d characters; min=%s is too low", MinPasswordLength, f.Min)
+		}
+		f.Password, f.Required, f.OmitResponse = true, true, true
+	}
+	if set.has("role") && b.kindAllowed("role", isString, "string") {
+		b.exclusive("role", []string{"pk", "unique", "rel", "owner"}, "the role is a plain enum column")
+		switch {
+		case f.Nullable:
+			b.fail("role", CodeInvalidCombination, "", "role %s cannot be nullable; remove the *", f.Name)
+		case !set.has("enum"):
+			b.fail("role", CodeInvalidCombination, "", "role %s needs enum=<role>|<role> listing the roles", f.Name)
+		}
+		f.Role = true
+	}
+	if set.has("owner") {
+		b.exclusive("owner", []string{"pk", "required", "default", "omit", "unique"}, "the owner is always the authenticated caller")
+		switch {
+		case f.Ref == nil:
+			b.fail("owner", CodeInvalidCombination, "", "owner needs rel=belongs_to:<account entity> on %s", f.Name)
+		case f.Nullable:
+			b.fail("owner", CodeInvalidCombination, "", "owner %s cannot be nullable; remove the *", f.Name)
+		}
+		f.Owner = true
+	}
 }
 
 func (b *fieldBuilder) conflict(a, c string, reason string) {

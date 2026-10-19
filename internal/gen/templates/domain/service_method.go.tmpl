@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"{{.UUIDImport}}"
+
+	"{{.Module}}/internal/platform/auth"
 )
 
-func (s *Service) {{.Method.Name}}({{.Method.Params}}) {{.Method.Results}} {
-	return s.repo.{{.Method.Name}}({{.Method.Args}})
+func (s *{{.Receiver}}) {{.Method.Name}}({{.Method.Params}}) {{.Method.Results}} {
+	{{.Method.Body}}
 }

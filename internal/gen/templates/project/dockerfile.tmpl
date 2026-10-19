@@ -4,13 +4,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate{{if .Auth}} \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/accounts ./cmd/accounts{{end}}
 {{- if .Dialect.Embedded}}
 RUN mkdir -p /out/data
 {{- end}}
 
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/api /out/migrate /app/
+COPY --from=build /out/api /out/migrate{{if .Auth}} /out/accounts{{end}} /app/
 {{- if .Dialect.Embedded}}
 COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV DATABASE_URL=/data/app.db

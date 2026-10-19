@@ -17,6 +17,6 @@ func NewService(db *sql.DB) *Service {
 {{- range .ServiceMethods}}
 
 func (s *Service) {{.Name}}({{.Params}}) {{.Results}} {
-	return s.repo.{{.Name}}({{.Args}})
+	{{.Body}}
 }
 {{- end}}

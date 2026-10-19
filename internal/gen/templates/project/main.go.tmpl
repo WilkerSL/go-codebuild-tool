@@ -50,7 +50,9 @@ func run() error {
 	mux := http.NewServeMux()
 	health := httpx.NewHealth(db, logger)
 	health.RegisterRoutes(mux)
-	app.RegisterRoutes(mux, db, logger)
+	if err := app.RegisterRoutes(mux, db, logger); err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

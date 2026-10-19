@@ -28,6 +28,78 @@ func (p *parser) validateModel(m *schema.Model) {
 	}
 	p.checkJoinTables(m)
 	p.checkCycles(m)
+	p.checkAuthModel(m)
+}
+
+func (p *parser) checkAuthModel(m *schema.Model) {
+	var auth *schema.Entity
+	for _, e := range m.Entities {
+		if !e.IsAuth() {
+			continue
+		}
+		if auth != nil {
+			p.errorf(p.entityPos(e, "auth"), CodeInvalidCombination, "", "%s and %s both declare auth=; a project has one account entity", auth.Name, e.Name)
+			continue
+		}
+		auth = e
+	}
+	for _, e := range m.Entities {
+		if slices.Contains(schema.AuthTables, e.Table) {
+			p.errorf(p.entityPos(e, "table"), CodeDuplicateTable, "", "table %s is reserved for the authentication tables; choose another table name", e.Table)
+		}
+		for _, f := range e.Fields {
+			if !f.Owner || f.Ref == nil {
+				continue
+			}
+			if auth == nil || f.Ref.Entity != auth.Name {
+				p.errorf(p.fieldPos(f, "owner"), CodeInvalidCombination, "", "owner %s.%s must reference the account entity (the entity with auth=)", e.Name, f.Name)
+			}
+		}
+		if auth == nil {
+			for _, key := range []string{"public", "roles", "writeroles"} {
+				if set, ok := p.entityMarkers[e]; ok && set.has(key) {
+					p.errorf(set.get(key).pos, CodeInvalidCombination, "", "%s needs an account entity; declare auth=session on the entity that holds the accounts", key)
+				}
+			}
+			continue
+		}
+		var roleItems []string
+		if role := auth.Role(); role != nil {
+			roleItems = role.Enum
+		}
+		for _, key := range []string{"roles", "writeroles"} {
+			roles := e.Roles
+			if key == "writeroles" {
+				roles = e.WriteRoles
+			}
+			for _, r := range roles {
+				switch {
+				case auth.Role() == nil:
+					p.errorf(p.entityPos(e, key), CodeInvalidCombination, "", "%s needs a field marked role on the account entity %s", key, auth.Name)
+				case !slices.Contains(roleItems, r):
+					p.errorf(p.entityPos(e, key), CodeInvalidValue, naming.Suggest(r, roleItems), "role %q is not one of the roles of %s.%s: %s", r, auth.Name, auth.Role().Name, strings.Join(roleItems, ", "))
+				default:
+					continue
+				}
+				break
+			}
+		}
+	}
+	if auth == nil {
+		return
+	}
+	for _, source := range m.Entities {
+		for _, r := range source.Relations {
+			target := m.Entity(r.Target)
+			if target == nil || target.NoRoutes {
+				continue
+			}
+			if _, _, ok := schema.RelationPolicies(source, target); !ok {
+				p.errorf(p.relationPos(r, "rel"), CodeInvalidCombination, "",
+					"no role can use the routes of %s.%s: %s and %s require roles with nothing in common", source.Name, r.Name, source.Name, target.Name)
+			}
+		}
+	}
 }
 
 func (p *parser) checkTables(m *schema.Model) {

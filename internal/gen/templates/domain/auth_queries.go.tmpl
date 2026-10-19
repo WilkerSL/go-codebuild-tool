@@ -1,0 +1,6 @@
+{{.Header}}
+
+package {{.Package}}
+{{range .Auth.Queries}}
+const {{.Name}} = {{.Literal}}
+{{end}}

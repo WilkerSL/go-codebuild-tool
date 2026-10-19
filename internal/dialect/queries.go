@@ -15,6 +15,8 @@ const (
 	ArgLimit    ArgKind = "limit"
 	ArgOffset   ArgKind = "offset"
 	ArgSourceID ArgKind = "source"
+	ArgOwner    ArgKind = "owner"
+	ArgPassword ArgKind = "password"
 )
 
 type Arg struct {
@@ -88,8 +90,16 @@ func orderBy(d Dialect, e *schema.Entity, qualified bool) string {
 	return "ORDER BY " + pk
 }
 
+func ownerCondition(b *builder, e *schema.Entity, qualified bool) []string {
+	owner := e.Owner()
+	if owner == nil {
+		return nil
+	}
+	return []string{columnRef(b.d, e.Table, owner.Column, qualified) + " = " + b.param("owner", Arg{Kind: ArgOwner, Field: owner})}
+}
+
 func filterConditions(b *builder, e *schema.Entity, qualified bool, skip *schema.Field) []string {
-	var conds []string
+	conds := ownerCondition(b, e, qualified)
 	if e.SoftDelete {
 		conds = append(conds, columnRef(b.d, e.Table, schema.DeletedAtColumn, qualified)+" IS NULL")
 	}
@@ -127,6 +137,9 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 	table := d.Quote(e.Table)
 	idCond := func(b *builder) string {
 		cond := d.Quote(pk.Column) + " = " + b.param("id", Arg{Kind: ArgID, Field: pk})
+		for _, owner := range ownerCondition(b, e, false) {
+			cond += " AND " + owner
+		}
 		if e.SoftDelete {
 			cond += " AND " + d.Quote(schema.DeletedAtColumn) + " IS NULL"
 		}
@@ -164,6 +177,12 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 		case f.AutoCreate || f.AutoUpdate:
 			insertCols = append(insertCols, d.Quote(f.Column))
 			insertVals = append(insertVals, d.Now())
+		case f.Owner:
+			insertCols = append(insertCols, d.Quote(f.Column))
+			insertVals = append(insertVals, b.param("owner", Arg{Kind: ArgOwner, Field: f}))
+		case f.Password:
+			insertCols = append(insertCols, d.Quote(f.Column))
+			insertVals = append(insertVals, b.param("password", Arg{Kind: ArgPassword, Field: f}))
 		case f.InCreate():
 			insertCols = append(insertCols, d.Quote(f.Column))
 			insertVals = append(insertVals, b.param("in."+f.Name, Arg{Kind: ArgInput, Field: f}))
@@ -225,6 +244,9 @@ func existsQuery(d Dialect, e *schema.Entity) Query {
 	b := newBuilder(d)
 	pk := e.PK()
 	cond := d.Quote(pk.Column) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: pk})
+	for _, owner := range ownerCondition(b, e, false) {
+		cond += " AND " + owner
+	}
 	if e.SoftDelete {
 		cond += " AND " + d.Quote(schema.DeletedAtColumn) + " IS NULL"
 	}
@@ -281,4 +303,8 @@ func BuildManyToManyQueries(d Dialect, source, target *schema.Entity, via string
 		" AND " + d.Quote(targetCol) + " = " + b.param("id", Arg{Kind: ArgID, Field: target.PK()}))
 	rq.Unlink = &unlink
 	return rq
+}
+
+func OwnedReferenceQuery(d Dialect, target *schema.Entity) Query {
+	return existsQuery(d, target)
 }

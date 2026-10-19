@@ -68,7 +68,7 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.CreateInput {
 	t.Helper()
 {{- range .Parents}}
-	{{.Var}} := {{.Helper}}(t, ctx, db)
+	{{.Var}} := {{.Call}}
 {{- end}}
 	return {{.Package}}.CreateInput{
 {{- range .Fields}}
@@ -77,9 +77,9 @@ func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.
 	}
 }
 
-func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.{{.Entity.Name}} {
+func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, owner {{.OwnerType}}{{end}}) {{.Package}}.{{.Entity.Name}} {
 	t.Helper()
-	item, err := {{.Package}}.NewRepository(db).Create(ctx, {{.InputFunc}}(t, ctx, db))
+	item, err := {{.Package}}.NewRepository(db).Create(ctx, {{if .OwnerType}}owner, {{end}}{{.InputFunc}}(t, ctx, db))
 	if err != nil {
 		t.Fatalf("create {{.Entity.Name}}: %v", err)
 	}
@@ -92,18 +92,26 @@ func TestRepositoryCRUD(t *testing.T) {
 	ctx := context.Background()
 	repo := {{.Package}}.NewRepository(db)
 {{- if .Creatable}}
-	created := {{.OwnHelper}}(t, ctx, db)
-	got, err := repo.Get(ctx, created.{{.PK.Name}})
+{{- if .Owned}}
+	{{.TestOwner}}
+{{- end}}
+	created := {{.OwnHelper}}(t, ctx, db{{.TestOwnerSuffix}})
+	got, err := repo.Get(ctx, {{.TestOwnerArg}}created.{{.PK.Name}})
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if got.{{.PK.Name}} != created.{{.PK.Name}} {
 		t.Fatalf("get returned %v, want %v", got.{{.PK.Name}}, created.{{.PK.Name}})
 	}
-	if ok, err := repo.Exists(ctx, created.{{.PK.Name}}); err != nil || !ok {
+	if ok, err := repo.Exists(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); err != nil || !ok {
 		t.Fatalf("exists: %v %v", ok, err)
 	}
-	page, err := repo.List(ctx, {{.Package}}.ListParams{Limit: 10{{if .ListFilterField}}, {{.ListFilterField.Name}}: &created.{{.ListFilterField.Name}}{{end}}})
+{{- if .Owned}}
+	if _, err := repo.Get(ctx, {{.MissingOwner}}, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("get with another owner: %v", err)
+	}
+{{- end}}
+	page, err := repo.List(ctx, {{.TestOwnerArg}}{{.Package}}.ListParams{Limit: 10{{if .ListFilterField}}, {{.ListFilterField.Name}}: &created.{{.ListFilterField.Name}}{{end}}})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -117,7 +125,7 @@ func TestRepositoryCRUD(t *testing.T) {
 	}
 {{- end}}
 {{- if .HasUpdate}}
-	updated, err := repo.Update(ctx, created.{{.PK.Name}}, {{.Package}}.UpdateInput{
+	updated, err := repo.Update(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}, {{.Package}}.UpdateInput{
 {{- range .UpdateTestValues}}
 		{{.}}
 {{- end}}
@@ -128,7 +136,7 @@ func TestRepositoryCRUD(t *testing.T) {
 	if updated.{{.PK.Name}} != created.{{.PK.Name}} {
 		t.Fatalf("update returned %v, want %v", updated.{{.PK.Name}}, created.{{.PK.Name}})
 	}
-	if _, err := repo.Update(ctx, {{.MissingID}}, {{.Package}}.UpdateInput{
+	if _, err := repo.Update(ctx, {{.TestOwnerArg}}{{.MissingID}}, {{.Package}}.UpdateInput{
 {{- range .UpdateTestValues}}
 		{{.}}
 {{- end}}
@@ -136,21 +144,21 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("update missing: %v", err)
 	}
 {{- end}}
-	if err := repo.Delete(ctx, created.{{.PK.Name}}); err != nil {
+	if err := repo.Delete(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := repo.Get(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get after delete: %v", err)
 	}
-	if err := repo.Delete(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+	if err := repo.Delete(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("second delete: %v", err)
 	}
 {{- else}}
-	if _, err := repo.List(ctx, {{.Package}}.ListParams{Limit: 10}); err != nil {
+	if _, err := repo.List(ctx, {{if .Owned}}{{.MissingOwner}}, {{end}}{{.Package}}.ListParams{Limit: 10}); err != nil {
 		t.Fatalf("list: %v", err)
 	}
 {{- end}}
-	if _, err := repo.Get(ctx, {{.MissingID}}); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, {{if .Owned}}{{.MissingOwner}}, {{end}}{{.MissingID}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get missing: %v", err)
 	}
 }
@@ -160,37 +168,40 @@ func TestRepositoryWithTx(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{.Package}}.NewRepository(db)
+{{- if .Owned}}
+	{{.TestOwner}}
+{{- end}}
 	in := {{.OwnInputHelper}}(t, ctx, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	created, err := repo.WithTx(tx).Create(ctx, in)
+	created, err := repo.WithTx(tx).Create(ctx, {{.TestOwnerArg}}in)
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("create in transaction: %v", err)
 	}
-	if _, err := repo.WithTx(tx).Get(ctx, created.{{.PK.Name}}); err != nil {
+	if _, err := repo.WithTx(tx).Get(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); err != nil {
 		tx.Rollback()
 		t.Fatalf("get in transaction: %v", err)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-	if _, err := repo.Get(ctx, created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("rolled back row is visible: %v", err)
 	}
 	next := {{.OwnInputHelper}}(t, ctx, db)
 	var committed {{.Package}}.{{.Name}}
 	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
 		var err error
-		committed, err = repo.WithTx(tx).Create(ctx, next)
+		committed, err = repo.WithTx(tx).Create(ctx, {{.TestOwnerArg}}next)
 		return err
 	})
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
-	if _, err := repo.Get(ctx, committed.{{.PK.Name}}); err != nil {
+	if _, err := repo.Get(ctx, {{.TestOwnerArg}}committed.{{.PK.Name}}); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
 }
@@ -200,10 +211,13 @@ func TestRepositoryWithTx(t *testing.T) {
 func TestRepositoryUniqueConflict(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
-	first := {{.OwnHelper}}(t, ctx, db)
+{{- if .Owned}}
+	{{.TestOwner}}
+{{- end}}
+	first := {{.OwnHelper}}(t, ctx, db{{.TestOwnerSuffix}})
 	in := {{.OwnInputHelper}}(t, ctx, db)
 	in.{{.UniqueTestField.Name}} = first.{{.UniqueTestField.Name}}
-	_, err := {{.Package}}.NewRepository(db).Create(ctx, in)
+	_, err := {{.Package}}.NewRepository(db).Create(ctx, {{.TestOwnerArg}}in)
 	ce, ok := errors.AsType[*database.ConstraintError](err)
 	if !ok || ce.Kind != database.UniqueViolation || ce.Field != "{{.UniqueTestField.JSON}}" {
 		t.Fatalf("expected a unique violation on {{.UniqueTestField.JSON}}, got %v", err)
@@ -215,9 +229,12 @@ func TestRepositoryUniqueConflict(t *testing.T) {
 func TestRepositoryMissingReference(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
+{{- if .Owned}}
+	{{.TestOwner}}
+{{- end}}
 	in := {{.OwnInputHelper}}(t, ctx, db)
 	in.{{.MissingRefField.Name}} = {{.MissingRefValue}}
-	_, err := {{.Package}}.NewRepository(db).Create(ctx, in)
+	_, err := {{.Package}}.NewRepository(db).Create(ctx, {{.TestOwnerArg}}in)
 {{- if .MissingRefNamed}}
 	errs, ok := errors.AsType[validation.Errors](err)
 	if !ok || !errs.Has("{{.MissingRefField.JSON}}") {
@@ -236,17 +253,20 @@ func TestRepository{{.Method}}(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{$.Package}}.NewRepository(db)
+{{- if .Owned}}
+	{{$.TestOwner}}
+{{- end}}
 {{- if .TestCreate}}
 	in := {{$.OwnInputHelper}}(t, ctx, db)
-{{- if .FK.F.Nullable}}
-	parent := {{.SourceHelper}}(t, ctx, db)
-	in.{{.FK.Name}} = &parent.{{.Source.PK.Name}}
+{{- if .ExplicitParent}}
+	parent := {{.SourceCall}}
+	in.{{.FK.Name}} = {{if .FK.F.Nullable}}&{{end}}parent.{{.Source.PK.Name}}
 {{- end}}
-	created, err := repo.Create(ctx, in)
+	created, err := repo.Create(ctx, {{$.TestOwnerArg}}in)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	page, err := repo.{{.Method}}(ctx, {{if .FK.F.Nullable}}*{{end}}created.{{.FK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	page, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{if .FK.F.Nullable}}*{{end}}created.{{.FK.Name}}, {{$.Package}}.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -254,7 +274,7 @@ func TestRepository{{.Method}}(t *testing.T) {
 		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
 	}
 {{- end}}
-	if _, err := repo.{{.Method}}(ctx, {{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("list for a missing parent: %v", err)
 	}
 }
@@ -265,33 +285,36 @@ func TestRepository{{.Method}}(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := {{$.Package}}.NewRepository(db)
+{{- if .Owned}}
+	{{$.TestOwner}}
+{{- end}}
 {{- if .TestLink}}
-	source := {{.SourceHelper}}(t, ctx, db)
-	target := {{$.OwnHelper}}(t, ctx, db)
+	source := {{.SourceCall}}
+	target := {{$.OwnHelper}}(t, ctx, db{{$.TestOwnerSuffix}})
 	for range 2 {
-		if err := repo.{{.LinkMethod}}(ctx, source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
+		if err := repo.{{.LinkMethod}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
 			t.Fatalf("link: %v", err)
 		}
 	}
-	page, err := repo.{{.Method}}(ctx, source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	page, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != target.{{$.PK.Name}} {
 		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
 	}
-	if err := repo.{{.UnlinkMethod}}(ctx, source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
+	if err := repo.{{.UnlinkMethod}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
 		t.Fatalf("unlink: %v", err)
 	}
-	page, err = repo.{{.Method}}(ctx, source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
+	page, err = repo.{{.Method}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
 	if err != nil || page.Total != 0 {
 		t.Fatalf("list after unlink: %d items, %v", page.Total, err)
 	}
-	if err := repo.{{.LinkMethod}}(ctx, source.{{.Source.PK.Name}}, {{$.MissingID}}); !errors.Is(err, database.ErrNotFound) {
+	if err := repo.{{.LinkMethod}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.MissingID}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("link a missing record: %v", err)
 	}
 {{- end}}
-	if _, err := repo.{{.Method}}(ctx, {{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("list for a missing source: %v", err)
 	}
 }

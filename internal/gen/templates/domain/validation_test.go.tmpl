@@ -37,7 +37,7 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 func validCreateInput() CreateInput {
 	return CreateInput{
 {{- range .Create}}{{if not .F.Nullable}}
-		{{.Name}}: {{.ValidValue}},
+		{{.Input}}: {{.ValidValue}},
 {{- end}}{{end}}
 	}
 }
@@ -52,7 +52,7 @@ func TestCreateInputValidate(t *testing.T) {
 		mutate func(*CreateInput)
 	}{
 {{- range .Create}}{{$f := .}}{{range .FailingCases}}
-		{name: "{{$f.Name}} {{.Rule}}", field: "{{$f.JSON}}", mutate: func(in *CreateInput) { in.{{$f.Name}} = {{.Assign}} }},
+		{name: "{{$f.Input}} {{.Rule}}", field: "{{$f.InputJSON}}", mutate: func(in *CreateInput) { in.{{$f.Input}} = {{.Assign}} }},
 {{- end}}{{end}}
 	}
 	for _, tt := range tests {
@@ -74,7 +74,7 @@ func TestCreateRequestRequiredFields(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected required field errors, got %v", err)
 	}
-	for _, field := range []string{ {{- range $i, $f := .RequiredCreate}}{{if $i}}, {{end}}"{{$f.JSON}}"{{end -}} } {
+	for _, field := range []string{ {{- range $i, $f := .RequiredCreate}}{{if $i}}, {{end}}"{{$f.InputJSON}}"{{end -}} } {
 		if !errs.Has(field) {
 			t.Errorf("missing required error for %s", field)
 		}
@@ -90,7 +90,7 @@ func TestCreateRequestRequiredFields(t *testing.T) {
 func validUpdateInput() UpdateInput {
 	return UpdateInput{
 {{- range .Update}}{{if not .F.Nullable}}
-		{{.Name}}: {{.ValidValue}},
+		{{.Input}}: {{.ValidValue}},
 {{- end}}{{end}}
 	}
 }
@@ -105,7 +105,7 @@ func TestUpdateInputValidate(t *testing.T) {
 		mutate func(*UpdateInput)
 	}{
 {{- range .Update}}{{$f := .}}{{range .FailingCases}}
-		{name: "{{$f.Name}} {{.Rule}}", field: "{{$f.JSON}}", mutate: func(in *UpdateInput) { in.{{$f.Name}} = {{.Assign}} }},
+		{name: "{{$f.Input}} {{.Rule}}", field: "{{$f.InputJSON}}", mutate: func(in *UpdateInput) { in.{{$f.Input}} = {{.Assign}} }},
 {{- end}}{{end}}
 	}
 	for _, tt := range tests {

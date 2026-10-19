@@ -1,6 +1,9 @@
 package schema
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/WilkerSL/go-codebuild-tool/internal/naming"
 )
 
@@ -113,6 +116,15 @@ func (m *Model) Entity(name string) *Entity {
 	return nil
 }
 
+func (m *Model) AuthEntity() *Entity {
+	for _, e := range m.Entities {
+		if e.IsAuth() {
+			return e
+		}
+	}
+	return nil
+}
+
 func (m *Model) EntityNames() []string {
 	names := make([]string, len(m.Entities))
 	for i, e := range m.Entities {
@@ -131,8 +143,66 @@ type Entity struct {
 	NoRoutes   bool
 	ReadOnly   bool
 	UUIDImport string
+	Auth       []Method
+	Register   bool
+	Public     Operations
+	Roles      []string
+	WriteRoles []string
 	Fields     []*Field
 	Relations  []*Relation
+}
+
+func (e *Entity) IsAuth() bool {
+	return len(e.Auth) > 0
+}
+
+func (e *Entity) HasMethod(m Method) bool {
+	return slices.Contains(e.Auth, m)
+}
+
+func (e *Entity) LoginMethod() Method {
+	for _, m := range e.Auth {
+		if m != MethodAPIKey {
+			return m
+		}
+	}
+	return ""
+}
+
+func (e *Entity) flagged(match func(*Field) bool) *Field {
+	for _, f := range e.Fields {
+		if match(f) {
+			return f
+		}
+	}
+	return nil
+}
+
+func (e *Entity) Identity() *Field {
+	return e.flagged(func(f *Field) bool { return f.Identity })
+}
+
+func (e *Entity) Password() *Field {
+	return e.flagged(func(f *Field) bool { return f.Password })
+}
+
+func (e *Entity) Role() *Field {
+	return e.flagged(func(f *Field) bool { return f.Role })
+}
+
+func (e *Entity) Owner() *Field {
+	return e.flagged(func(f *Field) bool { return f.Owner })
+}
+
+func (e *Entity) Policy(op Operation) Policy {
+	if e.Public.Has(op) {
+		return Policy{Public: true}
+	}
+	roles := e.Roles
+	if op != OpRead && len(e.WriteRoles) > 0 {
+		roles = e.WriteRoles
+	}
+	return Policy{Roles: slices.Clone(roles)}
 }
 
 func (e *Entity) PK() *Field {
@@ -270,6 +340,10 @@ type Field struct {
 	OmitUpdate   bool
 	OmitResponse bool
 	Ref          *Reference
+	Identity     bool
+	Password     bool
+	Role         bool
+	Owner        bool
 }
 
 func (f *Field) GoType() string {
@@ -279,16 +353,32 @@ func (f *Field) GoType() string {
 	return f.Kind.GoType()
 }
 
+func (f *Field) InputName() string {
+	if f.Password {
+		if name := strings.TrimSuffix(f.Name, "Hash"); name != "" {
+			return name
+		}
+	}
+	return f.Name
+}
+
+func (f *Field) InputJSON() string {
+	if f.Password {
+		return naming.LowerCamel(f.InputName())
+	}
+	return f.JSON
+}
+
 func (f *Field) InCreate() bool {
-	return !f.OmitCreate && !f.AutoPK && !f.AutoCreate && !f.AutoUpdate
+	return !f.OmitCreate && !f.AutoPK && !f.AutoCreate && !f.AutoUpdate && !f.Owner
 }
 
 func (f *Field) InUpdate() bool {
-	return !f.OmitUpdate && !f.PK && !f.AutoCreate && !f.AutoUpdate
+	return !f.OmitUpdate && !f.PK && !f.AutoCreate && !f.AutoUpdate && !f.Owner && !f.Password
 }
 
 func (f *Field) Filterable() bool {
-	if !f.Index && !f.Unique && f.Ref == nil {
+	if f.Owner || f.Password || (!f.Index && !f.Unique && f.Ref == nil) {
 		return false
 	}
 	switch f.Kind {

@@ -3,6 +3,7 @@
 package {{.Package}}
 
 import (
+	"strings"
 	"time"
 
 	"{{.UUIDImport}}"
@@ -13,14 +14,14 @@ import (
 
 type CreateInput struct {
 {{- range .Create}}
-	{{.Name}} {{.GoType}}
+	{{.Input}} {{.GoType}}
 {{- end}}
 }
 {{- if .HasUpdate}}
 
 type UpdateInput struct {
 {{- range .Update}}
-	{{.Name}} {{.GoType}}
+	{{.Input}} {{.GoType}}
 {{- end}}
 }
 {{- end}}
@@ -37,7 +38,7 @@ type ListParams struct {
 
 type createRequest struct {
 {{- range .Create}}
-	{{.Name}} {{.RequestType}} `json:"{{.JSON}}"`
+	{{.Input}} {{.RequestType}} `json:"{{.InputJSON}}"`
 {{- end}}
 }
 
@@ -53,7 +54,7 @@ func (req createRequest) input() (CreateInput, error) {
 
 type updateRequest struct {
 {{- range .Update}}
-	{{.Name}} {{.RequestType}} `json:"{{.JSON}}"`
+	{{.Input}} {{.RequestType}} `json:"{{.InputJSON}}"`
 {{- end}}
 }
 

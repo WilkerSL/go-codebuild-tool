@@ -1,0 +1,71 @@
+{{.Header}}
+
+package auth
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"slices"
+
+	"{{.Module}}/internal/platform/httpx"
+)
+
+type Authenticator func(ctx context.Context, token string) (Principal, error)
+
+type Guard struct {
+	authenticate Authenticator
+	origins      *http.CrossOriginProtection
+	logger       *slog.Logger
+}
+
+func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Guard, error) {
+	origins := http.NewCrossOriginProtection()
+	for _, origin := range cfg.TrustedOrigins {
+		if err := origins.AddTrustedOrigin(origin); err != nil {
+			return nil, fmt.Errorf("auth: trusted origin: %w", err)
+		}
+	}
+	return &Guard{authenticate: authenticate, origins: origins, logger: logger}, nil
+}
+
+func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, err := g.Authenticate(r)
+		if err != nil {
+			httpx.WriteError(w, r, g.logger, err)
+			return
+		}
+{{- if .Auth.Role}}
+		if len(roles) > 0 && !slices.Contains(roles, p.Role) {
+			httpx.WriteError(w, r, g.logger, ErrForbidden)
+			return
+		}
+{{- end}}
+		next(w, r.WithContext(WithPrincipal(r.Context(), p)))
+	})
+}
+
+func (g *Guard) Authenticate(r *http.Request) (Principal, error) {
+	token, fromCookie := Credential(r)
+	if token == "" {
+		return Principal{}, ErrUnauthenticated
+	}
+	if fromCookie {
+		if err := g.CheckOrigin(r); err != nil {
+			return Principal{}, err
+		}
+	}
+	if len(token) > maxTokenLength {
+		return Principal{}, ErrInvalidToken
+	}
+	return g.authenticate(r.Context(), token)
+}
+
+func (g *Guard) CheckOrigin(r *http.Request) error {
+	if err := g.origins.Check(r); err != nil {
+		return httpx.NewError(http.StatusForbidden, "cross-origin requests cannot use the authentication cookie")
+	}
+	return nil
+}

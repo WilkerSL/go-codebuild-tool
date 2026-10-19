@@ -61,7 +61,7 @@ A project on, for example, Go 1.29 is generated with the go1.27 capability set a
 
 1. Add a row to the capability table in `internal/goversion/capabilities.go` with the new flags.
 2. Teach the templates to consult the new flags, never the version number.
-3. Add the new version to the golden matrix (`testdata/golden/go1.NN/<dialect>`) and regenerate with `go test ./internal/project -update`.
+3. Add the new version to the golden matrix (`testdata/golden/<project>/go1.NN/<dialect>`) and regenerate with `go test ./internal/project -update`.
 4. Add the version to the CI matrix.
 5. Document the change in this file and in `CHANGELOG.md`.
 

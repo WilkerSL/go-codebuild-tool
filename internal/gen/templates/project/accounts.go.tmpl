@@ -1,0 +1,58 @@
+{{.Header}}
+
+package app
+
+import (
+	"bufio"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"{{.Auth.Import}}"
+	"{{.Module}}/internal/platform/auth"
+)
+
+const accountsUsage = `usage: accounts <command>
+
+commands:
+{{- if .Auth.Role}}
+  set-role <{{.Auth.Identity.InputJSON}}> <role>   change the role ({{.Auth.RoleItems}})
+{{- end}}
+  set-password <{{.Auth.Identity.InputJSON}}>      read a new password from stdin and revoke every credential
+  revoke <{{.Auth.Identity.InputJSON}}>            revoke every session, token and API key`
+
+func RunAccounts(ctx context.Context, db *sql.DB, args []string, stdin io.Reader, stdout io.Writer) error {
+	accounts := {{.Auth.Package}}.NewAccounts(db, auth.Config{})
+	if len(args) == 0 {
+		return errors.New(accountsUsage)
+	}
+	switch {
+{{- if .Auth.Role}}
+	case args[0] == "set-role" && len(args) == 3:
+		if err := accounts.SetRole(ctx, args[1], args[2]); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "%s now has the role %s\n", args[1], args[2])
+{{- end}}
+	case args[0] == "set-password" && len(args) == 2:
+		line, err := bufio.NewReader(stdin).ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("read password: %w", err)
+		}
+		if err := accounts.SetPassword(ctx, args[1], strings.TrimRight(line, "\r\n")); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "password of %s changed; every credential was revoked\n", args[1])
+	case args[0] == "revoke" && len(args) == 2:
+		if err := accounts.RevokeAll(ctx, args[1]); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "every credential of %s was revoked\n", args[1])
+	default:
+		return errors.New(accountsUsage)
+	}
+	return nil
+}

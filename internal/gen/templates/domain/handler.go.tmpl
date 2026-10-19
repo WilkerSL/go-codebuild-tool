@@ -8,9 +8,17 @@ import (
 	"net/url"
 	"strconv"
 
+	"{{.Module}}/internal/platform/auth"
 	"{{.Module}}/internal/platform/httpx"
 	"{{.Module}}/internal/platform/validation"
 )
+{{- define "caller"}}
+	caller, err := auth.Current(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+{{- end}}
 
 type Handler struct {
 	svc    *Service
@@ -40,12 +48,13 @@ func listParams(r *http.Request) (ListParams, error) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	p, err := listParams(r)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	page, err := h.svc.List(r.Context(), p)
+	page, err := h.svc.List(r.Context(), {{if .Owned}}caller.ID, {{end}}p)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -54,12 +63,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	id, err := {{.PKParse}}
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	item, err := h.svc.Get(r.Context(), id)
+	item, err := h.svc.Get(r.Context(), {{if .Owned}}caller.ID, {{end}}id)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -69,6 +79,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 {{- if not .ReadOnly}}
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	var req createRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
 		h.fail(w, r, err)
@@ -80,7 +91,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	item, err := h.svc.Create(r.Context(), in)
+	item, err := h.svc.Create(r.Context(), {{if .Owned}}caller.ID, {{end}}in)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -91,6 +102,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 {{- if .HasUpdate}}
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	id, err := {{.PKParse}}
 	if err != nil {
 		h.fail(w, r, err)
@@ -107,7 +119,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	item, err := h.svc.Update(r.Context(), id, in)
+	item, err := h.svc.Update(r.Context(), {{if .Owned}}caller.ID, {{end}}id, in)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -117,12 +129,13 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 {{- end}}
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	id, err := {{.PKParse}}
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.svc.Delete(r.Context(), id); err != nil {
+	if err := h.svc.Delete(r.Context(), {{if .Owned}}caller.ID, {{end}}id); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -132,6 +145,7 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 {{- range .Relations}}
 
 func (h *Handler) {{.Handler}}(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	{{.SourceIDVar}}, err := {{.SourceParse}}
 	if err != nil {
 		h.fail(w, r, err)
@@ -142,7 +156,7 @@ func (h *Handler) {{.Handler}}(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	page, err := h.svc.{{.Method}}(r.Context(), {{.SourceIDVar}}, p)
+	page, err := h.svc.{{.Method}}(r.Context(), {{if .Owned}}caller.ID, {{end}}{{.SourceIDVar}}, p)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -152,6 +166,7 @@ func (h *Handler) {{.Handler}}(w http.ResponseWriter, r *http.Request) {
 {{- if .Writable}}
 
 func (h *Handler) {{.LinkHandler}}(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	{{.SourceIDVar}}, err := {{.SourceParse}}
 	if err != nil {
 		h.fail(w, r, err)
@@ -162,7 +177,7 @@ func (h *Handler) {{.LinkHandler}}(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.svc.{{.LinkMethod}}(r.Context(), {{.SourceIDVar}}, id); err != nil {
+	if err := h.svc.{{.LinkMethod}}(r.Context(), {{if .Owned}}caller.ID, {{end}}{{.SourceIDVar}}, id); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -170,6 +185,7 @@ func (h *Handler) {{.LinkHandler}}(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) {{.UnlinkHandler}}(w http.ResponseWriter, r *http.Request) {
+{{- if .Owned}}{{template "caller"}}{{end}}
 	{{.SourceIDVar}}, err := {{.SourceParse}}
 	if err != nil {
 		h.fail(w, r, err)
@@ -180,7 +196,7 @@ func (h *Handler) {{.UnlinkHandler}}(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.svc.{{.UnlinkMethod}}(r.Context(), {{.SourceIDVar}}, id); err != nil {
+	if err := h.svc.{{.UnlinkMethod}}(r.Context(), {{if .Owned}}caller.ID, {{end}}{{.SourceIDVar}}, id); err != nil {
 		h.fail(w, r, err)
 		return
 	}

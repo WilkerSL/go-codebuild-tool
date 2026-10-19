@@ -1,0 +1,8 @@
+.git
+.github
+.env
+/api
+/migrate
+*.db
+*.db-shm
+*.db-wal

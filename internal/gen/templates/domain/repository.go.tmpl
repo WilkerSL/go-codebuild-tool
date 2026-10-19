@@ -10,6 +10,7 @@ import (
 
 	"{{.UUIDImport}}"
 
+	"{{.Module}}/internal/platform/auth"
 	"{{.Module}}/internal/platform/database"
 	"{{.Module}}/internal/platform/validation"
 )
@@ -37,7 +38,7 @@ func scan{{.Name}}(scan func(dest ...any) error) ({{.Name}}, error) {
 	return item, err
 }
 
-func (r *Repository) Get(ctx context.Context, id {{.PK.BaseType}}) ({{.Name}}, error) {
+func (r *Repository) Get(ctx context.Context, {{.OwnerParam}}id {{.PK.BaseType}}) ({{.Name}}, error) {
 	item, err := scan{{.Name}}(r.db.QueryRowContext(ctx, getQuery, {{.GetArgs}}).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return {{.Name}}{}, database.ErrNotFound
@@ -48,7 +49,7 @@ func (r *Repository) Get(ctx context.Context, id {{.PK.BaseType}}) ({{.Name}}, e
 	return item, nil
 }
 
-func (r *Repository) Exists(ctx context.Context, id {{.PK.BaseType}}) (bool, error) {
+func (r *Repository) Exists(ctx context.Context, {{.OwnerParam}}id {{.PK.BaseType}}) (bool, error) {
 	err := r.exists(ctx, existsQuery, {{.ExistsArgs}})
 	if errors.Is(err, database.ErrNotFound) {
 		return false, nil
@@ -56,12 +57,19 @@ func (r *Repository) Exists(ctx context.Context, id {{.PK.BaseType}}) (bool, err
 	return err == nil, err
 }
 
-func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
+func (r *Repository) List(ctx context.Context, {{.OwnerParam}}p ListParams) (Page, error) {
 	return r.page(ctx, p, listQuery, []any{ {{- .ListArgs -}} }, countQuery, []any{ {{- .CountArgs -}} })
 }
 {{- if not .ReadOnly}}
 
-func (r *Repository) Create(ctx context.Context, in CreateInput) ({{.Name}}, error) {
+func (r *Repository) Create(ctx context.Context, {{.OwnerParam}}in CreateInput) ({{.Name}}, error) {
+{{- template "ownedRefs" .}}
+{{- if .IsAuth}}
+	passwordHash, err := auth.HashPassword(in.{{.Auth.Password.Input}})
+	if err != nil {
+		return {{.Name}}{}, fmt.Errorf("create {{.Noun}}: %w", err)
+	}
+{{- end}}
 {{- if .AutoUUID}}
 {{- if .Caps.StdUUID}}
 	id := uuid.NewV7()
@@ -92,7 +100,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) ({{.Name}}, err
 			return writeError("create {{.Noun}}", err)
 		}
 {{- end}}
-		created, err := scan{{.Name}}(db.QueryRowContext(ctx, getQuery, {{.SelectAfterIDArg}}).Scan)
+		created, err := scan{{.Name}}(db.QueryRowContext(ctx, getQuery, {{.SelectAfterArgs}}).Scan)
 		if err != nil {
 			return fmt.Errorf("create {{.Noun}}: %w", err)
 		}
@@ -112,7 +120,8 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) ({{.Name}}, err
 }
 {{- if .HasUpdate}}
 
-func (r *Repository) Update(ctx context.Context, id {{.PK.BaseType}}, in UpdateInput) ({{.Name}}, error) {
+func (r *Repository) Update(ctx context.Context, {{.OwnerParam}}id {{.PK.BaseType}}, in UpdateInput) ({{.Name}}, error) {
+{{- template "ownedRefs" .}}
 {{- if .Dialect.SelectAfter}}
 	var item {{.Name}}
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
@@ -127,7 +136,7 @@ func (r *Repository) Update(ctx context.Context, id {{.PK.BaseType}}, in UpdateI
 		if n == 0 {
 			return database.ErrNotFound
 		}
-		updated, err := scan{{.Name}}(db.QueryRowContext(ctx, getQuery, {{.SelectAfterIDArg}}).Scan)
+		updated, err := scan{{.Name}}(db.QueryRowContext(ctx, getQuery, {{.SelectAfterArgs}}).Scan)
 		if err != nil {
 			return fmt.Errorf("update {{.Noun}}: %w", err)
 		}
@@ -151,7 +160,7 @@ func (r *Repository) Update(ctx context.Context, id {{.PK.BaseType}}, in UpdateI
 {{- end}}
 
 
-func (r *Repository) Delete(ctx context.Context, id {{.PK.BaseType}}) error {
+func (r *Repository) Delete(ctx context.Context, {{.OwnerParam}}id {{.PK.BaseType}}) error {
 	res, err := r.db.ExecContext(ctx, deleteQuery, {{.DeleteArgs}})
 	if err != nil {
 		if ce, ok := database.Constraint(err); ok && ce.Kind == database.ForeignKeyViolation {
@@ -171,7 +180,7 @@ func (r *Repository) Delete(ctx context.Context, id {{.PK.BaseType}}) error {
 {{- end}}
 {{- range .Relations}}
 
-func (r *Repository) {{.Method}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, p ListParams) (Page, error) {
+func (r *Repository) {{.Method}}(ctx context.Context, {{.OwnerParam}}{{.SourceIDVar}} {{.SourceIDType}}, p ListParams) (Page, error) {
 	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
 		return Page{}, err
 	}
@@ -179,7 +188,7 @@ func (r *Repository) {{.Method}}(ctx context.Context, {{.SourceIDVar}} {{.Source
 }
 {{- if .Writable}}
 
-func (r *Repository) {{.LinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
+func (r *Repository) {{.LinkMethod}}(ctx context.Context, {{.OwnerParam}}{{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
 	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
 		return err
 	}
@@ -195,7 +204,7 @@ func (r *Repository) {{.LinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.So
 	return nil
 }
 
-func (r *Repository) {{.UnlinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
+func (r *Repository) {{.UnlinkMethod}}(ctx context.Context, {{.OwnerParam}}{{.SourceIDVar}} {{.SourceIDType}}, id {{$.PK.BaseType}}) error {
 	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
 		return err
 	}
@@ -210,6 +219,16 @@ func (r *Repository) {{.UnlinkMethod}}(ctx context.Context, {{.SourceIDVar}} {{.
 {{- end}}
 {{- end}}
 
+{{if .OwnedRefs}}
+func (r *Repository) reference(ctx context.Context, query, field string, args ...any) error {
+	err := r.exists(ctx, query, args...)
+	if errors.Is(err, database.ErrNotFound) {
+		return validation.Errors{ {Field: field, Message: "references a record that does not exist"} }
+	}
+	return err
+}
+
+{{end -}}
 func (r *Repository) exists(ctx context.Context, query string, args ...any) error {
 	var one int
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(&one)
@@ -275,4 +294,19 @@ func constraintField(ce *database.ConstraintError) string {
 	}
 	return ""
 }
+{{- end}}
+{{- define "ownedRefs"}}
+{{- range .OwnedRefs}}
+{{- if .Field.F.Nullable}}
+	if in.{{.Field.Name}} != nil {
+		if err := r.reference(ctx, {{.Const}}, "{{.Field.JSON}}", {{.Args}}); err != nil {
+			return {{$.Name}}{}, err
+		}
+	}
+{{- else}}
+	if err := r.reference(ctx, {{.Const}}, "{{.Field.JSON}}", {{.Args}}); err != nil {
+		return {{$.Name}}{}, err
+	}
+{{- end}}
+{{- end}}
 {{- end}}
