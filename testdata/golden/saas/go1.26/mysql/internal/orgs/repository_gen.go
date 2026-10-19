@@ -113,6 +113,30 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (
 }
 
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+	return database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		repo := &Repository{db: db}
+		if err := repo.exists(ctx, existsQuery, database.UUIDArg(id)); err != nil {
+			return err
+		}
+		if err := repo.referenced(ctx, restrictUsersOrgIDQuery, database.UUIDArg(id)); err != nil {
+			return err
+		}
+		return repo.delete(ctx, id)
+	})
+}
+
+func (r *Repository) referenced(ctx context.Context, query string, args ...any) error {
+	var n int64
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return fmt.Errorf("delete org: %w", err)
+	}
+	if n > 0 {
+		return fmt.Errorf("delete org: %w", database.ErrReferenced)
+	}
+	return nil
+}
+
+func (r *Repository) delete(ctx context.Context, id uuid.UUID) error {
 	res, err := r.db.ExecContext(ctx, deleteQuery, database.UUIDArg(id))
 	if err != nil {
 		if ce, ok := database.Constraint(err); ok && ce.Kind == database.ForeignKeyViolation {

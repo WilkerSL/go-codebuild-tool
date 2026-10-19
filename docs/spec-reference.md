@@ -93,7 +93,7 @@ Rules:
 
 - Syntax: `softdelete`
 - Applies to: entity (`_ struct{}`)
-- Effect: Adds a nullable `deleted_at` column. DELETE sets it instead of removing the row, reads ignore deleted rows and unique indexes only consider live rows where the dialect supports partial indexes.
+- Effect: Adds a nullable `deleted_at` column. DELETE sets it instead of removing the row, reads ignore deleted rows and unique indexes only consider live rows where the dialect supports partial indexes. Foreign keys pointing at the entity keep their meaning: `restrict` refuses the delete with HTTP 409 while live rows reference it, `setnull` clears the references and `cascade` hides the referencing rows, and their own cascading children, from every query. Creating or updating a row that references a deleted one answers 422.
 - Example: `_ struct{} `gen:"softdelete"``
 - Common error: Declaring a `DeletedAt` field together with softdelete fails with duplicate_column: the column is added automatically.
 
@@ -326,7 +326,8 @@ Rules:
 ## Request semantics
 
 - Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.
-- An absent member takes the `default=` value, or the zero value. Pointer fields treat `null` like an absent member.
+- On create, an absent member takes the `default=` value, or the zero value (an empty value for `[]byte`). Pointer fields treat `null` like an absent member.
+- `PUT` replaces the whole resource, so every non-pointer member is required: leaving one out answers 422 instead of resetting it to its default. Pointer members left out become `null`.
 - `required` members must be present. Non-pointer `belongs_to` fields and client-provided primary keys are required implicitly.
 - Validation rules apply to every value of non-pointer fields and to non-nil values of pointer fields. Use a pointer for optional values.
 - Fields with `auto`, `auto=create`, `auto=update` or the primary key never appear in update requests.

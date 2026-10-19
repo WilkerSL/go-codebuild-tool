@@ -31,24 +31,42 @@ WHERE (@p1 IS NULL OR [name] = @p1)
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [name] NVARCHAR(40)
+);
 INSERT INTO [labels] (
     [name]
 )
 OUTPUT
     INSERTED.[id],
     INSERTED.[name]
+INTO @rows
 VALUES (
     @p1
-)`
+);
+SELECT
+    [id],
+    [name]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [name] NVARCHAR(40)
+);
 UPDATE [labels]
 SET
     [name] = @p1
 OUTPUT
     INSERTED.[id],
     INSERTED.[name]
-WHERE [id] = @p2`
+INTO @rows
+WHERE [id] = @p2;
+SELECT
+    [id],
+    [name]
+FROM @rows`
 
 const deleteQuery = `
 DELETE FROM [labels]
@@ -57,7 +75,7 @@ WHERE [id] = @p1`
 const noteExistsQuery = `
 SELECT 1
 FROM [notes]
-WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const listNoteLabelsQuery = `
 SELECT

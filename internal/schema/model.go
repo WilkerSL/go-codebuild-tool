@@ -313,6 +313,7 @@ const (
 type Reference struct {
 	Entity   string
 	OnDelete OnDelete
+	Target   *Entity `json:"-"`
 }
 
 type Field struct {

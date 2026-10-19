@@ -64,6 +64,9 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 }
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (User, error) {
+	if err := r.reference(ctx, orgExistsQuery, "orgId", database.UUIDArg(in.OrgID)); err != nil {
+		return User{}, err
+	}
 	id := uuid.NewV7()
 	item, err := scanUser(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID)).Scan)
 	if err != nil {
@@ -73,6 +76,9 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (User, error) {
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (User, error) {
+	if err := r.reference(ctx, orgExistsQuery, "orgId", database.UUIDArg(in.OrgID)); err != nil {
+		return User{}, err
+	}
 	item, err := scanUser(r.db.QueryRowContext(ctx, updateQuery, in.Name, in.Email, in.Role, in.Bio, database.UUIDArg(in.OrgID), database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, database.ErrNotFound
@@ -84,6 +90,19 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (
 }
 
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+	return database.Atomic(ctx, r.db, func(db database.DBTX) error {
+		repo := &Repository{db: db}
+		if err := repo.exists(ctx, existsQuery, database.UUIDArg(id)); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, nullifyProjectsOwnerIDQuery, database.UUIDArg(id)); err != nil {
+			return fmt.Errorf("delete user: %w", err)
+		}
+		return repo.delete(ctx, id)
+	})
+}
+
+func (r *Repository) delete(ctx context.Context, id uuid.UUID) error {
 	res, err := r.db.ExecContext(ctx, deleteQuery, database.UUIDArg(id))
 	if err != nil {
 		if ce, ok := database.Constraint(err); ok && ce.Kind == database.ForeignKeyViolation {
@@ -142,6 +161,14 @@ func (r *Repository) UnlinkTagUsers(ctx context.Context, tagID int64, id uuid.UU
 		return fmt.Errorf("unlink user: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) reference(ctx context.Context, query, field string, args ...any) error {
+	err := r.exists(ctx, query, args...)
+	if errors.Is(err, database.ErrNotFound) {
+		return validation.Errors{{Field: field, Message: "references a record that does not exist"}}
+	}
+	return err
 }
 
 func (r *Repository) exists(ctx context.Context, query string, args ...any) error {

@@ -67,20 +67,27 @@ func (SQLServer) Now() string { return "SYSUTCDATETIME()" }
 
 func (SQLServer) Strategy() InsertStrategy { return ReturnRow }
 
-func outputList(d Dialect, returning []string) []string {
-	out := make([]string, len(returning))
-	for i, col := range returning {
-		out[i] = "INSERTED." + col
+func outputInto(returning []Returned) (string, string, string) {
+	defs := make([]string, len(returning))
+	outs := make([]string, len(returning))
+	for i, r := range returning {
+		defs[i] = r.Column + " " + r.Type
+		outs[i] = "INSERTED." + r.Column
 	}
-	return out
+	declare := "DECLARE @rows TABLE (\n" + indent(defs) + "\n);\n"
+	into := "OUTPUT\n" + indent(outs) + "\nINTO @rows"
+	read := ";\nSELECT\n" + indent(returnedColumns(returning)) + "\nFROM @rows"
+	return declare, into, read
 }
 
-func (d SQLServer) InsertSQL(table string, columns, values, returning []string) string {
-	return "INSERT INTO " + d.Quote(table) + " (\n" + indent(columns) + "\n)\nOUTPUT\n" + indent(outputList(d, returning)) + "\nVALUES (\n" + indent(values) + "\n)"
+func (d SQLServer) InsertSQL(table string, columns, values []string, returning []Returned) string {
+	declare, into, read := outputInto(returning)
+	return declare + "INSERT INTO " + d.Quote(table) + " (\n" + indent(columns) + "\n)\n" + into + "\nVALUES (\n" + indent(values) + "\n)" + read
 }
 
-func (d SQLServer) UpdateSQL(table string, sets []string, where string, returning []string) string {
-	return "UPDATE " + d.Quote(table) + "\nSET\n" + indent(sets) + "\nOUTPUT\n" + indent(outputList(d, returning)) + "\nWHERE " + where
+func (d SQLServer) UpdateSQL(table string, sets []string, where string, returning []Returned) string {
+	declare, into, read := outputInto(returning)
+	return declare + "UPDATE " + d.Quote(table) + "\nSET\n" + indent(sets) + "\n" + into + "\nWHERE " + where + read
 }
 
 func (SQLServer) Paginate(param func(ArgKind) string) string {

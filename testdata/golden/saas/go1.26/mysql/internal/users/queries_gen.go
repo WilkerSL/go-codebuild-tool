@@ -78,6 +78,10 @@ const orgExistsQuery = "SELECT 1\n" +
 	"FROM `orgs`\n" +
 	"WHERE `id` = ? AND `deleted_at` IS NULL"
 
+const nullifyProjectsOwnerIDQuery = "UPDATE `projects`\n" +
+	"SET `owner_id` = NULL\n" +
+	"WHERE `owner_id` = ?"
+
 const listOrgUsersQuery = "SELECT\n" +
 	"    `id`,\n" +
 	"    `name`,\n" +

@@ -40,7 +40,7 @@ const deleteQuery = "DELETE FROM `labels`\n" +
 
 const noteExistsQuery = "SELECT 1\n" +
 	"FROM `notes`\n" +
-	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const listNoteLabelsQuery = "SELECT\n" +
 	"    `labels`.`id`,\n" +

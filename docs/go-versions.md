@@ -47,11 +47,16 @@ codebuild compares the effective toolchain with the version the project requires
 
 There is no code generation for older versions. When `go.mod` declares, for example, `go 1.24`:
 
-- **Interactive terminal**: codebuild prints the detected version and asks whether it may generate for Go 1.27.0, warning that the `go` directive will be raised because the generated code does not compile otherwise. The default answer is no. If you accept, `go.mod` is updated, the code is generated and the summary shows `upgrade: go directive 1.24 -> 1.27.0`.
+- **Target**: the installed toolchain when it is Go 1.26 or newer and known to codebuild, otherwise the latest known version (1.27.0), which the go command downloads when `GOTOOLCHAIN` allows it.
+- **Interactive terminal**: codebuild prints the detected version and asks whether it may generate for the target, warning that the `go` directive will be raised because the generated code does not compile otherwise. The default answer is no. If you accept, `go.mod` is updated, the code is generated and the summary shows `upgrade: go directive 1.24 -> 1.27.0`.
 - **No terminal** (CI, scripts, `--json`): the command fails with exit code 4 unless `--upgrade-go` is passed.
 - **MCP**: `plan` and `generate` return a structured error with code `unsupported_go_version` and the details `detected`, `minimum` and `upgradeTo`. They only proceed when called with `upgradeGo: true`, which an agent must send only after the user confirms.
 
 A `toolchain` directive older than the new `go` directive is removed during the upgrade.
+
+## Workspaces
+
+When a `go.work` applies to the project (found above the module, or named by `GOWORK`; `GOWORK=off` disables it), its `go` and `toolchain` directives also count for the required toolchain. codebuild warns when the workspace declares a lower `go` version than the module or does not list the module in `use`, because go commands fail in both cases. The generated code still follows the `go` directive of the module.
 
 ## Versions newer than the latest known
 

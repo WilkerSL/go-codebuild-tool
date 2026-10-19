@@ -12,11 +12,11 @@ const getQuery = "SELECT\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
 	"FROM `notes`\n" +
-	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const existsQuery = "SELECT 1\n" +
 	"FROM `notes`\n" +
-	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const listQuery = "SELECT\n" +
 	"    `id`,\n" +
@@ -30,6 +30,7 @@ const listQuery = "SELECT\n" +
 	"FROM `notes`\n" +
 	"WHERE `owner_id` = ?\n" +
 	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
@@ -39,6 +40,7 @@ const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `notes`\n" +
 	"WHERE `owner_id` = ?\n" +
 	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)"
 
@@ -69,15 +71,15 @@ const updateQuery = "UPDATE `notes`\n" +
 	"    `body` = ?,\n" +
 	"    `pinned` = ?,\n" +
 	"    `updated_at` = UTC_TIMESTAMP(6)\n" +
-	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const deleteQuery = "UPDATE `notes`\n" +
 	"SET `deleted_at` = UTC_TIMESTAMP(6), `updated_at` = UTC_TIMESTAMP(6)\n" +
-	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const folderExistsQuery = "SELECT 1\n" +
 	"FROM `folders`\n" +
-	"WHERE `id` = ? AND `owner_id` = ?"
+	"WHERE `id` = ? AND `owner_id` = ? AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const listFolderNotesQuery = "SELECT\n" +
 	"    `id`,\n" +
@@ -92,6 +94,7 @@ const listFolderNotesQuery = "SELECT\n" +
 	"WHERE `folder_id` = ?\n" +
 	"    AND `owner_id` = ?\n" +
 	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
@@ -101,6 +104,7 @@ const countFolderNotesQuery = "SELECT COUNT(*)\n" +
 	"WHERE `folder_id` = ?\n" +
 	"    AND `owner_id` = ?\n" +
 	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)"
 
 const labelExistsQuery = "SELECT 1\n" +
@@ -121,6 +125,7 @@ const listLabelNotesQuery = "SELECT\n" +
 	"WHERE `note_labels`.`label_id` = ?\n" +
 	"    AND `notes`.`owner_id` = ?\n" +
 	"    AND `notes`.`deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `notes`.`folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `notes`.`pinned` = ?)\n" +
 	"ORDER BY `notes`.`created_at` DESC, `notes`.`id` DESC\n" +
@@ -132,6 +137,7 @@ const countLabelNotesQuery = "SELECT COUNT(*)\n" +
 	"WHERE `note_labels`.`label_id` = ?\n" +
 	"    AND `notes`.`owner_id` = ?\n" +
 	"    AND `notes`.`deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `notes`.`folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `notes`.`pinned` = ?)"
 

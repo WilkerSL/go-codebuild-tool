@@ -7,11 +7,11 @@ const getQuery = "SELECT\n" +
 	"    `owner_id`,\n" +
 	"    `name`\n" +
 	"FROM `folders`\n" +
-	"WHERE `id` = ? AND `owner_id` = ?"
+	"WHERE `id` = ? AND `owner_id` = ? AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const existsQuery = "SELECT 1\n" +
 	"FROM `folders`\n" +
-	"WHERE `id` = ? AND `owner_id` = ?"
+	"WHERE `id` = ? AND `owner_id` = ? AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const listQuery = "SELECT\n" +
 	"    `id`,\n" +
@@ -19,12 +19,14 @@ const listQuery = "SELECT\n" +
 	"    `name`\n" +
 	"FROM `folders`\n" +
 	"WHERE `owner_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `folders`\n" +
-	"WHERE `owner_id` = ?"
+	"WHERE `owner_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const createQuery = "INSERT INTO `folders` (\n" +
 	"    `owner_id`,\n" +
@@ -37,7 +39,7 @@ const createQuery = "INSERT INTO `folders` (\n" +
 const updateQuery = "UPDATE `folders`\n" +
 	"SET\n" +
 	"    `name` = ?\n" +
-	"WHERE `id` = ? AND `owner_id` = ?"
+	"WHERE `id` = ? AND `owner_id` = ? AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"
 
 const deleteQuery = "DELETE FROM `folders`\n" +
-	"WHERE `id` = ? AND `owner_id` = ?"
+	"WHERE `id` = ? AND `owner_id` = ? AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `folders`.`owner_id` AND `users`.`deleted_at` IS NULL)"

@@ -693,3 +693,47 @@ func TestNearestModuleWinsOverParentConfig(t *testing.T) {
 		t.Fatalf("root %s, module %s, dialect %s", plan.Root, plan.Module, plan.Dialect)
 	}
 }
+
+func TestUpgradeTargetsTheLocalToolchain(t *testing.T) {
+	dir := existingModule(t, "module example.com/legacy\n\ngo 1.24\n")
+	plan := build(t, Options{Dir: dir, UpgradeGo: true, Toolchain: fakeToolchain("go1.26.2")})
+	if plan.GoUpgrade == nil || plan.GoUpgrade.To != "1.26.2" || plan.Target.Caps.StdUUID {
+		t.Fatalf("upgrade = %+v, caps = %+v", plan.GoUpgrade, plan.Target.Caps)
+	}
+	dir = existingModule(t, "module example.com/legacy\n\ngo 1.24\n")
+	auto := func(context.Context) (goversion.Toolchain, error) {
+		return goversion.Toolchain{Local: "go1.25.4", Setting: "auto"}, nil
+	}
+	plan = build(t, Options{Dir: dir, UpgradeGo: true, Toolchain: auto})
+	if plan.GoUpgrade == nil || plan.GoUpgrade.To != goversion.LatestVersion() {
+		t.Fatalf("upgrade with an old toolchain = %+v", plan.GoUpgrade)
+	}
+}
+
+func TestWorkspaceIsChecked(t *testing.T) {
+	t.Setenv("GOWORK", "")
+	root := t.TempDir()
+	writeTestFile(t, filepath.Join(root, "go.work"), "go 1.26.0\n\nuse ./other\n")
+	dir := filepath.Join(root, "api")
+	copySpecs(t, dir)
+	writeTestFile(t, filepath.Join(dir, "go.mod"), "module example.com/api\n\ngo 1.27.0\n")
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"below the go 1.27.0 of this module", "does not list this module"} {
+		if !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, want) }) {
+			t.Errorf("missing warning %q in %v", want, plan.Warnings)
+		}
+	}
+	writeTestFile(t, filepath.Join(root, "go.work"), "go 1.27.0\n\ntoolchain go1.28.1\n\nuse ./api\n")
+	_, err = BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	var perr *Error
+	if !errors.As(err, &perr) || perr.Code != "toolchain_too_old" || perr.Details["required"] != "go1.28.1" {
+		t.Fatalf("workspace toolchain = %v", err)
+	}
+	t.Setenv("GOWORK", "off")
+	if _, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")}); err != nil {
+		t.Fatalf("GOWORK=off: %v", err)
+	}
+}

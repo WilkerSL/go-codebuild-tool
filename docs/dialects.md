@@ -17,7 +17,7 @@ Repositories use `database/sql` with SQL written for one database. The dialect i
 |---|---|---|---|---|
 | Placeholders | `$1`, reused | `@p1`, reused | `?`, arguments repeated | `?`, arguments repeated |
 | Identifier quoting | `"users"` | `[users]` | `` `users` `` | `"users"` |
-| Row after insert or update | `RETURNING` | `OUTPUT INSERTED.<col>` | write and `SELECT` in one transaction | `RETURNING` |
+| Row after insert or update | `RETURNING` | `OUTPUT INSERTED.<col> INTO @rows`, then `SELECT` from the table variable, which keeps working when the table has triggers | write and `SELECT` in one transaction | `RETURNING` |
 | Pagination | `LIMIT $n OFFSET $m` | `OFFSET @p ROWS FETCH NEXT @p ROWS ONLY` | `LIMIT ? OFFSET ?` | `LIMIT ? OFFSET ?` |
 | Optional filters | `($1::text IS NULL OR "email" = $1)` | `(@p1 IS NULL OR [email] = @p1)` plus `OPTION (RECOMPILE)` | ``(? IS NULL OR `email` = ?)`` | `(? IS NULL OR "email" = ?)` |
 | Current time | `now()` | `SYSUTCDATETIME()` | `UTC_TIMESTAMP(6)` | `strftime('%Y-%m-%d %H:%M:%f', 'now')` |
@@ -53,9 +53,11 @@ INSERT INTO "users" ("id", "name", "created_at") VALUES ($1, $2, now())
 RETURNING "id", "name", "created_at"
 
 -- sqlserver
+DECLARE @rows TABLE ([id] UNIQUEIDENTIFIER, [name] NVARCHAR(120), [created_at] DATETIME2);
 INSERT INTO [users] ([id], [name], [created_at])
-OUTPUT INSERTED.[id], INSERTED.[name], INSERTED.[created_at]
-VALUES (@p1, @p2, SYSUTCDATETIME())
+OUTPUT INSERTED.[id], INSERTED.[name], INSERTED.[created_at] INTO @rows
+VALUES (@p1, @p2, SYSUTCDATETIME());
+SELECT [id], [name], [created_at] FROM @rows
 
 -- mysql (followed by SELECT ... WHERE `id` = ? in the same transaction)
 INSERT INTO `users` (`id`, `name`, `created_at`) VALUES (?, ?, UTC_TIMESTAMP(6))

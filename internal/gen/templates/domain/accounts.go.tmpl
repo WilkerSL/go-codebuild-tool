@@ -170,15 +170,15 @@ func (a *Accounts) Issue(ctx context.Context, user {{.Name}}) (auth.Tokens, erro
 	if _, err := a.db.ExecContext(ctx, deleteExpiredRefreshQuery, {{$userID}}, database.TimeArg(issued)); err != nil {
 		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
 	}
-	return a.issueTokens(ctx, user.{{.PK.Name}}{{if .Auth.Role}}, user.{{.Auth.Role.Name}}{{end}}, auth.NewID(), issued)
+	return a.issueTokens(ctx, a.db, user.{{.PK.Name}}{{if .Auth.Role}}, user.{{.Auth.Role.Name}}{{end}}, auth.NewID(), issued)
 {{- end}}
 }
 {{- if .Auth.JWT}}
 
-func (a *Accounts) issueTokens(ctx context.Context, id {{.Auth.IDType}}{{if .Auth.Role}}, role string{{end}}, family string, issued time.Time) (auth.Tokens, error) {
+func (a *Accounts) issueTokens(ctx context.Context, db database.DBTX, id {{.Auth.IDType}}{{if .Auth.Role}}, role string{{end}}, family string, issued time.Time) (auth.Tokens, error) {
 	refresh := auth.NewToken(auth.RefreshPrefix)
 	refreshExpires := issued.Add(a.cfg.RefreshTTL)
-	if _, err := a.db.ExecContext(ctx, insertRefreshQuery, auth.HashToken(refresh), family, {{$id}}, database.TimeArg(issued), database.TimeArg(refreshExpires)); err != nil {
+	if _, err := db.ExecContext(ctx, insertRefreshQuery, auth.HashToken(refresh), family, {{$id}}, database.TimeArg(issued), database.TimeArg(refreshExpires)); err != nil {
 		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
 	}
 	expires := issued.Add(a.cfg.AccessTTL).Truncate(time.Second)
@@ -219,23 +219,24 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 	if err != nil {
 		return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
 	}
-	if used == nil {
-		res, err := a.db.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash)
-		if err != nil {
-			return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
+	if used != nil && issued.Sub(*used) > a.cfg.RefreshReuseGrace {
+		if _, err := a.db.ExecContext(ctx, deleteFamilyQuery, family); err != nil {
+			return auth.Tokens{}, fmt.Errorf("revoke reused refresh token: %w", err)
 		}
-		n, err := res.RowsAffected()
-		if err != nil {
-			return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
-		}
-		if n == 1 {
-			return a.issueTokens(ctx, id{{if .Auth.Role}}, role{{end}}, family, issued)
-		}
+		return auth.Tokens{}, auth.ErrInvalidToken
 	}
-	if _, err := a.db.ExecContext(ctx, deleteFamilyQuery, family); err != nil {
-		return auth.Tokens{}, fmt.Errorf("revoke reused refresh token: %w", err)
-	}
-	return auth.Tokens{}, auth.ErrInvalidToken
+	var tokens auth.Tokens
+	err = database.InTx(ctx, a.db, func(tx *sql.Tx) error {
+		if used == nil {
+			if _, err := tx.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash); err != nil {
+				return fmt.Errorf("refresh tokens: %w", err)
+			}
+		}
+		var err error
+		tokens, err = a.issueTokens(ctx, tx, id{{if .Auth.Role}}, role{{end}}, family, issued)
+		return err
+	})
+	return tokens, err
 }
 {{- end}}
 

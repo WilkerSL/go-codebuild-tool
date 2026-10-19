@@ -312,6 +312,9 @@ func (p *planner) resolveGo(ctx context.Context) error {
 	}
 	if target.Status == goversion.StatusBelowMinimum {
 		to := goversion.LatestVersion()
+		if tcErr == nil {
+			to = goversion.UpgradeTarget(tc.Local)
+		}
 		source := "go.mod declares go " + goVersion
 		if p.opts.Starter {
 			source = "the installed toolchain is go " + goVersion
@@ -348,6 +351,15 @@ func (p *planner) resolveGo(ctx context.Context) error {
 		return nil
 	}
 	required := goversion.Max("go"+goVersion, toolchainDirective)
+	if work, workPath := p.workspace(); work != nil {
+		required = goversion.Max(required, work.RequiredToolchain())
+		if version.Compare("go"+work.Go, "go"+goVersion) < 0 {
+			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("%s declares go %s, below the go %s of this module; go commands in the workspace fail until you raise it with go work use", workPath, work.Go, goVersion))
+		}
+		if !p.inWorkspace(work, workPath) {
+			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("%s does not list this module, so go commands here fail in workspace mode; run go work use %s or set GOWORK=off", workPath, p.root))
+		}
+	}
 	check := tc.Check(required)
 	p.plan.Toolchain = &ToolchainStatus{Local: tc.Local, Setting: tc.Setting, Required: required}
 	if check.Fatal {
@@ -796,4 +808,46 @@ func (p *planner) nextSteps() {
 		steps = append(steps, "go get -tool github.com/WilkerSL/go-codebuild-tool/cmd/codebuild (optional, pins codebuild for go tool codebuild)")
 	}
 	p.plan.NextSteps = steps
+}
+
+func (p *planner) workspace() (*goversion.WorkFile, string) {
+	path := os.Getenv("GOWORK")
+	switch path {
+	case "off":
+		return nil, ""
+	case "":
+		dir, ok := findUp(p.root, "go.work")
+		if !ok {
+			return nil, ""
+		}
+		path = filepath.Join(dir, "go.work")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("could not read the workspace file %s: %v", path, err))
+		return nil, ""
+	}
+	work, err := goversion.ParseWorkFile(path, data)
+	if err != nil {
+		p.plan.Warnings = append(p.plan.Warnings, err.Error())
+		return nil, ""
+	}
+	return work, path
+}
+
+func (p *planner) inWorkspace(work *goversion.WorkFile, workPath string) bool {
+	root, err := resolveExisting(p.root)
+	if err != nil {
+		return true
+	}
+	for _, use := range work.Use {
+		dir := use
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(filepath.Dir(workPath), dir)
+		}
+		if real, err := resolveExisting(dir); err == nil && real == root {
+			return true
+		}
+	}
+	return false
 }

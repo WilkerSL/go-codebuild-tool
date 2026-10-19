@@ -45,3 +45,31 @@ func (m *ModFile) Target() (Target, error) {
 func (m *ModFile) RequiredToolchain() string {
 	return Max("go"+m.Go, m.Toolchain)
 }
+
+type WorkFile struct {
+	Go        string
+	Toolchain string
+	Use       []string
+}
+
+func ParseWorkFile(name string, data []byte) (*WorkFile, error) {
+	f, err := modfile.ParseWork(name, data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", name, err)
+	}
+	wf := &WorkFile{Go: implicitGoVersion}
+	if f.Go != nil {
+		wf.Go = f.Go.Version
+	}
+	if f.Toolchain != nil {
+		wf.Toolchain = f.Toolchain.Name
+	}
+	for _, u := range f.Use {
+		wf.Use = append(wf.Use, u.Path)
+	}
+	return wf, nil
+}
+
+func (w *WorkFile) RequiredToolchain() string {
+	return Max("go"+w.Go, w.Toolchain)
+}

@@ -82,12 +82,12 @@ func (Postgres) Now() string { return "now()" }
 
 func (Postgres) Strategy() InsertStrategy { return ReturnRow }
 
-func (d Postgres) InsertSQL(table string, columns, values, returning []string) string {
-	return "INSERT INTO " + d.Quote(table) + " (\n" + indent(columns) + "\n) VALUES (\n" + indent(values) + "\n)\nRETURNING\n" + indent(returning)
+func (d Postgres) InsertSQL(table string, columns, values []string, returning []Returned) string {
+	return "INSERT INTO " + d.Quote(table) + " (\n" + indent(columns) + "\n) VALUES (\n" + indent(values) + "\n)\nRETURNING\n" + indent(returnedColumns(returning))
 }
 
-func (d Postgres) UpdateSQL(table string, sets []string, where string, returning []string) string {
-	return "UPDATE " + d.Quote(table) + "\nSET\n" + indent(sets) + "\nWHERE " + where + "\nRETURNING\n" + indent(returning)
+func (d Postgres) UpdateSQL(table string, sets []string, where string, returning []Returned) string {
+	return "UPDATE " + d.Quote(table) + "\nSET\n" + indent(sets) + "\nWHERE " + where + "\nRETURNING\n" + indent(returnedColumns(returning))
 }
 
 func (Postgres) Paginate(param func(ArgKind) string) string {

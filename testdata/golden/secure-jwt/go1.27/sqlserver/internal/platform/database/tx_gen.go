@@ -28,3 +28,13 @@ func InTx(ctx context.Context, db *sql.DB, fn func(tx *sql.Tx) error) error {
 	}
 	return nil
 }
+
+func Atomic(ctx context.Context, db DBTX, fn func(DBTX) error) error {
+	pool, ok := db.(*sql.DB)
+	if !ok {
+		return fn(db)
+	}
+	return InTx(ctx, pool, func(tx *sql.Tx) error {
+		return fn(tx)
+	})
+}

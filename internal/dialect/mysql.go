@@ -69,11 +69,11 @@ func (MySQL) Now() string { return "UTC_TIMESTAMP(6)" }
 
 func (MySQL) Strategy() InsertStrategy { return SelectAfter }
 
-func (d MySQL) InsertSQL(table string, columns, values, _ []string) string {
+func (d MySQL) InsertSQL(table string, columns, values []string, _ []Returned) string {
 	return "INSERT INTO " + d.Quote(table) + " (\n" + indent(columns) + "\n) VALUES (\n" + indent(values) + "\n)"
 }
 
-func (d MySQL) UpdateSQL(table string, sets []string, where string, _ []string) string {
+func (d MySQL) UpdateSQL(table string, sets []string, where string, _ []Returned) string {
 	return "UPDATE " + d.Quote(table) + "\nSET\n" + indent(sets) + "\nWHERE " + where
 }
 

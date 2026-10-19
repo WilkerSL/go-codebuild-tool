@@ -33,6 +33,11 @@ WHERE (@p1 IS NULL OR [name] = @p1)
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [name] NVARCHAR(50),
+    [color] NVARCHAR(7)
+);
 INSERT INTO [tags] (
     [name],
     [color]
@@ -41,12 +46,23 @@ OUTPUT
     INSERTED.[id],
     INSERTED.[name],
     INSERTED.[color]
+INTO @rows
 VALUES (
     @p1,
     @p2
-)`
+);
+SELECT
+    [id],
+    [name],
+    [color]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [name] NVARCHAR(50),
+    [color] NVARCHAR(7)
+);
 UPDATE [tags]
 SET
     [name] = @p1,
@@ -55,7 +71,13 @@ OUTPUT
     INSERTED.[id],
     INSERTED.[name],
     INSERTED.[color]
-WHERE [id] = @p3`
+INTO @rows
+WHERE [id] = @p3;
+SELECT
+    [id],
+    [name],
+    [color]
+FROM @rows`
 
 const deleteQuery = `
 DELETE FROM [tags]

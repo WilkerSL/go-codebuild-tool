@@ -13,12 +13,12 @@ SELECT
     "created_at",
     "updated_at"
 FROM "notes"
-WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL`
+WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "notes"
-WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL`
+WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -33,6 +33,7 @@ SELECT
 FROM "notes"
 WHERE "owner_id" = ?
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "folder_id" = ?)
     AND (? IS NULL OR "pinned" = ?)
 ORDER BY "created_at" DESC, "id" DESC
@@ -43,6 +44,7 @@ SELECT COUNT(*)
 FROM "notes"
 WHERE "owner_id" = ?
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "folder_id" = ?)
     AND (? IS NULL OR "pinned" = ?)`
 
@@ -84,7 +86,7 @@ SET
     "body" = ?,
     "pinned" = ?,
     "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
-WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL
+WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
 RETURNING
     "id",
     "owner_id",
@@ -98,12 +100,12 @@ RETURNING
 const deleteQuery = `
 UPDATE "notes"
 SET "deleted_at" = strftime('%Y-%m-%d %H:%M:%f', 'now'), "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
-WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL`
+WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const folderExistsQuery = `
 SELECT 1
 FROM "folders"
-WHERE "id" = ? AND "owner_id" = ?`
+WHERE "id" = ? AND "owner_id" = ? AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listFolderNotesQuery = `
 SELECT
@@ -119,6 +121,7 @@ FROM "notes"
 WHERE "folder_id" = ?
     AND "owner_id" = ?
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "pinned" = ?)
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
@@ -129,6 +132,7 @@ FROM "notes"
 WHERE "folder_id" = ?
     AND "owner_id" = ?
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "pinned" = ?)`
 
 const labelExistsQuery = `
@@ -151,6 +155,7 @@ JOIN "note_labels" ON "note_labels"."note_id" = "notes"."id"
 WHERE "note_labels"."label_id" = ?
     AND "notes"."owner_id" = ?
     AND "notes"."deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "notes"."folder_id" = ?)
     AND (? IS NULL OR "notes"."pinned" = ?)
 ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
@@ -163,6 +168,7 @@ JOIN "note_labels" ON "note_labels"."note_id" = "notes"."id"
 WHERE "note_labels"."label_id" = ?
     AND "notes"."owner_id" = ?
     AND "notes"."deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "notes"."folder_id" = ?)
     AND (? IS NULL OR "notes"."pinned" = ?)`
 

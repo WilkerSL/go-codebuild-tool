@@ -54,7 +54,7 @@ WHERE "id" = $1`
 const noteExistsQuery = `
 SELECT 1
 FROM "notes"
-WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL`
+WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listNoteLabelsQuery = `
 SELECT

@@ -62,7 +62,7 @@ func (req updateRequest) input() (UpdateInput, error) {
 	var in UpdateInput
 	var errs validation.Errors
 {{- range .Update}}
-	{{.Convert}}
+	{{.UpdateConvert}}
 {{- end}}
 	return in, errs.Err()
 }

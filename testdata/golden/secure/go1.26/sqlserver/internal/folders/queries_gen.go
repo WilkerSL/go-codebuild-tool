@@ -8,12 +8,12 @@ SELECT
     [owner_id],
     [name]
 FROM [folders]
-WHERE [id] = @p1 AND [owner_id] = @p2`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM [folders]
-WHERE [id] = @p1 AND [owner_id] = @p2`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const listQuery = `
 SELECT
@@ -22,15 +22,22 @@ SELECT
     [name]
 FROM [folders]
 WHERE [owner_id] = @p1
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)
 ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY`
 
 const countQuery = `
 SELECT COUNT(*)
 FROM [folders]
-WHERE [owner_id] = @p1`
+WHERE [owner_id] = @p1
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [owner_id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(80)
+);
 INSERT INTO [folders] (
     [owner_id],
     [name]
@@ -39,12 +46,23 @@ OUTPUT
     INSERTED.[id],
     INSERTED.[owner_id],
     INSERTED.[name]
+INTO @rows
 VALUES (
     @p1,
     @p2
-)`
+);
+SELECT
+    [id],
+    [owner_id],
+    [name]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] BIGINT,
+    [owner_id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(80)
+);
 UPDATE [folders]
 SET
     [name] = @p1
@@ -52,8 +70,14 @@ OUTPUT
     INSERTED.[id],
     INSERTED.[owner_id],
     INSERTED.[name]
-WHERE [id] = @p2 AND [owner_id] = @p3`
+INTO @rows
+WHERE [id] = @p2 AND [owner_id] = @p3 AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL);
+SELECT
+    [id],
+    [owner_id],
+    [name]
+FROM @rows`
 
 const deleteQuery = `
 DELETE FROM [folders]
-WHERE [id] = @p1 AND [owner_id] = @p2`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)`

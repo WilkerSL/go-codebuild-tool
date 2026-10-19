@@ -14,11 +14,11 @@ const getQuery = "SELECT\n" +
 	"    `due_at`,\n" +
 	"    `created_at`\n" +
 	"FROM `projects`\n" +
-	"WHERE `id` = ?"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)"
 
 const existsQuery = "SELECT 1\n" +
 	"FROM `projects`\n" +
-	"WHERE `id` = ?"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)"
 
 const listQuery = "SELECT\n" +
 	"    `id`,\n" +
@@ -32,7 +32,8 @@ const listQuery = "SELECT\n" +
 	"    `due_at`,\n" +
 	"    `created_at`\n" +
 	"FROM `projects`\n" +
-	"WHERE (? IS NULL OR `org_id` = ?)\n" +
+	"WHERE EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `org_id` = ?)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
@@ -40,7 +41,8 @@ const listQuery = "SELECT\n" +
 
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `projects`\n" +
-	"WHERE (? IS NULL OR `org_id` = ?)\n" +
+	"WHERE EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `org_id` = ?)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)"
 
@@ -78,13 +80,17 @@ const updateQuery = "UPDATE `projects`\n" +
 	"    `archived` = ?,\n" +
 	"    `logo` = ?,\n" +
 	"    `due_at` = ?\n" +
-	"WHERE `id` = ?"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)"
 
 const deleteQuery = "DELETE FROM `projects`\n" +
-	"WHERE `id` = ?"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)"
 
 const orgExistsQuery = "SELECT 1\n" +
 	"FROM `orgs`\n" +
+	"WHERE `id` = ? AND `deleted_at` IS NULL"
+
+const userExistsQuery = "SELECT 1\n" +
+	"FROM `users`\n" +
 	"WHERE `id` = ? AND `deleted_at` IS NULL"
 
 const listOrgProjectsQuery = "SELECT\n" +
@@ -100,6 +106,7 @@ const listOrgProjectsQuery = "SELECT\n" +
 	"    `created_at`\n" +
 	"FROM `projects`\n" +
 	"WHERE `org_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
@@ -108,5 +115,6 @@ const listOrgProjectsQuery = "SELECT\n" +
 const countOrgProjectsQuery = "SELECT COUNT(*)\n" +
 	"FROM `projects`\n" +
 	"WHERE `org_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)"

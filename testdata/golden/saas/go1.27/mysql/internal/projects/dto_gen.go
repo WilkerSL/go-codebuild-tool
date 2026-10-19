@@ -140,21 +140,27 @@ func (req updateRequest) input() (UpdateInput, error) {
 		in.Name = *req.Name
 	}
 
-	if req.Budget != nil {
+	if req.Budget == nil {
+		errs.Add("budget", "is required")
+	} else {
 		in.Budget = *req.Budget
 	}
 
-	in.Priority = 3
-	if req.Priority != nil {
+	if req.Priority == nil {
+		errs.Add("priority", "is required")
+	} else {
 		in.Priority = *req.Priority
 	}
 
-	if req.Archived != nil {
+	if req.Archived == nil {
+		errs.Add("archived", "is required")
+	} else {
 		in.Archived = *req.Archived
 	}
 
-	in.Logo = []byte{}
-	if req.Logo != nil {
+	if req.Logo == nil {
+		errs.Add("logo", "is required")
+	} else {
 		in.Logo = *req.Logo
 	}
 

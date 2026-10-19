@@ -4,7 +4,7 @@
 
 ## Configuration
 
-The server works on the directory given with `--dir`, or the directory it was started in. Tools also accept a `dir` argument.
+The server works on the directory given with `--dir`, or the directory it was started in. Tools also accept a `dir` argument, absolute or relative, which must stay inside that directory after resolving symbolic links; the project found from it (the nearest `go.mod`) must be inside it too, so a server started in a subdirectory never writes to a module above it. Violations return the error code `outside_root`.
 
 Claude Code:
 

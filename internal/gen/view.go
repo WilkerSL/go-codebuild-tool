@@ -89,26 +89,27 @@ type enumConst struct {
 }
 
 type fieldView struct {
-	F            *schema.Field
-	Name         string
-	JSON         string
-	Input        string
-	InputJSON    string
-	GoType       string
-	BaseType     string
-	ModelTag     string
-	RequestType  string
-	ScanTarget   string
-	Convert      string
-	HasRules     bool
-	CheckFunc    string
-	CheckBody    string
-	FilterType   string
-	FilterParse  string
-	EnumConsts   []enumConst
-	ValidValue   string
-	TestValue    string
-	FailingCases []failingCase
+	F             *schema.Field
+	Name          string
+	JSON          string
+	Input         string
+	InputJSON     string
+	GoType        string
+	BaseType      string
+	ModelTag      string
+	RequestType   string
+	ScanTarget    string
+	Convert       string
+	UpdateConvert string
+	HasRules      bool
+	CheckFunc     string
+	CheckBody     string
+	FilterType    string
+	FilterParse   string
+	EnumConsts    []enumConst
+	ValidValue    string
+	TestValue     string
+	FailingCases  []failingCase
 }
 
 type failingCase struct {
@@ -235,6 +236,7 @@ type domainView struct {
 	Nouns            string
 	PKParseItem      string
 	RequiredCreate   []*fieldView
+	RequiredUpdate   []*fieldView
 	MissingRefValue  string
 	ServiceMethods   []serviceMethod
 	AuthMethods      []serviceMethod
@@ -249,10 +251,18 @@ type domainView struct {
 	TestOwnerArg     string
 	TestOwnerSuffix  string
 	MissingOwner     string
-	OwnedRefs        []ownedRef
+	RefChecks        []refCheck
+	DeleteRules      []deleteRule
+	HasRestrict      bool
 }
 
-type ownedRef struct {
+type deleteRule struct {
+	Restrict bool
+	Const    string
+	Args     string
+}
+
+type refCheck struct {
 	Field *fieldView
 	Const string
 	Args  string
@@ -405,6 +415,12 @@ func convertBlock(f *schema.Field) string {
 		}
 	}
 	return b.String()
+}
+
+func updateBlock(f *schema.Field) string {
+	c := *f
+	c.Required = !f.Nullable
+	return convertBlock(&c)
 }
 
 func hasRules(f *schema.Field) bool {
@@ -708,21 +724,22 @@ func maxInt(k schema.Kind) int64 {
 
 func newFieldView(f *schema.Field, dv dialectView) *fieldView {
 	v := &fieldView{
-		F:           f,
-		Name:        f.Name,
-		JSON:        f.JSON,
-		Input:       f.InputName(),
-		InputJSON:   f.InputJSON(),
-		GoType:      goType(f),
-		BaseType:    goBase(f.Kind),
-		RequestType: requestType(f),
-		ScanTarget:  scanTarget(f, dv.ScanTime),
-		Convert:     convertBlock(f),
-		HasRules:    hasRules(f),
-		CheckFunc:   "check" + f.Name,
-		CheckBody:   checkBody(f),
-		FilterType:  "*" + goBase(f.Kind),
-		FilterParse: filterParse(f),
+		F:             f,
+		Name:          f.Name,
+		JSON:          f.JSON,
+		Input:         f.InputName(),
+		InputJSON:     f.InputJSON(),
+		GoType:        goType(f),
+		BaseType:      goBase(f.Kind),
+		RequestType:   requestType(f),
+		ScanTarget:    scanTarget(f, dv.ScanTime),
+		Convert:       convertBlock(f),
+		UpdateConvert: updateBlock(f),
+		HasRules:      hasRules(f),
+		CheckFunc:     "check" + f.Name,
+		CheckBody:     checkBody(f),
+		FilterType:    "*" + goBase(f.Kind),
+		FilterParse:   filterParse(f),
 	}
 	v.ModelTag = "`json:\"" + f.JSON + "\"`"
 	if f.OmitResponse {

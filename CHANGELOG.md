@@ -30,6 +30,11 @@ All notable changes to this project are documented in this file. The format foll
 - The MCP tools only accept directories inside the directory the server was started in (after resolving symbolic links), and they refuse projects whose root lies above it; `generate` is annotated as destructive.
 - Non-nullable `[]byte` fields that the client omits are stored as empty values instead of NULL, and not-null violations become HTTP 422 with the field name in every dialect.
 - MySQL string columns without `max=` use an expression default (`DEFAULT ('x')`), which `LONGTEXT` requires.
+- Soft delete honors the foreign keys that point at the entity: `restrict` answers 409 while live rows reference it, `setnull` clears the references, `cascade` hides the referencing rows and their cascading children from every query, and rows cannot reference deleted ones.
+- `PUT` requires every non-pointer member instead of resetting omitted members to their defaults, so a `PUT` without `role` no longer demotes an admin.
+- SQL Server inserts and updates use `OUTPUT ... INTO` a table variable, so tables with triggers keep working.
+- JWT refresh runs in a transaction, and a refresh token presented again within `AUTH_REFRESH_REUSE_GRACE` (30 seconds) issues new tokens instead of revoking the session, so two tabs refreshing at once stay logged in.
+- `go.work` (or `GOWORK`) counts for the required toolchain and is checked against the module, and the upgrade for projects below Go 1.26 targets the installed toolchain when it is supported.
 
 ## [0.1.0] - 2026-10-18
 

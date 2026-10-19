@@ -15,12 +15,12 @@ SELECT
     [due_at],
     [created_at]
 FROM [projects]
-WHERE [id] = @p1`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM [projects]
-WHERE [id] = @p1`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)`
 
 const listQuery = `
 SELECT
@@ -35,7 +35,8 @@ SELECT
     [due_at],
     [created_at]
 FROM [projects]
-WHERE (@p1 IS NULL OR [org_id] = @p1)
+WHERE EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
+    AND (@p1 IS NULL OR [org_id] = @p1)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
 ORDER BY [created_at] DESC, [id] DESC
@@ -45,12 +46,25 @@ OPTION (RECOMPILE)`
 const countQuery = `
 SELECT COUNT(*)
 FROM [projects]
-WHERE (@p1 IS NULL OR [org_id] = @p1)
+WHERE EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
+    AND (@p1 IS NULL OR [org_id] = @p1)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [org_id] UNIQUEIDENTIFIER,
+    [owner_id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(200),
+    [budget] FLOAT,
+    [priority] INT,
+    [archived] BIT,
+    [logo] VARBINARY(MAX),
+    [due_at] DATETIME2(7),
+    [created_at] DATETIME2(7)
+);
 INSERT INTO [projects] (
     [id],
     [org_id],
@@ -74,6 +88,7 @@ OUTPUT
     INSERTED.[logo],
     INSERTED.[due_at],
     INSERTED.[created_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -85,9 +100,33 @@ VALUES (
     @p8,
     @p9,
     SYSUTCDATETIME()
-)`
+);
+SELECT
+    [id],
+    [org_id],
+    [owner_id],
+    [name],
+    [budget],
+    [priority],
+    [archived],
+    [logo],
+    [due_at],
+    [created_at]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [org_id] UNIQUEIDENTIFIER,
+    [owner_id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(200),
+    [budget] FLOAT,
+    [priority] INT,
+    [archived] BIT,
+    [logo] VARBINARY(MAX),
+    [due_at] DATETIME2(7),
+    [created_at] DATETIME2(7)
+);
 UPDATE [projects]
 SET
     [org_id] = @p1,
@@ -109,15 +148,33 @@ OUTPUT
     INSERTED.[logo],
     INSERTED.[due_at],
     INSERTED.[created_at]
-WHERE [id] = @p9`
+INTO @rows
+WHERE [id] = @p9 AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL);
+SELECT
+    [id],
+    [org_id],
+    [owner_id],
+    [name],
+    [budget],
+    [priority],
+    [archived],
+    [logo],
+    [due_at],
+    [created_at]
+FROM @rows`
 
 const deleteQuery = `
 DELETE FROM [projects]
-WHERE [id] = @p1`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)`
 
 const orgExistsQuery = `
 SELECT 1
 FROM [orgs]
+WHERE [id] = @p1 AND [deleted_at] IS NULL`
+
+const userExistsQuery = `
+SELECT 1
+FROM [users]
 WHERE [id] = @p1 AND [deleted_at] IS NULL`
 
 const listOrgProjectsQuery = `
@@ -134,6 +191,7 @@ SELECT
     [created_at]
 FROM [projects]
 WHERE [org_id] = @p1
+    AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
 ORDER BY [created_at] DESC, [id] DESC
@@ -144,6 +202,7 @@ const countOrgProjectsQuery = `
 SELECT COUNT(*)
 FROM [projects]
 WHERE [org_id] = @p1
+    AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
 OPTION (RECOMPILE)`

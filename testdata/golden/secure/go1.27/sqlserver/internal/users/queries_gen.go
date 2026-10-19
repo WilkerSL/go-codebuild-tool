@@ -43,6 +43,15 @@ WHERE [deleted_at] IS NULL
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [email] NVARCHAR(254),
+    [name] NVARCHAR(120),
+    [password_hash] NVARCHAR(255),
+    [role] NVARCHAR(32),
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 INSERT INTO [users] (
     [id],
     [email],
@@ -60,6 +69,7 @@ OUTPUT
     INSERTED.[role],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -68,9 +78,27 @@ VALUES (
     @p5,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
-)`
+);
+SELECT
+    [id],
+    [email],
+    [name],
+    [password_hash],
+    [role],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [email] NVARCHAR(254),
+    [name] NVARCHAR(120),
+    [password_hash] NVARCHAR(255),
+    [role] NVARCHAR(32),
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 UPDATE [users]
 SET
     [email] = @p1,
@@ -85,7 +113,17 @@ OUTPUT
     INSERTED.[role],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p4 AND [deleted_at] IS NULL`
+INTO @rows
+WHERE [id] = @p4 AND [deleted_at] IS NULL;
+SELECT
+    [id],
+    [email],
+    [name],
+    [password_hash],
+    [role],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const deleteQuery = `
 UPDATE [users]

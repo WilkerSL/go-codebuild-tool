@@ -87,6 +87,25 @@ func TestCreateRequestRequiredFields(t *testing.T) {
 }
 {{- if .HasUpdate}}
 
+func TestUpdateRequestRequiresEveryField(t *testing.T) {
+	_, err := updateRequest{}.input()
+{{- if .RequiredUpdate}}
+	errs, ok := errors.AsType[validation.Errors](err)
+	if !ok {
+		t.Fatalf("expected required field errors, got %v", err)
+	}
+	for _, field := range []string{ {{- range $i, $f := .RequiredUpdate}}{{if $i}}, {{end}}"{{$f.InputJSON}}"{{end -}} } {
+		if !errs.Has(field) {
+			t.Errorf("an update without %s would reset it", field)
+		}
+	}
+{{- else}}
+	if err != nil {
+		t.Fatalf("empty request rejected: %v", err)
+	}
+{{- end}}
+}
+
 func validUpdateInput() UpdateInput {
 	return UpdateInput{
 {{- range .Update}}{{if not .F.Nullable}}

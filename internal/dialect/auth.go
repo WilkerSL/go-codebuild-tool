@@ -51,10 +51,11 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 	password := e.Password()
 	role := e.Role()
 	live := func(qualified bool) string {
-		if !e.SoftDelete {
+		conds := Visible(d, e, qualified)
+		if len(conds) == 0 {
 			return ""
 		}
-		return " AND " + columnRef(d, e.Table, schema.DeletedAtColumn, qualified) + " IS NULL"
+		return " AND " + strings.Join(conds, " AND ")
 	}
 	touch := ""
 	for _, f := range e.Fields {

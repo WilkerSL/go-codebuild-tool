@@ -47,6 +47,16 @@ WHERE [deleted_at] IS NULL
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [email] NVARCHAR(254),
+    [role] NVARCHAR(32),
+    [bio] NVARCHAR(500),
+    [org_id] UNIQUEIDENTIFIER,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 INSERT INTO [users] (
     [id],
     [name],
@@ -66,6 +76,7 @@ OUTPUT
     INSERTED.[org_id],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -75,9 +86,29 @@ VALUES (
     @p6,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
-)`
+);
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [email] NVARCHAR(254),
+    [role] NVARCHAR(32),
+    [bio] NVARCHAR(500),
+    [org_id] UNIQUEIDENTIFIER,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 UPDATE [users]
 SET
     [name] = @p1,
@@ -95,7 +126,18 @@ OUTPUT
     INSERTED.[org_id],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p6 AND [deleted_at] IS NULL`
+INTO @rows
+WHERE [id] = @p6 AND [deleted_at] IS NULL;
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const deleteQuery = `
 UPDATE [users]
@@ -106,6 +148,11 @@ const orgExistsQuery = `
 SELECT 1
 FROM [orgs]
 WHERE [id] = @p1 AND [deleted_at] IS NULL`
+
+const nullifyProjectsOwnerIDQuery = `
+UPDATE [projects]
+SET [owner_id] = NULL
+WHERE [owner_id] = @p1`
 
 const listOrgUsersQuery = `
 SELECT

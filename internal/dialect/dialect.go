@@ -33,8 +33,8 @@ type Dialect interface {
 	ColumnType(c *schema.Column) string
 	Now() string
 	Strategy() InsertStrategy
-	InsertSQL(table string, columns, values, returning []string) string
-	UpdateSQL(table string, sets []string, where string, returning []string) string
+	InsertSQL(table string, columns, values []string, returning []Returned) string
+	UpdateSQL(table string, sets []string, where string, returning []Returned) string
 	Paginate(param func(ArgKind) string) string
 	QueryHint() string
 	LinkSQL(table string, columns, params [2]string) string
@@ -119,4 +119,17 @@ func checkExpression(d Dialect, ck *schema.Check, stringPrefix string) string {
 		values[i] = stringPrefix + quoteString(v)
 	}
 	return d.Quote(ck.Column) + " IN (" + strings.Join(values, ", ") + ")"
+}
+
+type Returned struct {
+	Column string
+	Type   string
+}
+
+func returnedColumns(returning []Returned) []string {
+	out := make([]string, len(returning))
+	for i, r := range returning {
+		out[i] = r.Column
+	}
+	return out
 }

@@ -14,6 +14,7 @@ import (
 type Config struct {
 	AccessTTL         time.Duration
 	RefreshTTL        time.Duration
+	RefreshReuseGrace time.Duration
 	Secret            []byte
 	PreviousSecret    []byte
 	CookieSecure      bool
@@ -52,6 +53,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		AccessTTL:         duration("AUTH_ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:        duration("AUTH_REFRESH_TTL", 30*24*time.Hour),
+		RefreshReuseGrace: duration("AUTH_REFRESH_REUSE_GRACE", 30*time.Second),
 		Secret:            []byte(getenv("AUTH_JWT_SECRET")),
 		PreviousSecret:    []byte(getenv("AUTH_JWT_PREVIOUS_SECRET")),
 		CookieSecure:      boolean("AUTH_COOKIE_SECURE", true),

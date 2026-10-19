@@ -84,8 +84,9 @@ func (req updateRequest) input() (UpdateInput, error) {
 		in.Name = *req.Name
 	}
 
-	in.Role = RoleMember
-	if req.Role != nil {
+	if req.Role == nil {
+		errs.Add("role", "is required")
+	} else {
 		in.Role = *req.Role
 	}
 

@@ -49,6 +49,9 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		}
 		if f.InUpdate() && !e.ReadOnly {
 			dv.Update = append(dv.Update, fv)
+			if !f.Nullable {
+				dv.RequiredUpdate = append(dv.RequiredUpdate, fv)
+			}
 		}
 		if f.Filterable() {
 			dv.Filters = append(dv.Filters, fv)
@@ -93,25 +96,46 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		dv.DeleteArgs = queryArgs(*q.Delete, "")
 	}
 	dv.SelectAfterArgs = dv.GetArgs
-	if dv.Owned && !e.ReadOnly {
+	if !e.ReadOnly {
 		for _, fv := range dv.Fields {
 			f := fv.F
 			if f.Ref == nil || f.Owner || (!f.InCreate() && !f.InUpdate()) {
 				continue
 			}
 			target := m.Entity(f.Ref.Entity)
-			if target == nil || target.Owner() == nil || target.PK() == nil {
+			if target == nil || target.PK() == nil {
 				continue
 			}
-			ref := ownedRef{Field: fv, Const: target.Var() + "ExistsQuery"}
+			var rq dialect.Query
+			ref := refCheck{Field: fv, Const: target.Var() + "ExistsQuery"}
+			switch {
+			case dv.Owned && target.Owner() != nil:
+				rq = dialect.OwnedReferenceQuery(d, target)
+			case target.Owner() != nil && len(dialect.Visible(d, target, false)) > 0:
+				rq = dialect.LiveReferenceQuery(d, target)
+				ref.Const = target.Var() + "LiveQuery"
+			case target.Owner() == nil && len(dialect.Visible(d, target, false)) > 0:
+				rq = dialect.LiveReferenceQuery(d, target)
+			default:
+				continue
+			}
 			value := "in." + f.Name
 			if f.Nullable {
 				value = "*" + value
 			}
-			rq := dialect.OwnedReferenceQuery(d, target)
 			add(ref.Const, rq)
 			ref.Args = queryArgs(rq, value)
-			dv.OwnedRefs = append(dv.OwnedRefs, ref)
+			dv.RefChecks = append(dv.RefChecks, ref)
+		}
+		for _, rule := range dialect.SoftDeleteRules(d, m, e) {
+			action := "nullify"
+			if rule.Restrict {
+				action = "restrict"
+				dv.HasRestrict = true
+			}
+			name := action + naming.Pascal(rule.Child.Table) + rule.Field.Name + "Query"
+			add(name, rule.Query)
+			dv.DeleteRules = append(dv.DeleteRules, deleteRule{Restrict: rule.Restrict, Const: name, Args: queryArgs(rule.Query, "")})
 		}
 	}
 

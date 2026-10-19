@@ -66,6 +66,9 @@ On each build codebuild compares the schema derived from the specs with `migrati
 - You may edit a migration that has not been applied yet, for example to turn a drop and an add into a rename.
 - If SQL files exist but the snapshot is missing, codebuild stops with exit code 7 instead of guessing.
 - Hand-written migrations with higher numbers are respected when numbering new ones, but codebuild does not know their effect on the schema.
+- The snapshot lists the migrations it incorporates. Two migrations with the same number, or a migration that is not in the snapshot and is older than the newest one in it (typical after merging two branches that each generated a migration), stop the build with exit code 7 and instructions: delete the files of the migration no database ran yet and build again to regenerate its changes, or renumber it.
+- A build writes every file to a temporary file first and renames them, with the snapshot last, and holds `.codebuild.lock` so the CLI and the MCP server never write at the same time. If a build was interrupted after the migration but before the snapshot, the next build recognizes the migration and only updates the snapshot.
+- The generated migrator records every applied version in `schema_migrations_history`, next to the golang-migrate compatible `schema_migrations`. `migrate up` refuses migrations older than the applied version that never ran instead of skipping them; databases migrated before the history existed are recorded automatically.
 
 ## go.mod
 

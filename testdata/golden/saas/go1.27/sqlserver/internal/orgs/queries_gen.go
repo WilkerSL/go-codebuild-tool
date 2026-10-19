@@ -47,6 +47,16 @@ WHERE [deleted_at] IS NULL
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [slug] NVARCHAR(64),
+    [plan] NVARCHAR(32),
+    [active] BIT,
+    [locale] NVARCHAR(MAX),
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 INSERT INTO [orgs] (
     [id],
     [name],
@@ -66,6 +76,7 @@ OUTPUT
     INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -75,9 +86,29 @@ VALUES (
     @p6,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
-)`
+);
+SELECT
+    [id],
+    [name],
+    [slug],
+    [plan],
+    [active],
+    [locale],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [slug] NVARCHAR(64),
+    [plan] NVARCHAR(32),
+    [active] BIT,
+    [locale] NVARCHAR(MAX),
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 UPDATE [orgs]
 SET
     [name] = @p1,
@@ -95,9 +126,25 @@ OUTPUT
     INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p6 AND [deleted_at] IS NULL`
+INTO @rows
+WHERE [id] = @p6 AND [deleted_at] IS NULL;
+SELECT
+    [id],
+    [name],
+    [slug],
+    [plan],
+    [active],
+    [locale],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const deleteQuery = `
 UPDATE [orgs]
 SET [deleted_at] = SYSUTCDATETIME(), [updated_at] = SYSUTCDATETIME()
 WHERE [id] = @p1 AND [deleted_at] IS NULL`
+
+const restrictUsersOrgIDQuery = `
+SELECT COUNT(*)
+FROM [users]
+WHERE [org_id] = @p1 AND [deleted_at] IS NULL`

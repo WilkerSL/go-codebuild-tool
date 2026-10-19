@@ -17,11 +17,12 @@ import (
 
 func accountsConfig() auth.Config {
 	return auth.Config{
-		AccessTTL:   time.Minute,
-		RefreshTTL:  time.Hour,
-		Secret:      []byte(strings.Repeat("s", auth.MinSecretLength)),
-		LoginLimit:  10,
-		LoginWindow: time.Minute,
+		AccessTTL:         time.Minute,
+		RefreshTTL:        time.Hour,
+		RefreshReuseGrace: time.Minute,
+		Secret:            []byte(strings.Repeat("s", auth.MinSecretLength)),
+		LoginLimit:        10,
+		LoginWindow:       time.Minute,
 	}
 }
 
@@ -86,16 +87,38 @@ func TestAccountsRefreshRotation(t *testing.T) {
 	if _, err := accounts.Authenticate(ctx, second.AccessToken); err != nil {
 		t.Fatalf("refreshed access token: %v", err)
 	}
-	if _, err := accounts.Refresh(ctx, first.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
-		t.Fatalf("reused refresh token = %v", err)
+	if _, err := accounts.Refresh(ctx, first.RefreshToken); err != nil {
+		t.Fatalf("a second tab refreshing within the grace period was logged out: %v", err)
 	}
-	if _, err := accounts.Refresh(ctx, second.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
-		t.Fatalf("the family survived a reuse: %v", err)
+	if _, err := accounts.Refresh(ctx, second.RefreshToken); err != nil {
+		t.Fatalf("the family was revoked by a concurrent refresh: %v", err)
 	}
 	for _, bad := range []string{"garbage", auth.RefreshPrefix + "unknown"} {
 		if _, err := accounts.Refresh(ctx, bad); !errors.Is(err, auth.ErrInvalidToken) {
 			t.Fatalf("refresh(%q) = %v", bad, err)
 		}
+	}
+}
+
+func TestAccountsRefreshReuseRevokesFamily(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	cfg := accountsConfig()
+	cfg.RefreshReuseGrace = -time.Second
+	accounts := users.NewAccounts(db, cfg)
+	first, err := accounts.Issue(ctx, fixtureUser(t, ctx, db))
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	second, err := accounts.Refresh(ctx, first.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh = %v", err)
+	}
+	if _, err := accounts.Refresh(ctx, first.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("reused refresh token = %v", err)
+	}
+	if _, err := accounts.Refresh(ctx, second.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("the family survived a reuse: %v", err)
 	}
 }
 

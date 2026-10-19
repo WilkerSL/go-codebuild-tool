@@ -93,18 +93,21 @@ func (req updateRequest) input() (UpdateInput, error) {
 		in.Slug = *req.Slug
 	}
 
-	in.Plan = PlanFree
-	if req.Plan != nil {
+	if req.Plan == nil {
+		errs.Add("plan", "is required")
+	} else {
 		in.Plan = *req.Plan
 	}
 
-	in.Active = true
-	if req.Active != nil {
+	if req.Active == nil {
+		errs.Add("active", "is required")
+	} else {
 		in.Active = *req.Active
 	}
 
-	in.Locale = "en-US"
-	if req.Locale != nil {
+	if req.Locale == nil {
+		errs.Add("locale", "is required")
+	} else {
 		in.Locale = *req.Locale
 	}
 

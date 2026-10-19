@@ -74,6 +74,14 @@ func columnRef(d Dialect, table, column string, qualified bool) string {
 	return d.Quote(column)
 }
 
+func returnedFields(d Dialect, e *schema.Entity) []Returned {
+	out := make([]Returned, len(e.Fields))
+	for i, f := range e.Fields {
+		out[i] = Returned{Column: d.Quote(f.Column), Type: d.ColumnType(schema.FieldColumn(f))}
+	}
+	return out
+}
+
 func selectList(d Dialect, e *schema.Entity, qualified bool) []string {
 	cols := make([]string, len(e.Fields))
 	for i, f := range e.Fields {
@@ -90,6 +98,36 @@ func orderBy(d Dialect, e *schema.Entity, qualified bool) string {
 	return "ORDER BY " + pk
 }
 
+func Visible(d Dialect, e *schema.Entity, qualified bool) []string {
+	return visible(d, e, qualified, map[*schema.Entity]bool{})
+}
+
+func visible(d Dialect, e *schema.Entity, qualified bool, chain map[*schema.Entity]bool) []string {
+	var conds []string
+	if e.SoftDelete {
+		conds = append(conds, columnRef(d, e.Table, schema.DeletedAtColumn, qualified)+" IS NULL")
+	}
+	chain[e] = true
+	defer delete(chain, e)
+	for _, f := range e.Fields {
+		if f.Ref == nil || f.Ref.OnDelete != schema.OnDeleteCascade || f.Ref.Target == nil || chain[f.Ref.Target] || f.Ref.Target.PK() == nil {
+			continue
+		}
+		parent := f.Ref.Target
+		inner := visible(d, parent, true, chain)
+		if len(inner) == 0 {
+			continue
+		}
+		ref := columnRef(d, e.Table, f.Column, true)
+		cond := "EXISTS (SELECT 1 FROM " + d.Quote(parent.Table) + " WHERE " + columnRef(d, parent.Table, parent.PK().Column, true) + " = " + ref + " AND " + strings.Join(inner, " AND ") + ")"
+		if f.Nullable {
+			cond = "(" + ref + " IS NULL OR " + cond + ")"
+		}
+		conds = append(conds, cond)
+	}
+	return conds
+}
+
 func ownerCondition(b *builder, e *schema.Entity, qualified bool) []string {
 	owner := e.Owner()
 	if owner == nil {
@@ -100,9 +138,7 @@ func ownerCondition(b *builder, e *schema.Entity, qualified bool) []string {
 
 func filterConditions(b *builder, e *schema.Entity, qualified bool, skip *schema.Field) []string {
 	conds := ownerCondition(b, e, qualified)
-	if e.SoftDelete {
-		conds = append(conds, columnRef(b.d, e.Table, schema.DeletedAtColumn, qualified)+" IS NULL")
-	}
+	conds = append(conds, Visible(b.d, e, qualified)...)
 	for _, f := range e.FilterFields() {
 		if f == skip {
 			continue
@@ -137,11 +173,8 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 	table := d.Quote(e.Table)
 	idCond := func(b *builder) string {
 		cond := d.Quote(pk.Column) + " = " + b.param("id", Arg{Kind: ArgID, Field: pk})
-		for _, owner := range ownerCondition(b, e, false) {
-			cond += " AND " + owner
-		}
-		if e.SoftDelete {
-			cond += " AND " + d.Quote(schema.DeletedAtColumn) + " IS NULL"
+		for _, c := range append(ownerCondition(b, e, false), Visible(d, e, false)...) {
+			cond += " AND " + c
 		}
 		return cond
 	}
@@ -188,7 +221,7 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 			insertVals = append(insertVals, b.param("in."+f.Name, Arg{Kind: ArgInput, Field: f}))
 		}
 	}
-	create := b.query(d.InsertSQL(e.Table, insertCols, insertVals, cols))
+	create := b.query(d.InsertSQL(e.Table, insertCols, insertVals, returnedFields(d, e)))
 	q.Create = &create
 
 	updateFields := e.UpdateFields()
@@ -209,7 +242,7 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 				sets = append(sets, d.Quote(f.Column)+" = "+b.param("in."+f.Name, Arg{Kind: ArgInput, Field: f}))
 			}
 		}
-		update := b.query(d.UpdateSQL(e.Table, sets, idCond(b), cols))
+		update := b.query(d.UpdateSQL(e.Table, sets, idCond(b), returnedFields(d, e)))
 		q.Update = &update
 	}
 
@@ -244,13 +277,54 @@ func existsQuery(d Dialect, e *schema.Entity) Query {
 	b := newBuilder(d)
 	pk := e.PK()
 	cond := d.Quote(pk.Column) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: pk})
-	for _, owner := range ownerCondition(b, e, false) {
-		cond += " AND " + owner
-	}
-	if e.SoftDelete {
-		cond += " AND " + d.Quote(schema.DeletedAtColumn) + " IS NULL"
+	for _, c := range append(ownerCondition(b, e, false), Visible(d, e, false)...) {
+		cond += " AND " + c
 	}
 	return b.query("SELECT 1\nFROM " + d.Quote(e.Table) + "\nWHERE " + cond)
+}
+
+func LiveReferenceQuery(d Dialect, target *schema.Entity) Query {
+	b := newBuilder(d)
+	pk := target.PK()
+	cond := d.Quote(pk.Column) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: pk})
+	for _, c := range Visible(d, target, false) {
+		cond += " AND " + c
+	}
+	return b.query("SELECT 1\nFROM " + d.Quote(target.Table) + "\nWHERE " + cond)
+}
+
+type DeleteRule struct {
+	Restrict bool
+	Child    *schema.Entity
+	Field    *schema.Field
+	Query    Query
+}
+
+func SoftDeleteRules(d Dialect, m *schema.Model, e *schema.Entity) []DeleteRule {
+	if !e.SoftDelete {
+		return nil
+	}
+	var rules []DeleteRule
+	for _, child := range m.Entities {
+		for _, f := range child.Fields {
+			if f.Ref == nil || f.Ref.Entity != e.Name {
+				continue
+			}
+			b := newBuilder(d)
+			switch f.Ref.OnDelete {
+			case schema.OnDeleteRestrict:
+				cond := d.Quote(f.Column) + " = " + b.param("id", Arg{Kind: ArgID, Field: e.PK()})
+				for _, c := range Visible(d, child, false) {
+					cond += " AND " + c
+				}
+				rules = append(rules, DeleteRule{Restrict: true, Child: child, Field: f, Query: b.query("SELECT COUNT(*)\nFROM " + d.Quote(child.Table) + "\nWHERE " + cond)})
+			case schema.OnDeleteSetNull:
+				sql := "UPDATE " + d.Quote(child.Table) + "\nSET " + d.Quote(f.Column) + " = NULL\nWHERE " + d.Quote(f.Column) + " = " + b.param("id", Arg{Kind: ArgID, Field: e.PK()})
+				rules = append(rules, DeleteRule{Child: child, Field: f, Query: b.query(sql)})
+			}
+		}
+	}
+	return rules
 }
 
 func BuildHasManyQueries(d Dialect, parent, child *schema.Entity, fk *schema.Field) RelationQueries {

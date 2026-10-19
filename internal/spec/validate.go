@@ -29,6 +29,13 @@ func (p *parser) validateModel(m *schema.Model) {
 	p.checkJoinTables(m)
 	p.checkCycles(m)
 	p.checkAuthModel(m)
+	for _, e := range m.Entities {
+		for _, f := range e.Fields {
+			if f.Ref != nil {
+				f.Ref.Target = m.Entity(f.Ref.Entity)
+			}
+		}
+	}
 }
 
 func (p *parser) checkAuthModel(m *schema.Model) {

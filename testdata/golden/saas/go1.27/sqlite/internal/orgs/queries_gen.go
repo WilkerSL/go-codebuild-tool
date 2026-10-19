@@ -98,3 +98,8 @@ const deleteQuery = `
 UPDATE "orgs"
 SET "deleted_at" = strftime('%Y-%m-%d %H:%M:%f', 'now'), "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
 WHERE "id" = ? AND "deleted_at" IS NULL`
+
+const restrictUsersOrgIDQuery = `
+SELECT COUNT(*)
+FROM "users"
+WHERE "org_id" = ? AND "deleted_at" IS NULL`

@@ -73,3 +73,7 @@ const updateQuery = "UPDATE `orgs`\n" +
 const deleteQuery = "UPDATE `orgs`\n" +
 	"SET `deleted_at` = UTC_TIMESTAMP(6), `updated_at` = UTC_TIMESTAMP(6)\n" +
 	"WHERE `id` = ? AND `deleted_at` IS NULL"
+
+const restrictUsersOrgIDQuery = "SELECT COUNT(*)\n" +
+	"FROM `users`\n" +
+	"WHERE `org_id` = ? AND `deleted_at` IS NULL"

@@ -8,12 +8,12 @@ SELECT
     "owner_id",
     "name"
 FROM "folders"
-WHERE "id" = $1 AND "owner_id" = $2`
+WHERE "id" = $1 AND "owner_id" = $2 AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "folders"
-WHERE "id" = $1 AND "owner_id" = $2`
+WHERE "id" = $1 AND "owner_id" = $2 AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -22,13 +22,15 @@ SELECT
     "name"
 FROM "folders"
 WHERE "owner_id" = $1
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
 const countQuery = `
 SELECT COUNT(*)
 FROM "folders"
-WHERE "owner_id" = $1`
+WHERE "owner_id" = $1
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const createQuery = `
 INSERT INTO "folders" (
@@ -47,7 +49,7 @@ const updateQuery = `
 UPDATE "folders"
 SET
     "name" = $1
-WHERE "id" = $2 AND "owner_id" = $3
+WHERE "id" = $2 AND "owner_id" = $3 AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)
 RETURNING
     "id",
     "owner_id",
@@ -55,4 +57,4 @@ RETURNING
 
 const deleteQuery = `
 DELETE FROM "folders"
-WHERE "id" = $1 AND "owner_id" = $2`
+WHERE "id" = $1 AND "owner_id" = $2 AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`

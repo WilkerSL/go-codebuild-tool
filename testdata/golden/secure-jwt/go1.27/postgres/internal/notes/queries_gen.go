@@ -13,12 +13,12 @@ SELECT
     "created_at",
     "updated_at"
 FROM "notes"
-WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL`
+WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "notes"
-WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL`
+WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -33,6 +33,7 @@ SELECT
 FROM "notes"
 WHERE "owner_id" = $1
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($2::bigint IS NULL OR "folder_id" = $2)
     AND ($3::boolean IS NULL OR "pinned" = $3)
 ORDER BY "created_at" DESC, "id" DESC
@@ -43,6 +44,7 @@ SELECT COUNT(*)
 FROM "notes"
 WHERE "owner_id" = $1
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($2::bigint IS NULL OR "folder_id" = $2)
     AND ($3::boolean IS NULL OR "pinned" = $3)`
 
@@ -84,7 +86,7 @@ SET
     "body" = $3,
     "pinned" = $4,
     "updated_at" = now()
-WHERE "id" = $5 AND "owner_id" = $6 AND "deleted_at" IS NULL
+WHERE "id" = $5 AND "owner_id" = $6 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
 RETURNING
     "id",
     "owner_id",
@@ -98,12 +100,12 @@ RETURNING
 const deleteQuery = `
 UPDATE "notes"
 SET "deleted_at" = now(), "updated_at" = now()
-WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL`
+WHERE "id" = $1 AND "owner_id" = $2 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const folderExistsQuery = `
 SELECT 1
 FROM "folders"
-WHERE "id" = $1 AND "owner_id" = $2`
+WHERE "id" = $1 AND "owner_id" = $2 AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)`
 
 const listFolderNotesQuery = `
 SELECT
@@ -119,6 +121,7 @@ FROM "notes"
 WHERE "folder_id" = $1
     AND "owner_id" = $2
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::boolean IS NULL OR "pinned" = $3)
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $4 OFFSET $5`
@@ -129,6 +132,7 @@ FROM "notes"
 WHERE "folder_id" = $1
     AND "owner_id" = $2
     AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::boolean IS NULL OR "pinned" = $3)`
 
 const labelExistsQuery = `
@@ -151,6 +155,7 @@ JOIN "note_labels" ON "note_labels"."note_id" = "notes"."id"
 WHERE "note_labels"."label_id" = $1
     AND "notes"."owner_id" = $2
     AND "notes"."deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::bigint IS NULL OR "notes"."folder_id" = $3)
     AND ($4::boolean IS NULL OR "notes"."pinned" = $4)
 ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
@@ -163,6 +168,7 @@ JOIN "note_labels" ON "note_labels"."note_id" = "notes"."id"
 WHERE "note_labels"."label_id" = $1
     AND "notes"."owner_id" = $2
     AND "notes"."deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::bigint IS NULL OR "notes"."folder_id" = $3)
     AND ($4::boolean IS NULL OR "notes"."pinned" = $4)`
 

@@ -35,7 +35,7 @@ With these specs, anyone can list labels, only admins can change them, every use
 | Method | Credential | Stored as | Revocation |
 |---|---|---|---|
 | `session` | Opaque token `ses_…` with 130 random bits | SHA-256 hash in `auth_sessions` with an expiry | Immediate: logout deletes the row; a password change deletes every other session. |
-| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use. Presenting a used token again revokes its whole family (theft detection). Access tokens stay valid until they expire, and so does the role inside them. |
+| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use inside a transaction. Presenting a used token again within `AUTH_REFRESH_REUSE_GRACE` (two tabs refreshing at once) issues new tokens in the same family; after that window it revokes the whole family (theft detection). Access tokens stay valid until they expire, and so does the role inside them. |
 | `apikey` | Key `key_…` created by a logged-in user | SHA-256 hash in `auth_api_keys`, optional expiry | `DELETE /auth/api-keys/{id}`. Keys cannot create, list or delete keys, change passwords or log out. |
 
 Passwords are hashed with PBKDF2-SHA256, 600,000 iterations and a 16-byte random salt (`crypto/pbkdf2`). The iteration count is stored with the hash, so raising it later rehashes old passwords on the next successful login. Comparisons are constant time, and a login for an unknown account spends the same hashing time as a real one, so response timing does not reveal which accounts exist.
@@ -97,6 +97,7 @@ Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `Sa
 | `AUTH_SESSION_TTL` | `24h` | Session lifetime (`session`). |
 | `AUTH_ACCESS_TTL` | `15m` | Access token lifetime (`jwt`). |
 | `AUTH_REFRESH_TTL` | `720h` | Refresh token lifetime (`jwt`). |
+| `AUTH_REFRESH_REUSE_GRACE` | `30s` | How long a used refresh token is still accepted, for concurrent refreshes (`jwt`). |
 | `AUTH_JWT_SECRET` | required for `jwt` | At least 32 bytes, for example `openssl rand -base64 48`. |
 | `AUTH_JWT_PREVIOUS_SECRET` | empty | Still accepted for verification while you rotate the secret. |
 | `AUTH_COOKIE_SECURE` | `true` | Set `false` only for plain HTTP during local development. |

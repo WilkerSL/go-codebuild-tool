@@ -107,7 +107,8 @@ func Reference() string {
 	}
 	w("## Request semantics\n\n")
 	w("- Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.\n")
-	w("- An absent member takes the `default=` value, or the zero value. Pointer fields treat `null` like an absent member.\n")
+	w("- On create, an absent member takes the `default=` value, or the zero value (an empty value for `[]byte`). Pointer fields treat `null` like an absent member.\n")
+	w("- `PUT` replaces the whole resource, so every non-pointer member is required: leaving one out answers 422 instead of resetting it to its default. Pointer members left out become `null`.\n")
 	w("- `required` members must be present. Non-pointer `belongs_to` fields and client-provided primary keys are required implicitly.\n")
 	w("- Validation rules apply to every value of non-pointer fields and to non-nil values of pointer fields. Use a pointer for optional values.\n")
 	w("- Fields with `auto`, `auto=create`, `auto=update` or the primary key never appear in update requests.\n")

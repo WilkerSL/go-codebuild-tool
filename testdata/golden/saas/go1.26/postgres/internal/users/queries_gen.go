@@ -104,6 +104,11 @@ SELECT 1
 FROM "orgs"
 WHERE "id" = $1 AND "deleted_at" IS NULL`
 
+const nullifyProjectsOwnerIDQuery = `
+UPDATE "projects"
+SET "owner_id" = NULL
+WHERE "owner_id" = $1`
+
 const listOrgUsersQuery = `
 SELECT
     "id",

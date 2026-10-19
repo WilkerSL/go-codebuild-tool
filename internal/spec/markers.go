@@ -52,7 +52,7 @@ var markerDefs = []markerDef{
 		doc: MarkerDoc{
 			Syntax:      "softdelete",
 			AppliesTo:   "entity (`_ struct{}`)",
-			Description: "Adds a nullable `deleted_at` column. DELETE sets it instead of removing the row, reads ignore deleted rows and unique indexes only consider live rows where the dialect supports partial indexes.",
+			Description: "Adds a nullable `deleted_at` column. DELETE sets it instead of removing the row, reads ignore deleted rows and unique indexes only consider live rows where the dialect supports partial indexes. Foreign keys pointing at the entity keep their meaning: `restrict` refuses the delete with HTTP 409 while live rows reference it, `setnull` clears the references and `cascade` hides the referencing rows, and their own cascading children, from every query. Creating or updating a row that references a deleted one answers 422.",
 			Example:     "_ struct{} `gen:\"softdelete\"`",
 			CommonError: "Declaring a `DeletedAt` field together with softdelete fails with duplicate_column: the column is added automatically.",
 		},

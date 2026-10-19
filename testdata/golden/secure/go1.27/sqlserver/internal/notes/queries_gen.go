@@ -13,12 +13,12 @@ SELECT
     [created_at],
     [updated_at]
 FROM [notes]
-WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM [notes]
-WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const listQuery = `
 SELECT
@@ -33,6 +33,7 @@ SELECT
 FROM [notes]
 WHERE [owner_id] = @p1
     AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [folder_id] = @p2)
     AND (@p3 IS NULL OR [pinned] = @p3)
 ORDER BY [created_at] DESC, [id] DESC
@@ -44,11 +45,22 @@ SELECT COUNT(*)
 FROM [notes]
 WHERE [owner_id] = @p1
     AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [folder_id] = @p2)
     AND (@p3 IS NULL OR [pinned] = @p3)
 OPTION (RECOMPILE)`
 
 const createQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [owner_id] UNIQUEIDENTIFIER,
+    [folder_id] BIGINT,
+    [title] NVARCHAR(200),
+    [body] NVARCHAR(MAX),
+    [pinned] BIT,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 INSERT INTO [notes] (
     [id],
     [owner_id],
@@ -68,6 +80,7 @@ OUTPUT
     INSERTED.[pinned],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -77,9 +90,29 @@ VALUES (
     @p6,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
-)`
+);
+SELECT
+    [id],
+    [owner_id],
+    [folder_id],
+    [title],
+    [body],
+    [pinned],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const updateQuery = `
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [owner_id] UNIQUEIDENTIFIER,
+    [folder_id] BIGINT,
+    [title] NVARCHAR(200),
+    [body] NVARCHAR(MAX),
+    [pinned] BIT,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 UPDATE [notes]
 SET
     [folder_id] = @p1,
@@ -96,17 +129,28 @@ OUTPUT
     INSERTED.[pinned],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p5 AND [owner_id] = @p6 AND [deleted_at] IS NULL`
+INTO @rows
+WHERE [id] = @p5 AND [owner_id] = @p6 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL);
+SELECT
+    [id],
+    [owner_id],
+    [folder_id],
+    [title],
+    [body],
+    [pinned],
+    [created_at],
+    [updated_at]
+FROM @rows`
 
 const deleteQuery = `
 UPDATE [notes]
 SET [deleted_at] = SYSUTCDATETIME(), [updated_at] = SYSUTCDATETIME()
-WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const folderExistsQuery = `
 SELECT 1
 FROM [folders]
-WHERE [id] = @p1 AND [owner_id] = @p2`
+WHERE [id] = @p1 AND [owner_id] = @p2 AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)`
 
 const listFolderNotesQuery = `
 SELECT
@@ -122,6 +166,7 @@ FROM [notes]
 WHERE [folder_id] = @p1
     AND [owner_id] = @p2
     AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [pinned] = @p3)
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
@@ -133,6 +178,7 @@ FROM [notes]
 WHERE [folder_id] = @p1
     AND [owner_id] = @p2
     AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [pinned] = @p3)
 OPTION (RECOMPILE)`
 
@@ -156,6 +202,7 @@ JOIN [note_labels] ON [note_labels].[note_id] = [notes].[id]
 WHERE [note_labels].[label_id] = @p1
     AND [notes].[owner_id] = @p2
     AND [notes].[deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [notes].[folder_id] = @p3)
     AND (@p4 IS NULL OR [notes].[pinned] = @p4)
 ORDER BY [notes].[created_at] DESC, [notes].[id] DESC
@@ -169,6 +216,7 @@ JOIN [note_labels] ON [note_labels].[note_id] = [notes].[id]
 WHERE [note_labels].[label_id] = @p1
     AND [notes].[owner_id] = @p2
     AND [notes].[deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [notes].[folder_id] = @p3)
     AND (@p4 IS NULL OR [notes].[pinned] = @p4)
 OPTION (RECOMPILE)`

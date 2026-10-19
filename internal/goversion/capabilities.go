@@ -125,3 +125,11 @@ func Max(a, b string) string {
 	}
 	return b
 }
+
+func UpgradeTarget(local string) string {
+	v := strings.TrimPrefix(local, "go")
+	if t, err := Resolve(v); err == nil && t.Status == StatusSupported {
+		return v
+	}
+	return LatestVersion()
+}

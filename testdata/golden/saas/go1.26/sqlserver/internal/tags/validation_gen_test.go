@@ -76,6 +76,19 @@ func TestCreateRequestRequiredFields(t *testing.T) {
 	}
 }
 
+func TestUpdateRequestRequiresEveryField(t *testing.T) {
+	_, err := updateRequest{}.input()
+	errs, ok := errors.AsType[validation.Errors](err)
+	if !ok {
+		t.Fatalf("expected required field errors, got %v", err)
+	}
+	for _, field := range []string{"name"} {
+		if !errs.Has(field) {
+			t.Errorf("an update without %s would reset it", field)
+		}
+	}
+}
+
 func validUpdateInput() UpdateInput {
 	return UpdateInput{
 		Name: fixtureString(16),

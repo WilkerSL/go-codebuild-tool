@@ -15,12 +15,12 @@ SELECT
     "due_at",
     "created_at"
 FROM "projects"
-WHERE "id" = ?`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "projects"
-WHERE "id" = ?`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -35,7 +35,8 @@ SELECT
     "due_at",
     "created_at"
 FROM "projects"
-WHERE (? IS NULL OR "org_id" = ?)
+WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND (? IS NULL OR "org_id" = ?)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)
 ORDER BY "created_at" DESC, "id" DESC
@@ -44,7 +45,8 @@ LIMIT ? OFFSET ?`
 const countQuery = `
 SELECT COUNT(*)
 FROM "projects"
-WHERE (? IS NULL OR "org_id" = ?)
+WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND (? IS NULL OR "org_id" = ?)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)`
 
@@ -95,7 +97,7 @@ SET
     "archived" = ?,
     "logo" = ?,
     "due_at" = ?
-WHERE "id" = ?
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
 RETURNING
     "id",
     "org_id",
@@ -110,11 +112,16 @@ RETURNING
 
 const deleteQuery = `
 DELETE FROM "projects"
-WHERE "id" = ?`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const orgExistsQuery = `
 SELECT 1
 FROM "orgs"
+WHERE "id" = ? AND "deleted_at" IS NULL`
+
+const userExistsQuery = `
+SELECT 1
+FROM "users"
 WHERE "id" = ? AND "deleted_at" IS NULL`
 
 const listOrgProjectsQuery = `
@@ -131,6 +138,7 @@ SELECT
     "created_at"
 FROM "projects"
 WHERE "org_id" = ?
+    AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)
 ORDER BY "created_at" DESC, "id" DESC
@@ -140,5 +148,6 @@ const countOrgProjectsQuery = `
 SELECT COUNT(*)
 FROM "projects"
 WHERE "org_id" = ?
+    AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)`

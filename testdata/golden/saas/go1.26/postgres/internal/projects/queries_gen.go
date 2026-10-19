@@ -15,12 +15,12 @@ SELECT
     "due_at",
     "created_at"
 FROM "projects"
-WHERE "id" = $1`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "projects"
-WHERE "id" = $1`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -35,7 +35,8 @@ SELECT
     "due_at",
     "created_at"
 FROM "projects"
-WHERE ($1::uuid IS NULL OR "org_id" = $1)
+WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND ($1::uuid IS NULL OR "org_id" = $1)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)
 ORDER BY "created_at" DESC, "id" DESC
@@ -44,7 +45,8 @@ LIMIT $4 OFFSET $5`
 const countQuery = `
 SELECT COUNT(*)
 FROM "projects"
-WHERE ($1::uuid IS NULL OR "org_id" = $1)
+WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND ($1::uuid IS NULL OR "org_id" = $1)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)`
 
@@ -95,7 +97,7 @@ SET
     "archived" = $6,
     "logo" = $7,
     "due_at" = $8
-WHERE "id" = $9
+WHERE "id" = $9 AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
 RETURNING
     "id",
     "org_id",
@@ -110,11 +112,16 @@ RETURNING
 
 const deleteQuery = `
 DELETE FROM "projects"
-WHERE "id" = $1`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)`
 
 const orgExistsQuery = `
 SELECT 1
 FROM "orgs"
+WHERE "id" = $1 AND "deleted_at" IS NULL`
+
+const userExistsQuery = `
+SELECT 1
+FROM "users"
 WHERE "id" = $1 AND "deleted_at" IS NULL`
 
 const listOrgProjectsQuery = `
@@ -131,6 +138,7 @@ SELECT
     "created_at"
 FROM "projects"
 WHERE "org_id" = $1
+    AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)
 ORDER BY "created_at" DESC, "id" DESC
@@ -140,5 +148,6 @@ const countOrgProjectsQuery = `
 SELECT COUNT(*)
 FROM "projects"
 WHERE "org_id" = $1
+    AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)`

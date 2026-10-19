@@ -43,6 +43,16 @@ WHERE [deleted_at] IS NULL
 OPTION (RECOMPILE);
 
 -- create args: id(ID) input(Name) input(Email) input(Role) input(Bio) input(OrgID)
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [email] NVARCHAR(254),
+    [role] NVARCHAR(32),
+    [bio] NVARCHAR(500),
+    [org_id] UNIQUEIDENTIFIER,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 INSERT INTO [users] (
     [id],
     [name],
@@ -62,6 +72,7 @@ OUTPUT
     INSERTED.[org_id],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 VALUES (
     @p1,
     @p2,
@@ -72,8 +83,28 @@ VALUES (
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
 );
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM @rows;
 
 -- update args: input(Name) input(Email) input(Role) input(Bio) input(OrgID) id(ID)
+DECLARE @rows TABLE (
+    [id] UNIQUEIDENTIFIER,
+    [name] NVARCHAR(120),
+    [email] NVARCHAR(254),
+    [role] NVARCHAR(32),
+    [bio] NVARCHAR(500),
+    [org_id] UNIQUEIDENTIFIER,
+    [created_at] DATETIME2(7),
+    [updated_at] DATETIME2(7)
+);
 UPDATE [users]
 SET
     [name] = @p1,
@@ -91,7 +122,18 @@ OUTPUT
     INSERTED.[org_id],
     INSERTED.[created_at],
     INSERTED.[updated_at]
+INTO @rows
 WHERE [id] = @p6 AND [deleted_at] IS NULL;
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM @rows;
 
 -- delete args: id(ID)
 UPDATE [users]

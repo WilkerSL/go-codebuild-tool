@@ -75,8 +75,9 @@ func (req updateRequest) input() (UpdateInput, error) {
 
 	in.Body = req.Body
 
-	in.Pinned = false
-	if req.Pinned != nil {
+	if req.Pinned == nil {
+		errs.Add("pinned", "is required")
+	} else {
 		in.Pinned = *req.Pinned
 	}
 

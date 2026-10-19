@@ -66,6 +66,14 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 }
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error) {
+	if err := r.reference(ctx, orgExistsQuery, "orgId", database.UUIDArg(in.OrgID)); err != nil {
+		return Project{}, err
+	}
+	if in.OwnerID != nil {
+		if err := r.reference(ctx, userExistsQuery, "ownerId", database.UUIDArg(*in.OwnerID)); err != nil {
+			return Project{}, err
+		}
+	}
 	id := uuid.NewV7()
 	item, err := scanProject(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)).Scan)
 	if err != nil {
@@ -75,6 +83,14 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Project, error) {
+	if err := r.reference(ctx, orgExistsQuery, "orgId", database.UUIDArg(in.OrgID)); err != nil {
+		return Project{}, err
+	}
+	if in.OwnerID != nil {
+		if err := r.reference(ctx, userExistsQuery, "ownerId", database.UUIDArg(*in.OwnerID)); err != nil {
+			return Project{}, err
+		}
+	}
 	item, err := scanProject(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, database.ErrNotFound
@@ -108,6 +124,14 @@ func (r *Repository) ListOrgProjects(ctx context.Context, orgID uuid.UUID, p Lis
 		return Page{}, err
 	}
 	return r.page(ctx, p, listOrgProjectsQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Offset, p.Limit}, countOrgProjectsQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), p.Archived})
+}
+
+func (r *Repository) reference(ctx context.Context, query, field string, args ...any) error {
+	err := r.exists(ctx, query, args...)
+	if errors.Is(err, database.ErrNotFound) {
+		return validation.Errors{{Field: field, Message: "references a record that does not exist"}}
+	}
+	return err
 }
 
 func (r *Repository) exists(ctx context.Context, query string, args ...any) error {

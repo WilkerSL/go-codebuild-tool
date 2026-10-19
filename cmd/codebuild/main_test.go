@@ -173,7 +173,7 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 		t.Logf("skipping the HTTP smoke test: set %s to run it", e2eDSNEnv[dialect])
 		return
 	}
-	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret}
+	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret, "AUTH_REFRESH_REUSE_GRACE=1ms"}
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
 	c, stop := startAPI(t, dir, env)
 	project.smoke(t, c, dir, env, project.method)
@@ -375,6 +375,10 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 	if tags := c.expect("GET", "/users/"+userID+"/tags", nil, http.StatusOK); tags["total"].(float64) != 1 {
 		t.Fatalf("linked tags = %v", tags)
 	}
+	partial := c.expect("PUT", "/users/"+userID, map[string]any{"name": "Ann B", "email": email, "orgId": orgID}, http.StatusUnprocessableEntity)
+	if errs := partial["errors"].([]any); len(errs) != 1 || errs[0].(map[string]any)["field"] != "role" {
+		t.Fatalf("partial update = %v", partial)
+	}
 	updated := c.expect("PUT", "/users/"+userID, map[string]any{"name": "Ann B", "email": email, "role": "admin", "orgId": orgID}, http.StatusOK)
 	if updated["name"] != "Ann B" || updated["role"] != "admin" {
 		t.Fatalf("update = %v", updated)
@@ -384,10 +388,16 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 		t.Fatalf("project = %v", project)
 	}
 	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Hermes"}, http.StatusCreated)
-	c.expect("DELETE", "/orgs/"+orgID, nil, http.StatusNoContent)
+	c.expect("DELETE", "/orgs/"+orgID, nil, http.StatusConflict)
 	c.expect("DELETE", "/users/"+userID+"/tags/"+tagID, nil, http.StatusNoContent)
 	c.expect("DELETE", "/users/"+userID, nil, http.StatusNoContent)
 	c.expect("GET", "/users/"+userID, nil, http.StatusNotFound)
+	c.expect("DELETE", "/orgs/"+orgID, nil, http.StatusNoContent)
+	c.expect("GET", "/projects/"+project["id"].(string), nil, http.StatusNotFound)
+	if page := c.expect("GET", "/projects?orgId="+orgID, nil, http.StatusOK); page["total"].(float64) != 0 {
+		t.Fatalf("projects of a deleted org are still listed: %v", page)
+	}
+	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Late"}, http.StatusUnprocessableEntity)
 	c.expect("GET", "/users/not-a-uuid", nil, http.StatusBadRequest)
 	c.expect("GET", "/countries", nil, http.StatusOK)
 	c.expect("DELETE", "/tags/"+tagID, nil, http.StatusNoContent)
@@ -452,7 +462,8 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 		t.Fatalf("folder notes = %v", page)
 	}
 	asBob.expect("GET", "/notes/"+noteID, nil, http.StatusNotFound)
-	asBob.expect("PUT", "/notes/"+noteID, map[string]any{"title": "Mine"}, http.StatusNotFound)
+	asBob.expect("PUT", "/notes/"+noteID, map[string]any{"title": "Mine"}, http.StatusUnprocessableEntity)
+	asBob.expect("PUT", "/notes/"+noteID, map[string]any{"title": "Mine", "pinned": true}, http.StatusNotFound)
 	asBob.expect("DELETE", "/notes/"+noteID, nil, http.StatusNotFound)
 	asBob.expect("GET", "/folders/"+folderID+"/notes", nil, http.StatusNotFound)
 	if page := asBob.expect("GET", "/notes", nil, http.StatusOK); page["total"].(float64) != 0 {
@@ -507,6 +518,7 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	fresh := login(annEmail, "ann password 2")
 	if method == "jwt" {
 		refreshed := c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": fresh["refreshToken"]}, http.StatusOK)
+		time.Sleep(20 * time.Millisecond)
 		c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": fresh["refreshToken"]}, http.StatusUnauthorized)
 		c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": refreshed["refreshToken"]}, http.StatusUnauthorized)
 		fresh = login(annEmail, "ann password 2")
