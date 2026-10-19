@@ -37,14 +37,14 @@ When codebuild is a tool dependency of the project, use `"command": "go"` and `"
 
 | Tool | Writes | Input | Output |
 |---|---|---|---|
-| `list_domains` | no | `dir` | domains, dialect, Go version from `go.mod`, status and capabilities |
+| `list_domains` | no | `dir` | domains (with their service in a workspace), services and their databases, dialect, Go version from `go.mod`, status and capabilities |
 | `validate` | no | `dir`, `file`, `content` | `valid` and positioned diagnostics with codes and suggestions |
-| `plan` | no | `dir`, `upgradeGo` | the plan: files with actions, migration, warnings, next steps |
+| `plan` | no | `dir`, `upgradeGo` | the plan: files with actions, the migration (`migrations`, one per database, in a workspace), warnings, next steps |
 | `generate` | yes | `dir`, `upgradeGo`, `prune` | the plan and the written and deleted files |
 
 `validate` checks the given content together with the other specs on disk, so relations to existing entities resolve, without saving the file.
 
-Failures are returned as tool errors (`isError: true`) whose structured content contains an `error` object with a stable `code`, a `message`, optional `details` and `diagnostics`. Codes include `invalid_spec`, `unsupported_go_version`, `toolchain_too_old`, `ownership_conflict`, `dialect_change` and `snapshot_missing`.
+Failures are returned as tool errors (`isError: true`) whose structured content contains an `error` object with a stable `code`, a `message`, optional `details` and `diagnostics`. Codes include `invalid_spec`, `unsupported_go_version`, `toolchain_too_old`, `ownership_conflict`, `dialect_change`, `snapshot_missing` and `layout_change`.
 
 ## Go version consent
 

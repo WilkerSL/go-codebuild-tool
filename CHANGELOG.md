@@ -13,6 +13,12 @@ All notable changes to this project are documented in this file. The format foll
 - A user-owned `AuthService` composed from generated `Accounts` primitives, scaffolded method by method like `Service`, and a `cmd/accounts` command to set roles, reset passwords and revoke credentials.
 - `httpx.Error` carries response headers.
 - `docs/authentication.md`, the `secure` and `secure-jwt` golden projects and their end-to-end HTTP tests; with `CODEBUILD_E2E_DOCKER=1` the end-to-end test also builds and starts the image of SQLite projects.
+- Microservice workspaces. A spec may declare a `<Name>Service` struct whose fields are entities and whose `database=own|shared` marker chooses the database. The project becomes a Go workspace with one module per service exposing gRPC, a `contracts` module, a `databases/shared` module for the shared database and a `gateway` module that is the only REST API, with the same routes, bodies and problem details as a monolith.
+- codebuild writes the `.proto` files, the protobuf Go code and the gRPC stubs itself, without `protoc`. `contracts/codebuild.contracts.json` keeps field numbers stable and reserves the numbers of removed fields.
+- Services only accept mutual TLS and an Ed25519-signed internal token, valid for one minute, that the gateway mints after authenticating the caller through `AuthService.Authenticate` and that services forward to each other. `gateway/cmd/devcerts` creates a development CA, certificates and the token key pair.
+- References to an entity in another database have no foreign key and are checked through the gRPC `Exists` call of the owning service (422 when missing); services sharing a database keep their foreign keys. Each database has its own migrations, snapshot and migrate command.
+- Workspaces get a generated `docker-compose.yml` (certificates, databases, migrations, services and the gateway with health checks), a Dockerfile per module, a GitHub Actions workflow per module with path filters, a `workspace.yml` workflow and a workspace `AGENTS.md`. `codebuild plan` and `codebuild build` find the workspace root from any module, maintain `go.work` and the `go.mod` of every module, and refuse to convert a monolith into a workspace or back.
+- `docs/microservices.md`, the `shop` specs, golden workspaces for every dialect and an end-to-end test that builds every module, runs the services and the gateway and exercises them over HTTP; with `CODEBUILD_E2E_DOCKER=1` it also runs the Compose stack.
 
 ### Changed
 

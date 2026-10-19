@@ -325,7 +325,7 @@ Rules:
 
 ## Microservices
 
-A spec file may declare one `XxxService` struct instead of an entity. Each field written as `Invoice struct{ ... }` is an entity of that service, with the same markers as a top-level entity; its domain is the snake_case plural of its name without underscores (`InvoiceItem` -> `invoiceitems`). The file is named after the service (`BillingService` -> `specs/billing.go`), and once a project declares a service every entity must live in one. Each service becomes its own Go module exposing gRPC, and a generated gateway is the only REST API.
+A spec file may declare one `XxxService` struct instead of an entity. Each field written as `Invoice struct{ ... }` is an entity of that service, with the same markers as a top-level entity; its domain is the snake_case plural of its name without underscores (`InvoiceItem` -> `invoiceitems`). The file is named after the service (`BillingService` -> `specs/billing.go`), and once a project declares a service every entity must live in one. Each service becomes its own Go module exposing gRPC, and a generated gateway is the only REST API. A workspace needs one account entity (`auth=`): the gateway authenticates every request through the service that owns it. A `belongs_to` reference to an entity stored in another database has no foreign key; the service checks it with the gRPC `Exists` call of the owning service and answers 422 when it is missing. `many_to_many` relations need both entities in the same database. `docs/microservices.md` describes the generated workspace.
 
 ```go
 type BillingService struct {

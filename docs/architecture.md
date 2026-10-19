@@ -22,7 +22,8 @@ codebuild.json ──► project ────────────┴──�
 | `internal/schema` | The model (`Entity`, `Field`, `Relation`), positioned diagnostics, the logical database (`Table`, `Column`, `Index`, `ForeignKey`, `Check`), the snapshot format and the diff engine that orders changes and computes inverse (down) changes. |
 | `internal/goversion` | Reads `go.mod`, resolves the target version into `Capabilities`, detects the toolchain through `go env` and evaluates `GOTOOLCHAIN`. |
 | `internal/dialect` | The `Dialect` interface and its four implementations: column types, quoting, placeholders, query construction, DDL rendering, SQLite table rebuilds and dialect-specific validation. |
-| `internal/gen` | Embedded `text/template` files, the view model that precomputes code fragments, import pruning through the AST and `go/format`. |
+| `internal/gen` | Embedded `text/template` files, the view model that precomputes code fragments, import pruning through the AST and `go/format`. `GenerateWorkspace` renders the service modules, the gateway and the workspace files from the same templates plus `templates/workspace` and `templates/gateway`. |
+| `internal/contract` | Builds the protobuf contracts of a workspace from the model, keeps field numbers stable in a registry, renders `.proto` text and the protobuf and gRPC Go code through `protogen` and the `protoc-gen-go` generator, without `protoc`. |
 | `internal/project` | Locates the project, loads `codebuild.json`, resolves the Go version policy, plans migrations from the snapshot, classifies every file by ownership, edits `go.mod` with `modfile` and applies the plan atomically. |
 | `internal/textdiff` | Myers line diff for plan summaries and `--diff`. |
 | `internal/cli` | Flag parsing with the standard `flag` package, exit codes, prompts, text and JSON output. |
@@ -63,8 +64,9 @@ See [go-versions.md](go-versions.md#how-codebuild-evolves-with-each-go-release).
 |---|---|
 | `go test -short ./...` | Unit tests, golden SQL, golden projects, CLI and MCP. |
 | `go test ./internal/dialect -update` | Rewrites `testdata/golden/sql`. |
-| `go test ./internal/project -update` | Rewrites `testdata/golden/<project>/go1.NN/<dialect>` for the `saas`, `secure` (sessions and API keys) and `secure-jwt` projects. |
+| `go test ./internal/project -update` | Rewrites `testdata/golden/<project>/go1.NN/<dialect>` for the `saas`, `secure` (sessions and API keys) and `secure-jwt` projects and `testdata/golden/shop/go1.27/<dialect>` for the `shop` workspace. |
 | `go test ./internal/spec -update` | Rewrites `docs/spec-reference.md` from the marker registry. |
 | `go test -run TestEndToEnd ./cmd/codebuild` | Builds the binary, generates the `saas`, `secure` and `secure-jwt` projects for every dialect, runs `go mod tidy`, `go build`, `go vet`, `gofmt -l`, `go test`, an empty second plan, migrations up and down and an HTTP smoke test (the secure projects register, log in, check ownership, roles, API keys, cookies, password changes, refresh rotation and the login rate limit). |
+| `go test -run TestWorkspaceEndToEnd ./cmd/codebuild` | Generates the `shop` workspace for every dialect, tidies every module, builds, vets and tests them, checks for an empty second plan, then (SQLite) runs the four services and the gateway with development certificates and exercises authentication, roles, ownership, references across databases, API keys and a service outage over HTTP. `CODEBUILD_E2E_DOCKER=1` also runs the Compose stack. |
 
 The end-to-end test reads `CODEBUILD_TEST_POSTGRES_DSN`, `CODEBUILD_TEST_SQLSERVER_DSN` and `CODEBUILD_TEST_MYSQL_DSN`; without them it still builds and unit-tests the generated projects, and SQLite always runs against a temporary file. `CODEBUILD_E2E_DIALECTS` and `CODEBUILD_E2E_PROJECTS` restrict the matrix, `CODEBUILD_E2E_DOCKER=1` also builds the image of every SQLite project and starts it, and `CODEBUILD_TEST_<DIALECT>_IMPORT` adds a blank import to the generated database package (for example `github.com/microsoft/go-mssqldb/sharedmemory` to reach a local SQL Server Express instance that only listens on shared memory).
