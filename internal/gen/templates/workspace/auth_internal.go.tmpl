@@ -1,0 +1,160 @@
+{{.Header}}
+
+package auth
+
+import (
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/base64"
+{{- if .Caps.JSONv2}}
+	"encoding/json/v2"
+{{- else}}
+	"encoding/json"
+{{- end}}
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"{{.UUIDImport}}"
+)
+
+const (
+	InternalTokenTTL = time.Minute
+	internalSkew     = 5 * time.Second
+)
+
+type InternalClaims struct {
+	Subject    string `json:"sub,omitempty"`
+{{- if .Identity.Role}}
+	Role       string `json:"role,omitempty"`
+{{- end}}
+	Method     string `json:"mth,omitempty"`
+	Credential string `json:"cid,omitempty"`
+	IssuedAt   int64  `json:"iat"`
+	ExpiresAt  int64  `json:"exp"`
+}
+
+var internalHeader = base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"EdDSA","typ":"JWT"}`))
+
+var errInternalToken = errors.New("auth: invalid internal token")
+
+func SignInternal(key ed25519.PrivateKey, c InternalClaims) (string, error) {
+	payload, err := json.Marshal(c)
+	if err != nil {
+		return "", fmt.Errorf("auth: encode internal claims: %w", err)
+	}
+	signed := internalHeader + "." + base64.RawURLEncoding.EncodeToString(payload)
+	return signed + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, []byte(signed))), nil
+}
+
+type Verifier struct {
+	key ed25519.PublicKey
+	now func() time.Time
+}
+
+func NewVerifier(key ed25519.PublicKey) *Verifier {
+	return &Verifier{key: key, now: time.Now}
+}
+
+func (v *Verifier) Claims(token string) (InternalClaims, error) {
+	header, rest, ok := strings.Cut(token, ".")
+	if !ok || header != internalHeader {
+		return InternalClaims{}, errInternalToken
+	}
+	payload, signature, ok := strings.Cut(rest, ".")
+	if !ok || strings.Contains(signature, ".") {
+		return InternalClaims{}, errInternalToken
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(signature)
+	if err != nil || !ed25519.Verify(v.key, []byte(header+"."+payload), sig) {
+		return InternalClaims{}, errInternalToken
+	}
+	data, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		return InternalClaims{}, errInternalToken
+	}
+	var c InternalClaims
+	if err := json.Unmarshal(data, &c); err != nil {
+		return InternalClaims{}, errInternalToken
+	}
+	now := v.now()
+	if now.Unix() > c.ExpiresAt+int64(internalSkew.Seconds()) || c.IssuedAt > now.Add(internalSkew).Unix() {
+		return InternalClaims{}, errInternalToken
+	}
+	return c, nil
+}
+
+func (v *Verifier) Verify(token string) (Principal, bool, error) {
+	c, err := v.Claims(token)
+	if err != nil {
+		return Principal{}, false, err
+	}
+	if c.Subject == "" {
+		return Principal{}, false, nil
+	}
+	id, err := ParseID(c.Subject)
+	if err != nil {
+		return Principal{}, false, errInternalToken
+	}
+	return Principal{ID: id{{if .Identity.Role}}, Role: c.Role{{end}}, Method: Method(c.Method), CredentialID: c.Credential}, true, nil
+}
+
+func ParseID(s string) ({{.Identity.IDType}}, error) {
+	{{.Identity.IDParse}}
+}
+
+func FormatID(id {{.Identity.IDType}}) string {
+	return {{.Identity.IDFormat}}
+}
+
+func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
+	block, err := readPEM(path)
+	if err != nil {
+		return nil, err
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("auth: parse %s: %w", path, err)
+	}
+	private, ok := key.(ed25519.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("auth: %s does not hold an Ed25519 private key", path)
+	}
+	return private, nil
+}
+
+func LoadPublicKey(path string) (ed25519.PublicKey, error) {
+	block, err := readPEM(path)
+	if err != nil {
+		return nil, err
+	}
+	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("auth: parse %s: %w", path, err)
+	}
+	public, ok := key.(ed25519.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("auth: %s does not hold an Ed25519 public key", path)
+	}
+	return public, nil
+}
+
+func readPEM(path string) (*pem.Block, error) {
+	if path == "" {
+		return nil, errors.New("auth: the internal token key file is not configured; generate one with go run ./gateway/cmd/devcerts")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("auth: read %s: %w", path, err)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("auth: %s is not PEM encoded", path)
+	}
+	return block, nil
+}
+

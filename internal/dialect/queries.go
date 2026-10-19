@@ -382,3 +382,14 @@ func BuildManyToManyQueries(d Dialect, source, target *schema.Entity, via string
 func OwnedReferenceQuery(d Dialect, target *schema.Entity) Query {
 	return existsQuery(d, target)
 }
+
+func RowInsert(d Dialect, table string, columns []string, returning []Returned) string {
+	params := make([]string, len(columns))
+	for i := range columns {
+		params[i] = d.Placeholder(i + 1)
+	}
+	if len(returning) > 0 {
+		return d.InsertSQL(table, quoteAll(d, columns), params, returning)
+	}
+	return "INSERT INTO " + d.Quote(table) + " (" + strings.Join(quoteAll(d, columns), ", ") + ")\nVALUES (" + strings.Join(params, ", ") + ")"
+}

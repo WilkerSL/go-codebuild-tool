@@ -27,6 +27,13 @@ func RequestID(next http.Handler) http.Handler {
 	})
 }
 
+func WithRequestID(ctx context.Context, id string) context.Context {
+	if !validRequestID(id) {
+		id = newRequestID()
+	}
+	return context.WithValue(ctx, requestIDKey{}, id)
+}
+
 func RequestIDFrom(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDKey{}).(string)
 	return id

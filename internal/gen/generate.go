@@ -56,6 +56,7 @@ type File struct {
 	ServiceType   string
 	Receiver      string
 	ServiceMethod string
+	Module        string
 }
 
 type Options struct {
@@ -96,17 +97,18 @@ func newDialectView(d dialect.Dialect) dialectView {
 
 func Generate(opts Options) ([]File, error) {
 	pv := &projectView{
-		Header:        Header,
-		Module:        opts.Module,
-		GoVersion:     opts.GoVersion,
-		Caps:          opts.Caps,
-		UUIDImport:    opts.Caps.UUIDImport(),
-		JSONImport:    opts.Caps.JSONImport(),
-		Dialect:       newDialectView(opts.Dialect),
-		Pagination:    opts.Pagination,
-		HasMigrations: opts.HasMigrations,
-		GoImage:       strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
-		CI:            newCIView(opts.Dialect.Name()),
+		Header:           Header,
+		Module:           opts.Module,
+		GoVersion:        opts.GoVersion,
+		Caps:             opts.Caps,
+		UUIDImport:       opts.Caps.UUIDImport(),
+		JSONImport:       opts.Caps.JSONImport(),
+		Dialect:          newDialectView(opts.Dialect),
+		Pagination:       opts.Pagination,
+		HasMigrations:    opts.HasMigrations,
+		GoImage:          strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
+		CI:               newCIView(opts.Dialect.Name()),
+		MigrationsImport: opts.Module + "/migrations",
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {
@@ -191,6 +193,7 @@ func Generate(opts Options) ([]File, error) {
 
 type generator struct {
 	module string
+	prefix string
 	files  []File
 	err    error
 }
@@ -220,7 +223,7 @@ func (g *generator) add(filePath, tmpl string, data any, owner Owner, goSource b
 			return
 		}
 	}
-	g.files = append(g.files, File{Path: path.Clean(filePath), Content: content, Owner: owner})
+	g.files = append(g.files, File{Path: path.Join(g.prefix, filePath), Content: content, Owner: owner, Module: g.prefix})
 }
 
 func (g *generator) goFile(filePath, tmpl string, data any) {
@@ -272,6 +275,7 @@ func (g *generator) authFiles(pv *projectView, dv *domainView) {
 	dir := "internal/" + dv.Package + "/"
 	g.goFile(dir+"auth_queries_gen.go", "domain/auth_queries.go.tmpl", dv)
 	g.goFile(dir+"accounts_gen.go", "domain/accounts.go.tmpl", dv)
+	g.goFile(dir+"auth_dto_gen.go", "domain/auth_dto.go.tmpl", dv)
 	g.goFile(dir+"auth_handler_gen.go", "domain/auth_handler.go.tmpl", dv)
 	g.goFile(dir+"auth_routes_gen.go", "domain/auth_routes.go.tmpl", dv)
 	if dv.Creatable {

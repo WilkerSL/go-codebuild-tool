@@ -22,7 +22,7 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		Path:        e.Path(),
 		ItemPath:    e.Path() + "/{id}",
 		ReadOnly:    e.ReadOnly,
-		Routes:      !e.NoRoutes,
+		Routes:      !e.NoRoutes || pv.Workspace != nil,
 		SoftDelete:  e.SoftDelete,
 		allEntities: m.Entities,
 		Noun:        noun(e.Name),
@@ -99,7 +99,7 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 	if !e.ReadOnly {
 		for _, fv := range dv.Fields {
 			f := fv.F
-			if f.Ref == nil || f.Owner || (!f.InCreate() && !f.InUpdate()) {
+			if f.Ref == nil || f.Owner || (!f.InCreate() && !f.InUpdate()) || f.External(e) {
 				continue
 			}
 			target := m.Entity(f.Ref.Entity)
@@ -190,7 +190,7 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		}
 	}
 	buildRoutes(dv)
-	buildTestPlan(dv, m)
+	buildTestPlan(dv, d, m)
 	buildServiceMethods(dv)
 	if dv.IsAuth {
 		buildAuthMethods(dv)
@@ -286,7 +286,10 @@ func newRelationView(d dialect.Dialect, source, target *schema.Entity, r *schema
 		rv.LinkConst = "link" + source.Name + r.Name + "Query"
 		rv.UnlinkConst = "unlink" + source.Name + r.Name + "Query"
 	}
-	add(rv.ExistsConst, rq.SourceExists)
+	rv.ExternalSource = !schema.SameDatabase(source, target)
+	if !rv.ExternalSource {
+		add(rv.ExistsConst, rq.SourceExists)
+	}
 	add(rv.ListConst, rq.List)
 	add(rv.CountConst, rq.Count)
 	rv.ExistsArgs = queryArgs(rq.SourceExists, rv.SourceIDVar)
@@ -308,7 +311,7 @@ func creatable(m *schema.Model, e *schema.Entity, seen map[string]bool) bool {
 	seen[e.Name] = true
 	defer delete(seen, e.Name)
 	for _, f := range e.BelongsTo() {
-		if f.Nullable {
+		if f.Nullable || f.CrossService(e) {
 			continue
 		}
 		parent := m.Entity(f.Ref.Entity)
@@ -329,7 +332,7 @@ func missingID(f *schema.Field) string {
 	return `"zz-missing"`
 }
 
-func buildTestPlan(dv *domainView, m *schema.Model) {
+func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 	e := dv.Entity
 	dv.Creatable = creatable(m, e, map[string]bool{})
 	dv.MissingID = missingValue(e.PK())
@@ -337,12 +340,12 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 	var order []*schema.Entity
 	var need func(x *schema.Entity)
 	need = func(x *schema.Entity) {
-		if needed[x.Name] || !creatable(m, x, map[string]bool{}) {
+		if needed[x.Name] || x.Service != e.Service || !creatable(m, x, map[string]bool{}) {
 			return
 		}
 		needed[x.Name] = true
 		for _, f := range x.BelongsTo() {
-			if parent := m.Entity(f.Ref.Entity); parent != nil {
+			if parent := m.Entity(f.Ref.Entity); parent != nil && !f.CrossService(x) {
 				need(parent)
 			}
 		}
@@ -360,11 +363,22 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 		}
 	}
 	slices.SortFunc(order, func(a, b *schema.Entity) int { return strings.Compare(a.Name, b.Name) })
+	rows := &rowFixtures{d: d, holder: e, made: map[string]*rowFixture{}}
 	ownerFixture := ""
 	if auth := m.AuthEntity(); auth != nil && auth.PK() != nil {
-		ownerFixture = "fixture" + auth.Name + "(t, ctx, db)." + auth.PK().Name
+		switch {
+		case auth.Service == e.Service:
+			ownerFixture = "fixture" + auth.Name + "(t, ctx, db)." + auth.PK().Name
+		case !schema.SameDatabase(auth, e):
+			ownerFixture = randomValue(auth.PK())
+		default:
+			ownerFixture = rows.call(auth, "") + "." + auth.PK().Name
+		}
 	}
 	call := func(x *schema.Entity, owner string) string {
+		if x.Service != e.Service {
+			return rows.call(x, owner)
+		}
 		if x.Owner() == nil {
 			return "fixture" + x.Name + "(t, ctx, db)"
 		}
@@ -373,6 +387,7 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 		}
 		return "fixture" + x.Name + "(t, ctx, db, " + owner + ")"
 	}
+	rows.owner = func() string { return ownerFixture }
 	imports := map[string]bool{}
 	for _, x := range order {
 		h := &helperView{
@@ -391,6 +406,8 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 				continue
 			}
 			switch {
+			case f.Ref != nil && !f.Nullable && f.External(x):
+				h.Fields = append(h.Fields, fmt.Sprintf("%s: %s,", f.Name, randomValue(f.Ref.Target.PK())))
 			case f.Ref != nil && !f.Nullable:
 				parent := m.Entity(f.Ref.Entity)
 				v := parentVar(f, dv.TestImportNames())
@@ -413,11 +430,15 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 		if rv.Owned {
 			rv.TestOwnerArg = "owner, "
 		}
+		if rv.ExternalSource {
+			continue
+		}
 		rv.SourceCall = call(rv.Source, "owner")
 		if rv.FK != nil && !rv.FKIsOwner && (rv.FK.F.Nullable || rv.Source.Owner() != nil) {
 			rv.ExplicitParent = true
 		}
 	}
+	dv.RowFixtures = rows.list
 	for name := range imports {
 		dv.TestImports = append(dv.TestImports, dv.Module+"/internal/"+name)
 	}
@@ -429,7 +450,7 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 		if dv.UniqueTestField == nil && f.Unique && !f.Nullable && f.Ref == nil && f.InCreate() {
 			dv.UniqueTestField = fv
 		}
-		if dv.MissingRefField == nil && f.Ref != nil && !f.Nullable && f.InCreate() {
+		if dv.MissingRefField == nil && f.Ref != nil && !f.Nullable && f.InCreate() && !f.External(e) {
 			dv.MissingRefField = fv
 		}
 		if dv.ListFilterField == nil && f.Unique && f.Filterable() && f.Kind == schema.KindString {
@@ -442,8 +463,10 @@ func buildTestPlan(dv *domainView, m *schema.Model) {
 	}
 	for _, rv := range dv.Relations {
 		rv.MissingSourceID = missingValue(rv.Source.PK())
-		sourceOK := creatable(m, rv.Source, map[string]bool{})
+		sourceOK := rv.Source.Service != e.Service || creatable(m, rv.Source, map[string]bool{})
 		switch {
+		case rv.FK != nil && rv.ExternalSource:
+			rv.TestCreate = dv.Creatable && !rv.FK.F.Nullable && !rv.FKIsOwner
 		case rv.FK != nil:
 			rv.TestCreate = dv.Creatable && (!rv.ExplicitParent || sourceOK)
 		case rv.Writable:
@@ -510,6 +533,9 @@ func buildServiceMethods(dv *domainView) {
 	own, ownArg := dv.OwnerParam, dv.OwnerArg
 	add("List", own+"p ListParams", "(Page, error)", ownArg+"p")
 	add("Get", own+"id "+pk, "("+e.Name+", error)", ownArg+"id")
+	if dv.Workspace != nil {
+		add("Exists", own+"id "+pk, "(bool, error)", ownArg+"id")
+	}
 	if !e.ReadOnly {
 		add("Create", own+"in CreateInput", "("+e.Name+", error)", ownArg+"in")
 		if dv.HasUpdate {

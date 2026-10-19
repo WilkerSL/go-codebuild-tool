@@ -1,0 +1,173 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"log/slog"
+
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	{{.GRPC.Alias}} "{{.GRPC.Import}}"
+	"{{.Module}}/internal/platform/auth"
+	"{{.Module}}/internal/platform/grpcx"
+	"{{.Module}}/internal/platform/validation"
+)
+{{- $a := .GRPC.Alias}}
+
+type AuthGRPCServer struct {
+	{{$a}}.UnimplementedAuthServiceServer
+	svc      *AuthService
+	accounts *Accounts
+	logger   *slog.Logger
+}
+
+func NewAuthGRPCServer(svc *AuthService, accounts *Accounts, logger *slog.Logger) *AuthGRPCServer {
+	return &AuthGRPCServer{svc: svc, accounts: accounts, logger: logger}
+}
+
+func (s *AuthGRPCServer) fail(ctx context.Context, err error) error {
+	return grpcx.Error(ctx, s.logger, err)
+}
+
+func tokensMessage(t auth.Tokens) *{{$a}}.Tokens {
+	return &{{$a}}.Tokens{
+		AccessToken: t.AccessToken,
+		TokenType:   t.TokenType,
+		ExpiresAt:   grpcx.Timestamp(t.ExpiresAt),
+{{- if .Auth.JWT}}
+		RefreshToken:     t.RefreshToken,
+		RefreshExpiresAt: grpcx.Timestamp(t.RefreshExpiresAt),
+{{- end}}
+	}
+}
+
+func (s *AuthGRPCServer) Authenticate(ctx context.Context, req *{{$a}}.AuthenticateRequest) (*{{$a}}.Principal, error) {
+	p, err := s.accounts.Authenticate(ctx, req.GetToken())
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &{{$a}}.Principal{Id: auth.FormatID(p.ID){{if .Auth.Role}}, Role: p.Role{{end}}, Method: string(p.Method), CredentialId: p.CredentialID}, nil
+}
+
+func (s *AuthGRPCServer) Login(ctx context.Context, req *{{$a}}.LoginRequest) (*{{$a}}.Tokens, error) {
+	tokens, err := s.svc.Login(ctx, LoginInput{Identity: req.GetIdentity(), Password: req.GetPassword()})
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return tokensMessage(tokens), nil
+}
+{{- if .Auth.Register}}
+
+func registerInputFrom(req *{{$a}}.{{.Name}}CreateRequest) (CreateInput, error) {
+	{{.GRPC.RegisterFrom}}
+	in, err := r.input()
+	return in, validation.Merge(errs.Err(), err, in.Validate())
+}
+
+func (s *AuthGRPCServer) Register(ctx context.Context, req *{{$a}}.{{.Name}}CreateRequest) (*{{$a}}.{{.Name}}, error) {
+	in, err := registerInputFrom(req)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	item, err := s.svc.Register(ctx, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+{{- end}}
+{{- if .Auth.JWT}}
+
+func (s *AuthGRPCServer) Refresh(ctx context.Context, req *{{$a}}.RefreshRequest) (*{{$a}}.Tokens, error) {
+	tokens, err := s.svc.Refresh(ctx, req.GetRefreshToken())
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return tokensMessage(tokens), nil
+}
+{{- end}}
+
+func (s *AuthGRPCServer) Logout(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	if err := s.svc.Logout(ctx, caller); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *AuthGRPCServer) Me(ctx context.Context, _ *emptypb.Empty) (*{{$a}}.{{.Name}}, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	item, err := s.svc.Me(ctx, caller)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+
+func (s *AuthGRPCServer) ChangePassword(ctx context.Context, req *{{$a}}.ChangePasswordRequest) (*emptypb.Empty, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	if err := s.svc.ChangePassword(ctx, caller, PasswordChange{Current: req.GetCurrentPassword(), New: req.GetNewPassword()}); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+{{- if .Auth.APIKey}}
+
+func keyMessage(k APIKey) *{{$a}}.APIKey {
+	return &{{$a}}.APIKey{Id: k.ID, Name: k.Name, Prefix: k.Prefix, CreatedAt: grpcx.Timestamp(k.CreatedAt), ExpiresAt: grpcx.NullTimestamp(k.ExpiresAt)}
+}
+
+func (s *AuthGRPCServer) CreateAPIKey(ctx context.Context, req *{{$a}}.APIKeyCreateRequest) (*{{$a}}.CreatedAPIKey, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	name := req.GetName()
+	in, err := apiKeyRequest{Name: &name, ExpiresAt: grpcx.TimeString(req.GetExpiresAt())}.input()
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	k, err := s.svc.CreateAPIKey(ctx, caller, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &{{$a}}.CreatedAPIKey{Id: k.ID, Name: k.Name, Prefix: k.Prefix, CreatedAt: grpcx.Timestamp(k.CreatedAt), ExpiresAt: grpcx.NullTimestamp(k.ExpiresAt), Key: k.Key}, nil
+}
+
+func (s *AuthGRPCServer) ListAPIKeys(ctx context.Context, _ *emptypb.Empty) (*{{$a}}.APIKeyList, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	keys, err := s.svc.ListAPIKeys(ctx, caller)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	items := make([]*{{$a}}.APIKey, len(keys))
+	for i, k := range keys {
+		items[i] = keyMessage(k)
+	}
+	return &{{$a}}.APIKeyList{Items: items}, nil
+}
+
+func (s *AuthGRPCServer) DeleteAPIKey(ctx context.Context, req *{{$a}}.APIKeyDeleteRequest) (*emptypb.Empty, error) {
+	caller, err := auth.Current(ctx)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	if err := s.svc.DeleteAPIKey(ctx, caller, req.GetId()); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+{{- end}}

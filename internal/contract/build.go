@@ -102,7 +102,7 @@ func (s *Set) File(service string) *File {
 
 const (
 	CommonPackage    = "common.v1"
-	FieldViolations  = ".common.v1.FieldViolations"
+	ProblemMessage   = ".common.v1.Problem"
 	ExistsResponse   = ".common.v1.ExistsResponse"
 	commonPath       = "common/v1/common.proto"
 	timestampPath    = "google/protobuf/timestamp.proto"
@@ -119,7 +119,7 @@ func Build(module string, m *schema.Model, registry *Registry) *Set {
 	s.Common = s.newFile(nil, "common", commonPath, CommonPackage)
 	s.Common.isCommon = true
 	violation := s.Common.message("FieldViolation", field("field", TypeString), field("message", TypeString))
-	s.Common.message("FieldViolations", &Field{Name: "violations", Type: TypeMessage, TypeName: violation.FullName, Repeated: true})
+	s.Common.message("Problem", field("status", TypeInt32), &Field{Name: "errors", Type: TypeMessage, TypeName: violation.FullName, Repeated: true})
 	s.Common.message("ExistsResponse", field("exists", TypeBool))
 	for _, svc := range m.Services {
 		f := s.newFile(svc, svc.Name, svc.Name+"/v1/"+svc.Name+".proto", svc.Name+".v1")

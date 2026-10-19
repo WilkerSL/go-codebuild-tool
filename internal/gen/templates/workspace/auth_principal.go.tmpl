@@ -1,0 +1,61 @@
+{{.Header}}
+
+package auth
+
+import (
+	"context"
+	"net/http"
+
+	"{{.UUIDImport}}"
+
+	"{{.Module}}/internal/platform/httpx"
+)
+
+type Method string
+{{- if .Identity.Methods}}
+
+const (
+{{- if .Identity.Session}}
+	MethodSession Method = "session"
+{{- end}}
+{{- if .Identity.JWT}}
+	MethodJWT Method = "jwt"
+{{- end}}
+{{- if .Identity.APIKey}}
+	MethodAPIKey Method = "apikey"
+{{- end}}
+)
+{{- end}}
+
+type Principal struct {
+	ID {{.Identity.IDType}}
+{{- if .Identity.Role}}
+	Role string
+{{- end}}
+	Method       Method
+	CredentialID string
+}
+
+var (
+	ErrUnauthenticated = &httpx.Error{Status: http.StatusUnauthorized, Detail: "authentication is required"}
+	ErrForbidden       = httpx.NewError(http.StatusForbidden, "the caller is not allowed to perform this operation")
+)
+
+type principalKey struct{}
+
+func WithPrincipal(ctx context.Context, p Principal) context.Context {
+	return context.WithValue(ctx, principalKey{}, p)
+}
+
+func FromContext(ctx context.Context) (Principal, bool) {
+	p, ok := ctx.Value(principalKey{}).(Principal)
+	return p, ok
+}
+
+func Current(ctx context.Context) (Principal, error) {
+	p, ok := FromContext(ctx)
+	if !ok {
+		return Principal{}, ErrUnauthenticated
+	}
+	return p, nil
+}

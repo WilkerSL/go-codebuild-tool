@@ -19,7 +19,7 @@ import (
 	"{{.Import}}"
 	"{{.Module}}/internal/platform/database"
 	"{{.Module}}/internal/platform/validation"
-	"{{.Module}}/migrations"
+	"{{.MigrationsImport}}"
 {{- range .TestImports}}
 	"{{.}}"
 {{- end}}
@@ -84,6 +84,44 @@ func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, o
 		t.Fatalf("create {{.Entity.Name}}: %v", err)
 	}
 	return item
+}
+{{- end}}
+
+{{- range .RowFixtures}}
+
+type {{.Type}} struct {
+	{{.PKName}} {{.PKType}}
+}
+
+const {{.Const}} = {{.Literal}}
+
+func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, owner {{.OwnerType}}{{end}}) {{.Type}} {
+	t.Helper()
+{{- range .Parents}}
+	{{.Var}} := {{.Call}}
+{{- end}}
+	var row {{.Type}}
+{{- if eq .Mode "returning"}}
+	if err := db.QueryRowContext(ctx, {{.Const}}, {{.Args}}).Scan({{.ScanTarget}}); err != nil {
+		t.Fatalf("insert into {{.Table}}: %v", err)
+	}
+{{- else if eq .Mode "lastid"}}
+	res, err := db.ExecContext(ctx, {{.Const}}, {{.Args}})
+	if err != nil {
+		t.Fatalf("insert into {{.Table}}: %v", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		t.Fatalf("insert into {{.Table}}: %v", err)
+	}
+	row.{{.PKName}} = {{.PKType}}(id)
+{{- else}}
+	row.{{.PKName}} = {{.IDExpr}}
+	if _, err := db.ExecContext(ctx, {{.Const}}, {{.Args}}); err != nil {
+		t.Fatalf("insert into {{.Table}}: %v", err)
+	}
+{{- end}}
+	return row
 }
 {{- end}}
 
@@ -274,9 +312,11 @@ func TestRepository{{.Method}}(t *testing.T) {
 		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
 	}
 {{- end}}
+{{- if not .ExternalSource}}
 	if _, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("list for a missing parent: %v", err)
 	}
+{{- end}}
 }
 {{- end}}
 {{- range .ManyToManyRels}}

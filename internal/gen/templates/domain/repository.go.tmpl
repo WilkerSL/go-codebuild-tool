@@ -217,9 +217,11 @@ func (r *Repository) delete(ctx context.Context, {{.OwnerParam}}id {{.PK.BaseTyp
 {{- range .Relations}}
 
 func (r *Repository) {{.Method}}(ctx context.Context, {{.OwnerParam}}{{.SourceIDVar}} {{.SourceIDType}}, p ListParams) (Page, error) {
+{{- if not .ExternalSource}}
 	if err := r.exists(ctx, {{.ExistsConst}}, {{.ExistsArgs}}); err != nil {
 		return Page{}, err
 	}
+{{- end}}
 	return r.page(ctx, p, {{.ListConst}}, []any{ {{- .ListArgs -}} }, {{.CountConst}}, []any{ {{- .CountArgs -}} })
 }
 {{- if .Writable}}

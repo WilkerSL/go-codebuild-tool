@@ -1,0 +1,70 @@
+{{.Header}}
+
+package grpcx
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"os"
+)
+
+type TLSConfig struct {
+	CAFile   string
+	CertFile string
+	KeyFile  string
+}
+
+func LoadTLSConfig(getenv func(string) string) (TLSConfig, error) {
+	cfg := TLSConfig{CAFile: getenv("TLS_CA_FILE"), CertFile: getenv("TLS_CERT_FILE"), KeyFile: getenv("TLS_KEY_FILE")}
+	var errs []error
+	for _, v := range []struct{ key, value string }{ {"TLS_CA_FILE", cfg.CAFile}, {"TLS_CERT_FILE", cfg.CertFile}, {"TLS_KEY_FILE", cfg.KeyFile} } {
+		if v.value == "" {
+			errs = append(errs, fmt.Errorf("%s is required: services only talk over mutual TLS; generate development certificates with go run ./gateway/cmd/devcerts", v.key))
+		}
+	}
+	return cfg, errors.Join(errs...)
+}
+
+func (c TLSConfig) load() (tls.Certificate, *x509.CertPool, error) {
+	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+	if err != nil {
+		return tls.Certificate{}, nil, fmt.Errorf("grpcx: load the certificate: %w", err)
+	}
+	data, err := os.ReadFile(c.CAFile)
+	if err != nil {
+		return tls.Certificate{}, nil, fmt.Errorf("grpcx: read the CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(data) {
+		return tls.Certificate{}, nil, errors.New("grpcx: TLS_CA_FILE contains no certificate")
+	}
+	return cert, pool, nil
+}
+
+func (c TLSConfig) Server() (*tls.Config, error) {
+	cert, pool, err := c.load()
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}, nil
+}
+
+func (c TLSConfig) Client(serverName string) (*tls.Config, error) {
+	cert, pool, err := c.load()
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+		ServerName:   serverName,
+	}, nil
+}

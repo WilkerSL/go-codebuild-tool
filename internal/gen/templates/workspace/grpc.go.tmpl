@@ -1,0 +1,212 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+
+	"{{.UUIDImport}}"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	commonv1 "{{.Workspace.Contracts}}/common/v1"
+	{{.GRPC.Alias}} "{{.GRPC.Import}}"
+{{- range .GRPC.PeerImports}}
+	{{.Name}} "{{.Path}}"
+{{- end}}
+	"{{.Module}}/internal/platform/grpcx"
+	"{{.Module}}/internal/platform/validation"
+)
+{{- $g := .GRPC}}
+
+type GRPCServer struct {
+	{{$g.Alias}}.Unimplemented{{$g.Service}}Server
+	svc    *Service
+	logger *slog.Logger
+{{- range $g.Peers}}
+	{{.Field}} {{.Alias}}.{{.Type}}
+{{- end}}
+}
+
+func NewGRPCServer(svc *Service, logger *slog.Logger{{range $g.Peers}}, {{.Field}} {{.Alias}}.{{.Type}}{{end}}) *GRPCServer {
+	return &GRPCServer{svc: svc, logger: logger{{range $g.Peers}}, {{.Field}}: {{.Field}}{{end}}}
+}
+
+func (s *GRPCServer) fail(ctx context.Context, err error) error {
+	return grpcx.Error(ctx, s.logger, err)
+}
+
+func toMessage(item {{.Name}}) *{{$g.Alias}}.{{$g.Message}} {
+	return {{$g.ToMessage}}
+}
+
+func toPageMessage(page Page) *{{$g.Alias}}.{{$g.Page}} {
+	items := make([]*{{$g.Alias}}.{{$g.Message}}, len(page.Items))
+	for i, item := range page.Items {
+		items[i] = toMessage(item)
+	}
+	return &{{$g.Alias}}.{{$g.Page}}{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total}
+}
+
+func listParamsFrom(req *{{$g.Alias}}.{{$g.List.Request}}) (ListParams, error) {
+	{{$g.ListFrom}}
+}
+
+func (s *GRPCServer) Get(ctx context.Context, req *{{$g.Alias}}.{{$g.Get.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
+	{{$g.Get.Authorize}}
+	{{$g.IDParse}}
+	item, err := s.svc.Get(ctx, {{$g.Get.Owner}}id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+
+func (s *GRPCServer) List(ctx context.Context, req *{{$g.Alias}}.{{$g.List.Request}}) (*{{$g.Alias}}.{{$g.Page}}, error) {
+	{{$g.List.Authorize}}
+	p, err := listParamsFrom(req)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	page, err := s.svc.List(ctx, {{$g.List.Owner}}p)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toPageMessage(page), nil
+}
+
+func (s *GRPCServer) Exists(ctx context.Context, req *{{$g.Alias}}.{{$g.Exists.Request}}) (*commonv1.ExistsResponse, error) {
+	{{$g.Exists.Authorize}}
+	{{$g.IDParse}}
+	ok, err := s.svc.Exists(ctx, {{$g.Exists.Owner}}id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &commonv1.ExistsResponse{Exists: ok}, nil
+}
+{{- define "remoteChecks"}}
+{{- range .}}
+{{- if .Nullable}}
+	if in.{{.Field}} != nil {
+		res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}})
+		if err != nil {
+			return nil, err
+		}
+		if !res.GetExists() {
+			return nil, s.fail(ctx, validation.Errors{ {Field: "{{.JSON}}", Message: "references a record that does not exist"} })
+		}
+	}
+{{- else}}
+	if res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}}); err != nil {
+		return nil, err
+	} else if !res.GetExists() {
+		return nil, s.fail(ctx, validation.Errors{ {Field: "{{.JSON}}", Message: "references a record that does not exist"} })
+	}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- if not .ReadOnly}}
+
+func createInputFrom(req *{{$g.Alias}}.{{$g.Create.Request}}) (CreateInput, error) {
+	{{$g.CreateFrom}}
+	in, err := r.input()
+	return in, validation.Merge(errs.Err(), err, in.Validate())
+}
+
+func (s *GRPCServer) Create(ctx context.Context, req *{{$g.Alias}}.{{$g.Create.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
+	{{$g.Create.Authorize}}
+	in, err := createInputFrom(req)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	{{- template "remoteChecks" $g.Checks}}
+	item, err := s.svc.Create(ctx, {{$g.Create.Owner}}in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+{{- if .HasUpdate}}
+
+func updateInputFrom(req *{{$g.Alias}}.{{$g.Update.Request}}) (UpdateInput, error) {
+	{{$g.UpdateFrom}}
+	in, err := r.input()
+	return in, validation.Merge(errs.Err(), err, in.Validate())
+}
+
+func (s *GRPCServer) Update(ctx context.Context, req *{{$g.Alias}}.{{$g.Update.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
+	{{$g.Update.Authorize}}
+	{{$g.IDParse}}
+	in, err := updateInputFrom(req)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	{{- template "remoteChecks" $g.Checks}}
+	item, err := s.svc.Update(ctx, {{$g.Update.Owner}}id, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+{{- end}}
+
+func (s *GRPCServer) Delete(ctx context.Context, req *{{$g.Alias}}.{{$g.Delete.Request}}) (*emptypb.Empty, error) {
+	{{$g.Delete.Authorize}}
+	{{$g.IDParse}}
+	if err := s.svc.Delete(ctx, {{$g.Delete.Owner}}id); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+{{- end}}
+{{- range $g.Relations}}
+
+func {{.ParamsFunc}}(req *{{$g.Alias}}.{{.List.Request}}) (ListParams, error) {
+	{{.ParamsBody}}
+}
+
+func (s *GRPCServer) {{.List.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.List.Request}}) (*{{$g.Alias}}.{{$g.Page}}, error) {
+	{{.List.Authorize}}
+	{{.SourceParse}}
+{{- with .SourceCheck}}
+	if res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}}); err != nil {
+		return nil, err
+	} else if !res.GetExists() {
+		return nil, grpcx.Problem(codes.NotFound, http.StatusNotFound, "the requested resource does not exist", nil)
+	}
+{{- end}}
+	p, err := {{.ParamsFunc}}(req)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	page, err := s.svc.{{.Method}}(ctx, {{.List.Owner}}{{.SourceIDVar}}, p)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toPageMessage(page), nil
+}
+{{- if .Writable}}
+
+func (s *GRPCServer) {{.Link.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Link.Request}}) (*emptypb.Empty, error) {
+	{{.Link.Authorize}}
+	{{.SourceParse}}
+	{{.TargetIDExpr}}
+	if err := s.svc.{{.LinkMethod}}(ctx, {{.Link.Owner}}{{.SourceIDVar}}, id); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *GRPCServer) {{.Unlink.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Unlink.Request}}) (*emptypb.Empty, error) {
+	{{.Unlink.Authorize}}
+	{{.SourceParse}}
+	{{.TargetIDExpr}}
+	if err := s.svc.{{.UnlinkMethod}}(ctx, {{.Unlink.Owner}}{{.SourceIDVar}}, id); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+{{- end}}
+{{- end}}

@@ -20,20 +20,24 @@ type Pagination struct {
 }
 
 type projectView struct {
-	Header        string
-	Module        string
-	GoVersion     string
-	Caps          goversion.Capabilities
-	UUIDImport    string
-	JSONImport    string
-	Dialect       dialectView
-	Domains       []*domainView
-	Wired         []*domainView
-	Pagination    Pagination
-	HasMigrations bool
-	GoImage       string
-	CI            ciView
-	Auth          *authView
+	Header           string
+	Module           string
+	GoVersion        string
+	Caps             goversion.Capabilities
+	UUIDImport       string
+	JSONImport       string
+	Dialect          dialectView
+	Domains          []*domainView
+	Wired            []*domainView
+	Pagination       Pagination
+	HasMigrations    bool
+	GoImage          string
+	CI               ciView
+	Auth             *authView
+	Identity         *authView
+	Workspace        *workspaceView
+	Current          *serviceView
+	MigrationsImport string
 }
 
 type dialectView struct {
@@ -155,6 +159,7 @@ type relationView struct {
 	TestCreate      bool
 	TestLink        bool
 	MissingSourceID string
+	ExternalSource  bool
 	Owned           bool
 	OwnerParam      string
 	OwnerArg        string
@@ -240,6 +245,7 @@ type domainView struct {
 	MissingRefValue  string
 	ServiceMethods   []serviceMethod
 	AuthMethods      []serviceMethod
+	GRPC             *grpcView
 	Guarded          bool
 	IsAuth           bool
 	RouteLines       []string
@@ -252,6 +258,7 @@ type domainView struct {
 	TestOwnerSuffix  string
 	MissingOwner     string
 	RefChecks        []refCheck
+	RowFixtures      []*rowFixture
 	DeleteRules      []deleteRule
 	HasRestrict      bool
 }
