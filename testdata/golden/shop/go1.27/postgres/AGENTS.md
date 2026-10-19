@@ -1,0 +1,74 @@
+# AGENTS.md
+
+This workspace was created with [codebuild](https://github.com/WilkerSL/go-codebuild-tool), a development-time generator. No module imports codebuild: if the tool is removed, every module still builds and runs.
+
+- Module prefix: `example.com/shop`
+- Go version: `go 1.27.0` (capabilities: go1.27 (StdUUID, JSONv2))
+- SQL dialect: `postgres` (driver `github.com/jackc/pgx/v5`)
+
+## Layout
+
+`go.work` joins one Go module per directory:
+
+| Module | Role |
+|---|---|
+| `gateway/` | The only REST API. Authenticates every request through the account service, signs an internal token and calls the services over gRPC. |
+| `services/billing/` | gRPC service `billing` with its own database `billing`. |
+| `services/catalog/` | gRPC service `catalog` on the shared database. |
+| `services/identity/` | gRPC service `identity` with its own database `identity`; owns the accounts and answers `AuthService`. |
+| `services/inventory/` | gRPC service `inventory` on the shared database. |
+| `contracts/` | Generated `.proto` files and their Go code. `codebuild.contracts.json` keeps every field number stable. |
+| `databases/shared/` | Migrations of the database shared by the services declared with `database=shared`. |
+
+The root module only holds `specs/` and pins the codebuild tool.
+
+## Workflow for changes to the API
+
+1. Read the spec grammar: the MCP resource `codebuild://grammar` or `go tool codebuild` docs (`docs/spec-reference.md` in the codebuild repository).
+2. Each service is one file `specs/<service>.go` starting with `//go:build ignore`. It declares one struct named `<Name>Service` whose first field is ``_ struct{} `gen:"database=own"` `` or `database=shared`, and whose other fields are the entities as nested structs.
+3. Validate: MCP tool `validate`, or `go tool codebuild check`.
+4. Preview: MCP tool `plan`, or `go tool codebuild plan`. Show the plan to the user.
+5. Wait for the user's approval of the plan.
+6. Apply: MCP tool `generate`, or `go tool codebuild build`.
+7. Run `go mod tidy` in every module whose `go.mod` changed (`go -C <dir> mod tidy`), then `go build example.com/shop/...`, `go vet example.com/shop/...` and `go test example.com/shop/...` from the root: in a workspace, `./...` stops at the nested modules, while the module path pattern covers all of them.
+8. Apply the database changes with the migrate command of each changed database.
+
+Never pass `upgradeGo: true` to the MCP `generate` tool, and never run `codebuild build --upgrade-go`, without the user's explicit confirmation.
+
+## File ownership
+
+| Files | Owner | Rule |
+|---|---|---|
+| `*_gen.go`, `*_gen_test.go`, `contracts/**/*.proto`, `contracts/**/*.pb.go` | codebuild | Regenerated on every build. Never edit them. |
+| `docker-compose.yml` | codebuild | Regenerated when services change. Put local changes such as extra ports or variables in `docker-compose.override.yml`, which `docker compose` merges automatically. |
+| `contracts/codebuild.contracts.json`, `*/migrations/codebuild.snapshot.json` | codebuild | State files. Commit them, never edit them: they keep protobuf field numbers and the database schema stable across builds. |
+| `services/*/internal/<domain>/service.go`, `service_<method>.go`, `auth_service.go` | you | Created once, never touched again. Business rules live here. |
+| `*/cmd/*/main.go`, `*/internal/platform/config/config.go`, `*/internal/platform/database/database.go` | you | Created once, never touched again. |
+| `*/Dockerfile`, `.github/workflows/*.yml`, `AGENTS.md`, `.gitignore`, `.gitattributes`, `.dockerignore` | you | Created once, never touched again. |
+| `*/migrations/NNNN_*.sql` | you after creation | Created once. Never edit a migration that was already applied. |
+| `codebuild.json` | you | Dialect and pagination limits. |
+
+## How the pieces talk
+
+- Clients only reach the gateway. It mirrors the REST API a codebuild monolith would expose: same routes, JSON bodies, status codes and RFC 9457 problem details.
+- Services only speak gRPC (plus `/livez` and `/readyz` on `HEALTH_ADDR`). Every connection uses mutual TLS with certificates signed by one CA, and every call carries an Ed25519-signed internal token in the `x-internal-token` metadata. Only the gateway holds the private key; services verify with the public key and propagate the token to the services they call.
+- The token carries the caller (`sub`, `role`, the credential) for one minute. Services authorize with it: `grpcx.Authorize(ctx, roles...)` and `auth.Current(ctx)` work as in a monolith.
+- A reference to an entity in another database has no foreign key. The service checks it through the owner service's `Exists` call and answers 422 when it is missing. Services on the shared database keep their foreign keys.
+
+## Running locally
+
+```bash
+docker compose up --build
+```
+
+Compose generates development certificates in the `certs` volume, applies the migrations, starts every service and exposes the gateway on `http://localhost:8080`.
+
+Promote the first admin after registering through `POST /auth/register`:
+
+```bash
+docker compose exec identity /app/accounts set-role <email> <role>
+```
+
+Without containers, `go run ./gateway/cmd/devcerts` writes a development CA, one certificate per module and the internal token key pair into `./certs`. Then run each service with `DATABASE_URL`, `GRPC_ADDR`, `HEALTH_ADDR`, `TLS_CA_FILE`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `INTERNAL_TOKEN_PUBLIC_KEY_FILE` and the `<SERVICE>_GRPC_ADDR` of the services it calls, and the gateway with `HTTP_ADDR`, the TLS variables, `INTERNAL_TOKEN_PRIVATE_KEY_FILE` and one `<SERVICE>_GRPC_ADDR` per service. `docker-compose.yml` lists every variable.
+
+Repository tests run against a real database: set `TEST_DATABASE_URL` to a disposable database. Each module has its own workflow in `.github/workflows/` that only runs when the module or one of its dependencies changes; `workspace.yml` checks formatting, the whole build and that the generated code is current.

@@ -1,0 +1,58 @@
+name: services/billing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/billing/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-billing.yml"
+  pull_request:
+    paths:
+      - "services/billing/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-billing.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      GOWORK: "off"
+      TEST_DATABASE_URL: postgres://app:app@localhost:5432/app?sslmode=disable
+    defaults:
+      run:
+        working-directory: services/billing
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/billing/go.mod
+          cache-dependency-path: services/billing/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/billing/Dockerfile -t services-billing .

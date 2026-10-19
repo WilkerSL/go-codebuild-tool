@@ -14,7 +14,8 @@ const (
 	ConfigFile    = "codebuild.json"
 	SpecsDir      = "specs"
 	MigrationsDir = "migrations"
-	SnapshotFile  = "migrations/codebuild.snapshot.json"
+	SnapshotName  = "codebuild.snapshot.json"
+	SnapshotFile  = MigrationsDir + "/" + SnapshotName
 )
 
 type Config struct {

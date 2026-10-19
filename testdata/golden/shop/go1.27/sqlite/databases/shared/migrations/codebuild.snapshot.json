@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "dialect": "sqlite",
+  "migrations": [
+    "0001_init"
+  ],
+  "tables": [
+    {
+      "name": "categories",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 80
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_categories",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_categories_name",
+          "columns": [
+            "name"
+          ],
+          "unique": true
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "category_id",
+          "kind": "int64",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "price",
+          "kind": "float64"
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_products",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_products_category_id",
+          "columns": [
+            "category_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_products_category_id",
+          "columns": [
+            "category_id"
+          ],
+          "refTable": "categories",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ]
+    },
+    {
+      "name": "stocks",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "product_id",
+          "kind": "int64"
+        },
+        {
+          "name": "quantity",
+          "kind": "int32"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_stocks",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_stocks_product_id",
+          "columns": [
+            "product_id"
+          ],
+          "unique": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_stocks_product_id",
+          "columns": [
+            "product_id"
+          ],
+          "refTable": "products",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    }
+  ]
+}

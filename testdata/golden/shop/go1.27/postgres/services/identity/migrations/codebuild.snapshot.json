@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "dialect": "postgres",
+  "migrations": [
+    "0001_init"
+  ],
+  "tables": [
+    {
+      "name": "auth_api_keys",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "string",
+          "size": 32
+        },
+        {
+          "name": "user_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "prefix",
+          "kind": "string",
+          "size": 16
+        },
+        {
+          "name": "key_hash",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "created_at",
+          "kind": "time"
+        },
+        {
+          "name": "expires_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_auth_api_keys",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_auth_api_keys_user_id",
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "name": "ux_auth_api_keys_key_hash",
+          "columns": [
+            "key_hash"
+          ],
+          "unique": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_auth_api_keys_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "auth_sessions",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "user_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "created_at",
+          "kind": "time"
+        },
+        {
+          "name": "expires_at",
+          "kind": "time"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_auth_sessions",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_auth_sessions_user_id",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_auth_sessions_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "refTable": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "email",
+          "kind": "string",
+          "size": 254
+        },
+        {
+          "name": "name",
+          "kind": "string",
+          "size": 120
+        },
+        {
+          "name": "password_hash",
+          "kind": "string",
+          "size": 255
+        },
+        {
+          "name": "role",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "member"
+          }
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "updated_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_users",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ux_users_email",
+          "columns": [
+            "email"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_users_role",
+          "column": "role",
+          "values": [
+            "admin",
+            "member"
+          ]
+        }
+      ]
+    }
+  ]
+}

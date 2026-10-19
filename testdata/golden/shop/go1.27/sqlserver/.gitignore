@@ -1,0 +1,11 @@
+/bin
+*.exe
+*.test
+*.out
+*.db
+*.db-shm
+*.db-wal
+.env
+/certs
+.codebuild.lock
+.codebuild-*

@@ -1,0 +1,45 @@
+name: services/inventory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/inventory/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-inventory.yml"
+  pull_request:
+    paths:
+      - "services/inventory/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-inventory.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: services/inventory
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/inventory/go.mod
+          cache-dependency-path: services/inventory/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/inventory/Dockerfile -t services-inventory .

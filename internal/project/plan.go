@@ -19,6 +19,7 @@ import (
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
 
+	"github.com/WilkerSL/go-codebuild-tool/internal/contract"
 	"github.com/WilkerSL/go-codebuild-tool/internal/dialect"
 	"github.com/WilkerSL/go-codebuild-tool/internal/gen"
 	"github.com/WilkerSL/go-codebuild-tool/internal/goversion"
@@ -87,10 +88,11 @@ type GoUpgrade struct {
 }
 
 type MigrationInfo struct {
-	Version uint64 `json:"version"`
-	Name    string `json:"name"`
-	Up      string `json:"up"`
-	Down    string `json:"down"`
+	Database string `json:"database,omitempty"`
+	Version  uint64 `json:"version"`
+	Name     string `json:"name"`
+	Up       string `json:"up"`
+	Down     string `json:"down"`
 }
 
 type ToolchainStatus struct {
@@ -111,6 +113,7 @@ type Plan struct {
 	Domains         []string           `json:"domains"`
 	Files           []FileChange       `json:"files"`
 	Migration       *MigrationInfo     `json:"migration,omitempty"`
+	Migrations      []MigrationInfo    `json:"migrations,omitempty"`
 	Warnings        []string           `json:"warnings,omitempty"`
 	Diagnostics     schema.Diagnostics `json:"diagnostics,omitempty"`
 	NextSteps       []string           `json:"nextSteps,omitempty"`
@@ -155,12 +158,14 @@ type planner struct {
 	model      *schema.Model
 	files      []FileChange
 	hasSQL     bool
+	databases  map[string]bool
+	modules    []gen.Module
 }
 
 func BuildPlan(ctx context.Context, opts Options) (*Plan, error) {
 	p := &planner{opts: opts, plan: &Plan{Starter: opts.Starter, Domains: []string{}, Files: []FileChange{}}}
 	steps := []func(context.Context) error{
-		p.locate, p.loadConfig, p.resolveGo, p.loadSpecs, p.planMigrations, p.generate, p.resolveServices, p.planGoMod, p.classify,
+		p.locate, p.loadConfig, p.resolveGo, p.loadSpecs, p.checkLayout, p.planMigrations, p.generate, p.resolveServices, p.planGoMod, p.classify,
 	}
 	for _, step := range steps {
 		if err := step(ctx); err != nil {
@@ -220,6 +225,7 @@ func (p *planner) locate(context.Context) error {
 	if !ok {
 		return newError(KindConfig, "no_module", fmt.Sprintf("no go.mod found in %s or its parents; create a project with codebuild build --starter --module <path>", abs))
 	}
+	root = workspaceRoot(root)
 	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return newError(KindConfig, "no_module", fmt.Sprintf("read %s: %v", filepath.Join(root, "go.mod"), err))
@@ -438,10 +444,11 @@ type migrationFiles struct {
 	down    []byte
 }
 
-func (p *planner) readMigrations(entries []fs.DirEntry) ([]*migrationFiles, int, error) {
+func (p *planner) readMigrations(dir string, entries []fs.DirEntry) ([]*migrationFiles, int, bool, error) {
 	byBase := map[string]*migrationFiles{}
 	byVersion := map[uint64][]string{}
 	width := 4
+	hasSQL := false
 	for _, entry := range entries {
 		m := migrationFile.FindStringSubmatch(entry.Name())
 		if entry.IsDir() || m == nil {
@@ -451,7 +458,7 @@ func (p *planner) readMigrations(entries []fs.DirEntry) ([]*migrationFiles, int,
 		if err != nil {
 			continue
 		}
-		p.hasSQL = true
+		hasSQL = true
 		width = max(width, len(m[1]))
 		base := m[1] + "_" + m[2]
 		mf, ok := byBase[base]
@@ -460,9 +467,9 @@ func (p *planner) readMigrations(entries []fs.DirEntry) ([]*migrationFiles, int,
 			byBase[base] = mf
 			byVersion[v] = append(byVersion[v], base)
 		}
-		data, err := os.ReadFile(filepath.Join(p.root, MigrationsDir, entry.Name()))
+		data, err := os.ReadFile(filepath.Join(p.root, filepath.FromSlash(dir), entry.Name()))
 		if err != nil {
-			return nil, 0, newError(KindInternal, "read_migrations", err.Error())
+			return nil, 0, false, newError(KindInternal, "read_migrations", err.Error())
 		}
 		if m[3] == "up" {
 			mf.up = normalize(data)
@@ -480,36 +487,48 @@ func (p *planner) readMigrations(entries []fs.DirEntry) ([]*migrationFiles, int,
 	}
 	if len(duplicates) > 0 {
 		slices.Sort(duplicates)
-		return nil, 0, newError(KindConfig, "migration_conflict", fmt.Sprintf(
+		return nil, 0, false, newError(KindConfig, "migration_conflict", fmt.Sprintf(
 			"%s: %s. Two branches probably generated a migration with the same number. Keep the migration that was already applied, "+
 				"delete the files of the other one (or renumber them if a database already ran them) and run codebuild build again, "+
-				"which regenerates the missing changes as the next migration.", MigrationsDir, strings.Join(duplicates, "; ")))
+				"which regenerates the missing changes as the next migration.", dir, strings.Join(duplicates, "; ")))
 	}
 	for _, mf := range byBase {
 		files = append(files, mf)
 	}
 	slices.SortFunc(files, func(a, b *migrationFiles) int { return cmp.Compare(a.version, b.version) })
-	return files, width, nil
+	return files, width, hasSQL, nil
 }
 
 func (p *planner) planMigrations(context.Context) error {
-	entries, err := os.ReadDir(filepath.Join(p.root, MigrationsDir))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return newError(KindInternal, "read_migrations", err.Error())
+	if p.model.Workspace() {
+		return p.planDatabases()
 	}
-	files, width, err := p.readMigrations(entries)
+	info, hasSQL, err := p.planDatabase(MigrationsDir, schema.Build(p.model))
 	if err != nil {
 		return err
 	}
+	p.plan.Migration, p.hasSQL = info, hasSQL
+	return nil
+}
+
+func (p *planner) planDatabase(dir string, next *schema.Database) (*MigrationInfo, bool, error) {
+	snapshotFile := path.Join(dir, SnapshotName)
+	entries, err := os.ReadDir(filepath.Join(p.root, filepath.FromSlash(dir)))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, false, newError(KindInternal, "read_migrations", err.Error())
+	}
+	files, width, hasSQL, err := p.readMigrations(dir, entries)
+	if err != nil {
+		return nil, false, err
+	}
 	var old *schema.Database
 	var known []string
-	snapshotPath := filepath.Join(p.root, filepath.FromSlash(SnapshotFile))
-	data, err := os.ReadFile(snapshotPath)
+	data, err := os.ReadFile(filepath.Join(p.root, filepath.FromSlash(snapshotFile)))
 	switch {
 	case err == nil:
 		snap, err := schema.UnmarshalSnapshot(data)
 		if err != nil {
-			return newError(KindConfig, "invalid_snapshot", fmt.Sprintf("%s: %v", SnapshotFile, err))
+			return nil, false, newError(KindConfig, "invalid_snapshot", fmt.Sprintf("%s: %v", snapshotFile, err))
 		}
 		old = snap.Database()
 		known = snap.Migrations
@@ -519,13 +538,13 @@ func (p *planner) planMigrations(context.Context) error {
 			}
 		}
 	case errors.Is(err, fs.ErrNotExist):
-		if p.hasSQL {
-			return newError(KindConfig, "snapshot_missing", fmt.Sprintf(
+		if hasSQL {
+			return nil, false, newError(KindConfig, "snapshot_missing", fmt.Sprintf(
 				"%s contains SQL migrations but %s is missing, so codebuild cannot tell which schema they produce. "+
-					"Restore the snapshot from version control, or delete the generated migrations to start from a new baseline.", MigrationsDir, SnapshotFile))
+					"Restore the snapshot from version control, or delete the generated migrations to start from a new baseline.", dir, snapshotFile))
 		}
 	default:
-		return newError(KindInternal, "read_snapshot", err.Error())
+		return nil, false, newError(KindInternal, "read_snapshot", err.Error())
 	}
 	var latestKnown, maxVersion uint64
 	for _, mf := range files {
@@ -546,13 +565,13 @@ func (p *planner) planMigrations(context.Context) error {
 		}
 	}
 	if len(merged) > 0 {
-		return newError(KindConfig, "migration_conflict", fmt.Sprintf(
+		return nil, false, newError(KindConfig, "migration_conflict", fmt.Sprintf(
 			"%s %s older than the newest migration recorded in %s but %s not part of it, so it probably came from another branch in a merge "+
 				"and a database that is already past it would never run it. If no database ran it yet, delete its .up.sql and .down.sql files and run codebuild build "+
 				"to regenerate its changes as the next migration; otherwise rename it to a number above %d.",
-			strings.Join(merged, ", "), plural(len(merged), "is", "are"), SnapshotFile, plural(len(merged), "is", "are"), latestKnown))
+			strings.Join(merged, ", "), plural(len(merged), "is", "are"), snapshotFile, plural(len(merged), "is", "are"), latestKnown))
 	}
-	next := schema.Build(p.model)
+	var info *MigrationInfo
 	diff := schema.Diff(old, next, schema.DiffOptions{RecreateDependents: p.dialect.RecreateDependents()})
 	if !diff.Empty() {
 		upSQL := []byte(p.dialect.Migration(diff.Changes, old, next))
@@ -560,35 +579,35 @@ func (p *planner) planMigrations(context.Context) error {
 		if n := len(unknown); n > 0 && bytes.Equal(unknown[n-1].up, upSQL) && bytes.Equal(unknown[n-1].down, downSQL) {
 			last := unknown[n-1]
 			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
-				"%s already contains these schema changes but %s does not record it, probably because an earlier build was interrupted; only the snapshot is updated", last.base, SnapshotFile))
+				"%s already contains these schema changes but %s does not record it, probably because an earlier build was interrupted; only the snapshot is updated", last.base, snapshotFile))
 		} else {
 			version := maxVersion + 1
 			base := fmt.Sprintf("%0*d_%s", width, version, schema.MigrationName(old, diff.Changes))
-			up := path.Join(MigrationsDir, base+".up.sql")
-			down := path.Join(MigrationsDir, base+".down.sql")
+			up := path.Join(dir, base+".up.sql")
+			down := path.Join(dir, base+".down.sql")
 			p.add(up, upSQL, OwnerMigration)
 			p.add(down, downSQL, OwnerMigration)
-			p.plan.Migration = &MigrationInfo{Version: version, Name: base, Up: up, Down: down}
+			info = &MigrationInfo{Version: version, Name: base, Up: up, Down: down}
 			p.plan.Warnings = append(p.plan.Warnings, diff.Warnings...)
 		}
 	}
 	for _, mf := range unknown {
 		known = append(known, mf.base)
 	}
-	if p.plan.Migration != nil {
-		known = append(known, p.plan.Migration.Name)
+	if info != nil {
+		known = append(known, info.Name)
 	}
-	if p.plan.PreviousDialect != "" && p.hasSQL {
+	if p.plan.PreviousDialect != "" && hasSQL {
 		p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
-			"existing migrations were written for %s and will not run on %s; new migrations use %s", p.plan.PreviousDialect, p.dialect.Name(), p.dialect.Name()))
+			"existing migrations in %s were written for %s and will not run on %s; new migrations use %s", dir, p.plan.PreviousDialect, p.dialect.Name(), p.dialect.Name()))
 	}
 	slices.Sort(known)
 	snapshot, err := schema.NewSnapshot(p.dialect.Name(), next, slices.Compact(known)).Marshal()
 	if err != nil {
-		return newError(KindInternal, "snapshot", err.Error())
+		return nil, false, newError(KindInternal, "snapshot", err.Error())
 	}
-	p.add(SnapshotFile, snapshot, OwnerState)
-	return nil
+	p.add(snapshotFile, snapshot, OwnerState)
+	return info, hasSQL, nil
 }
 
 func plural(n int, one, many string) string {
@@ -602,7 +621,25 @@ func (p *planner) add(filePath string, content []byte, owner Owner) {
 	p.files = append(p.files, FileChange{Path: filePath, Owner: owner, content: content})
 }
 
+func (p *planner) addGenerated(files []gen.File) {
+	for _, f := range files {
+		owner := OwnerUser
+		if f.Owner == gen.OwnerGenerated {
+			owner = OwnerGenerated
+		}
+		p.add(f.Path, f.Content, owner)
+		last := &p.files[len(p.files)-1]
+		last.domain, last.service, last.receiver, last.method = f.Domain, f.ServiceType, f.Receiver, f.ServiceMethod
+	}
+}
+
 func (p *planner) generate(context.Context) error {
+	if !p.cfgExisted || p.plan.PreviousDialect != "" {
+		p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)
+	}
+	if p.model.Workspace() {
+		return p.generateWorkspace()
+	}
 	files, err := gen.Generate(gen.Options{
 		Module:        p.plan.Module,
 		GoVersion:     p.plan.Target.GoVersion,
@@ -616,18 +653,7 @@ func (p *planner) generate(context.Context) error {
 	if err != nil {
 		return newError(KindInternal, "generate", err.Error())
 	}
-	for _, f := range files {
-		owner := OwnerUser
-		if f.Owner == gen.OwnerGenerated {
-			owner = OwnerGenerated
-		}
-		p.add(f.Path, f.Content, owner)
-		last := &p.files[len(p.files)-1]
-		last.domain, last.service, last.receiver, last.method = f.Domain, f.ServiceType, f.Receiver, f.ServiceMethod
-	}
-	if !p.cfgExisted || p.plan.PreviousDialect != "" {
-		p.add(ConfigFile, p.cfg.Marshal(), OwnerConfig)
-	}
+	p.addGenerated(files)
 	return nil
 }
 
@@ -642,6 +668,9 @@ func (p *planner) requiredModules() [][2]string {
 }
 
 func (p *planner) planGoMod(context.Context) error {
+	if p.model.Workspace() {
+		return p.planWorkspaceMods()
+	}
 	mods := p.requiredModules()
 	data := p.modData
 	if p.opts.Starter {
@@ -680,7 +709,8 @@ func (p *planner) planGoMod(context.Context) error {
 
 func hasHeader(content []byte) bool {
 	line, _, _ := bytes.Cut(content, []byte("\n"))
-	return string(bytes.TrimRight(line, "\r")) == gen.Header
+	first := string(bytes.TrimRight(line, "\r"))
+	return first == gen.Header || first == gen.YAMLHeader
 }
 
 func normalize(content []byte) []byte {
@@ -688,7 +718,12 @@ func normalize(content []byte) []byte {
 }
 
 func isGeneratedName(name string) bool {
-	return strings.HasSuffix(name, "_gen.go") || strings.HasSuffix(name, "_gen_test.go")
+	for _, suffix := range []string{"_gen.go", "_gen_test.go", ".pb.go", ".proto"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *planner) classify(context.Context) error {
@@ -713,7 +748,11 @@ func (p *planner) classify(context.Context) error {
 			f.Action, f.Reason = ActionConflict, "a migration with this name already exists"
 		case f.Owner == OwnerGenerated && !hasHeader(old):
 			f.Action = ActionConflict
-			f.Reason = "the \"" + gen.Header + "\" header was removed, so the file may contain manual changes; move them to a non-generated file such as service.go and delete this file, or restore the header"
+			header, move := gen.Header, "a non-generated file such as service.go"
+			if strings.HasSuffix(f.Path, ".yml") {
+				header, move = gen.YAMLHeader, "docker-compose.override.yml, which docker compose merges automatically,"
+			}
+			f.Reason = "the \"" + header + "\" header was removed, so the file may contain manual changes; move them to " + move + " and delete this file, or restore the header"
 		case bytes.Equal(f.old, f.content):
 			f.Action = ActionUnchanged
 		default:
@@ -723,7 +762,11 @@ func (p *planner) classify(context.Context) error {
 			f.Added, f.Removed = textdiff.Stats(string(f.old), string(f.content))
 		}
 	}
-	for _, dir := range []string{"internal", MigrationsDir} {
+	scan := []string{"internal", MigrationsDir}
+	if p.model.Workspace() {
+		scan = []string{"services", gen.GatewayDir, "databases", contract.ContractsDir}
+	}
+	for _, dir := range scan {
 		err := filepath.WalkDir(filepath.Join(p.root, dir), func(full string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
@@ -772,6 +815,10 @@ func (p *planner) nextSteps() {
 	changed := map[string]Action{}
 	for _, f := range p.plan.Files {
 		changed[f.Path] = f.Action
+	}
+	if p.model != nil && p.model.Workspace() {
+		p.plan.NextSteps = p.workspaceSteps(changed)
+		return
 	}
 	if a := changed["go.mod"]; a == ActionCreate || a == ActionUpdate {
 		steps = append(steps, "go mod tidy")

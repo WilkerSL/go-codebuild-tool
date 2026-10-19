@@ -15,12 +15,20 @@ import (
 
 type DomainInfo struct {
 	Domain   string `json:"domain"`
+	Service  string `json:"service,omitempty"`
 	Entity   string `json:"entity"`
 	Table    string `json:"table"`
 	File     string `json:"file"`
 	Path     string `json:"path"`
 	Routes   bool   `json:"routes"`
 	ReadOnly bool   `json:"readOnly"`
+}
+
+type ServiceInfo struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	File     string `json:"file"`
+	Database string `json:"database"`
 }
 
 type Info struct {
@@ -32,6 +40,7 @@ type Info struct {
 	Toolchain    string                 `json:"toolchain,omitempty"`
 	Status       goversion.Status       `json:"status"`
 	Capabilities goversion.Capabilities `json:"capabilities"`
+	Services     []ServiceInfo          `json:"services,omitempty"`
 	Domains      []DomainInfo           `json:"domains"`
 	Diagnostics  schema.Diagnostics     `json:"diagnostics,omitempty"`
 }
@@ -86,9 +95,17 @@ func Inspect(dir string) (*Info, error) {
 		Domains:      []DomainInfo{},
 		Diagnostics:  diags,
 	}
+	for _, s := range model.Services {
+		info.Services = append(info.Services, ServiceInfo{Name: s.Name, Type: s.TypeName, File: s.File, Database: s.DatabaseName()})
+	}
 	for _, e := range model.Entities {
+		service := ""
+		if e.Service != nil {
+			service = e.Service.Name
+		}
 		info.Domains = append(info.Domains, DomainInfo{
 			Domain:   e.Domain,
+			Service:  service,
 			Entity:   e.Name,
 			Table:    e.Table,
 			File:     e.File,

@@ -1,0 +1,38 @@
+name: contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "go.work"
+      - ".github/workflows/contracts.yml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "go.work"
+      - ".github/workflows/contracts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: contracts/go.mod
+          cache-dependency-path: contracts/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...

@@ -1,0 +1,423 @@
+{
+  "version": 1,
+  "messages": {
+    "billing.v1.Invoice": {
+      "fields": {
+        "created_at": 6,
+        "id": 1,
+        "notes": 5,
+        "number": 3,
+        "owner_id": 2,
+        "status": 4
+      }
+    },
+    "billing.v1.InvoiceCreateRequest": {
+      "fields": {
+        "notes": 3,
+        "number": 1,
+        "status": 2
+      }
+    },
+    "billing.v1.InvoiceDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceItem": {
+      "fields": {
+        "id": 1,
+        "invoice_id": 2,
+        "price": 5,
+        "product_id": 3,
+        "quantity": 4
+      }
+    },
+    "billing.v1.InvoiceItemCreateRequest": {
+      "fields": {
+        "invoice_id": 1,
+        "price": 4,
+        "product_id": 2,
+        "quantity": 3
+      }
+    },
+    "billing.v1.InvoiceItemDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceItemExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceItemGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "billing.v1.InvoiceItemListRequest": {
+      "fields": {
+        "invoice_id": 3,
+        "limit": 1,
+        "offset": 2,
+        "product_id": 4
+      }
+    },
+    "billing.v1.InvoiceItemPage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "billing.v1.InvoiceItemUpdateRequest": {
+      "fields": {
+        "id": 1,
+        "invoice_id": 2,
+        "price": 5,
+        "product_id": 3,
+        "quantity": 4
+      }
+    },
+    "billing.v1.InvoiceListRequest": {
+      "fields": {
+        "limit": 1,
+        "number": 3,
+        "offset": 2,
+        "status": 4
+      }
+    },
+    "billing.v1.InvoicePage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "billing.v1.InvoiceUpdateRequest": {
+      "fields": {
+        "id": 1,
+        "notes": 4,
+        "number": 2,
+        "status": 3
+      }
+    },
+    "billing.v1.ListInvoiceItemsRequest": {
+      "fields": {
+        "limit": 2,
+        "offset": 3,
+        "product_id": 4,
+        "source_id": 1
+      }
+    },
+    "catalog.v1.Category": {
+      "fields": {
+        "id": 1,
+        "name": 2
+      }
+    },
+    "catalog.v1.CategoryCreateRequest": {
+      "fields": {
+        "name": 1
+      }
+    },
+    "catalog.v1.CategoryDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.CategoryExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.CategoryGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.CategoryListRequest": {
+      "fields": {
+        "limit": 1,
+        "name": 3,
+        "offset": 2
+      }
+    },
+    "catalog.v1.CategoryPage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "catalog.v1.CategoryUpdateRequest": {
+      "fields": {
+        "id": 1,
+        "name": 2
+      }
+    },
+    "catalog.v1.ListCategoryProductsRequest": {
+      "fields": {
+        "limit": 2,
+        "offset": 3,
+        "source_id": 1
+      }
+    },
+    "catalog.v1.Product": {
+      "fields": {
+        "category_id": 2,
+        "id": 1,
+        "name": 3,
+        "price": 4
+      }
+    },
+    "catalog.v1.ProductCreateRequest": {
+      "fields": {
+        "category_id": 1,
+        "name": 2,
+        "price": 3
+      }
+    },
+    "catalog.v1.ProductDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.ProductExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.ProductGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "catalog.v1.ProductListRequest": {
+      "fields": {
+        "category_id": 3,
+        "limit": 1,
+        "offset": 2
+      }
+    },
+    "catalog.v1.ProductPage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "catalog.v1.ProductUpdateRequest": {
+      "fields": {
+        "category_id": 2,
+        "id": 1,
+        "name": 3,
+        "price": 4
+      }
+    },
+    "common.v1.ExistsResponse": {
+      "fields": {
+        "exists": 1
+      }
+    },
+    "common.v1.FieldViolation": {
+      "fields": {
+        "field": 1,
+        "message": 2
+      }
+    },
+    "common.v1.Problem": {
+      "fields": {
+        "errors": 2,
+        "status": 1
+      }
+    },
+    "identity.v1.APIKey": {
+      "fields": {
+        "created_at": 4,
+        "expires_at": 5,
+        "id": 1,
+        "name": 2,
+        "prefix": 3
+      }
+    },
+    "identity.v1.APIKeyCreateRequest": {
+      "fields": {
+        "expires_at": 2,
+        "name": 1
+      }
+    },
+    "identity.v1.APIKeyDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "identity.v1.APIKeyList": {
+      "fields": {
+        "items": 1
+      }
+    },
+    "identity.v1.AuthenticateRequest": {
+      "fields": {
+        "token": 1
+      }
+    },
+    "identity.v1.ChangePasswordRequest": {
+      "fields": {
+        "current_password": 1,
+        "new_password": 2
+      }
+    },
+    "identity.v1.CreatedAPIKey": {
+      "fields": {
+        "created_at": 4,
+        "expires_at": 5,
+        "id": 1,
+        "key": 6,
+        "name": 2,
+        "prefix": 3
+      }
+    },
+    "identity.v1.LoginRequest": {
+      "fields": {
+        "identity": 1,
+        "password": 2
+      }
+    },
+    "identity.v1.Principal": {
+      "fields": {
+        "credential_id": 4,
+        "id": 1,
+        "method": 3,
+        "role": 2
+      }
+    },
+    "identity.v1.Tokens": {
+      "fields": {
+        "access_token": 1,
+        "expires_at": 3,
+        "token_type": 2
+      }
+    },
+    "identity.v1.User": {
+      "fields": {
+        "created_at": 5,
+        "email": 2,
+        "id": 1,
+        "name": 3,
+        "role": 4,
+        "updated_at": 6
+      }
+    },
+    "identity.v1.UserCreateRequest": {
+      "fields": {
+        "email": 1,
+        "name": 2,
+        "password": 3,
+        "role": 4
+      }
+    },
+    "identity.v1.UserDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "identity.v1.UserExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "identity.v1.UserGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "identity.v1.UserListRequest": {
+      "fields": {
+        "email": 3,
+        "limit": 1,
+        "offset": 2
+      }
+    },
+    "identity.v1.UserPage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "identity.v1.UserUpdateRequest": {
+      "fields": {
+        "email": 2,
+        "id": 1,
+        "name": 3,
+        "role": 4
+      }
+    },
+    "inventory.v1.Stock": {
+      "fields": {
+        "id": 1,
+        "product_id": 2,
+        "quantity": 3
+      }
+    },
+    "inventory.v1.StockCreateRequest": {
+      "fields": {
+        "product_id": 1,
+        "quantity": 2
+      }
+    },
+    "inventory.v1.StockDeleteRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "inventory.v1.StockExistsRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "inventory.v1.StockGetRequest": {
+      "fields": {
+        "id": 1
+      }
+    },
+    "inventory.v1.StockListRequest": {
+      "fields": {
+        "limit": 1,
+        "offset": 2,
+        "product_id": 3
+      }
+    },
+    "inventory.v1.StockPage": {
+      "fields": {
+        "items": 1,
+        "limit": 2,
+        "offset": 3,
+        "total": 4
+      }
+    },
+    "inventory.v1.StockUpdateRequest": {
+      "fields": {
+        "id": 1,
+        "product_id": 2,
+        "quantity": 3
+      }
+    }
+  }
+}

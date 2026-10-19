@@ -1,0 +1,43 @@
+name: services/billing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/billing/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-billing.yml"
+  pull_request:
+    paths:
+      - "services/billing/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-billing.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: services/billing
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/billing/go.mod
+          cache-dependency-path: services/billing/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/billing/Dockerfile -t services-billing .

@@ -87,14 +87,14 @@ func receiverName(expr ast.Expr) string {
 
 func (p *planner) resolveServices(context.Context) error {
 	states := map[string]serviceState{}
-	state := func(domain string) serviceState {
-		st, ok := states[domain]
+	state := func(dir string) serviceState {
+		st, ok := states[dir]
 		if !ok {
-			st = readServiceState(filepath.Join(p.root, "internal", domain))
+			st = readServiceState(filepath.Join(p.root, filepath.FromSlash(dir)))
 			if st.err != nil {
-				p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("could not inspect internal/%s for Service methods (%v); no service scaffolds were planned for it", domain, st.err))
+				p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("could not inspect %s for Service methods (%v); no service scaffolds were planned for it", dir, st.err))
 			}
-			states[domain] = st
+			states[dir] = st
 		}
 		return st
 	}
@@ -104,7 +104,7 @@ func (p *planner) resolveServices(context.Context) error {
 			kept = append(kept, f)
 			continue
 		}
-		st := state(f.domain)
+		st := state(path.Dir(f.Path))
 		full := filepath.Join(p.root, filepath.FromSlash(f.Path))
 		switch {
 		case f.service != "":
@@ -115,7 +115,7 @@ func (p *planner) resolveServices(context.Context) error {
 			continue
 		case exists(full):
 			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
-				"%s in internal/%s lacks the method %s required by the generated handler, and %s already exists; add the method by hand", f.receiver, f.domain, f.method, path.Base(f.Path)))
+				"%s in %s lacks the method %s required by the generated handler, and %s already exists; add the method by hand", f.receiver, path.Dir(f.Path), f.method, path.Base(f.Path)))
 		default:
 			f.Reason = "adds " + f.receiver + "." + f.method + ", which the generated handler now requires"
 		}

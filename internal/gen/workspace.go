@@ -145,6 +145,11 @@ func GenerateWorkspace(opts WorkspaceOptions) (*Workspace, error) {
 		gateway.Requires = append(gateway.Requires, [2]string{googleUUID, googleUUIDVersion})
 	}
 	ws.Modules = append(ws.Modules, gateway)
+	infra, err := generateInfra(opts, wv)
+	if err != nil {
+		return nil, err
+	}
+	ws.Files = append(ws.Files, infra...)
 	if wv.Shared {
 		files, err := generateShared(opts, wv)
 		if err != nil {

@@ -136,6 +136,9 @@ func (a *App) printPlan(p *project.Plan, dryRun bool) {
 	if p.Migration != nil {
 		fmt.Fprintf(w, "migration: %s\n", p.Migration.Name)
 	}
+	for _, m := range p.Migrations {
+		fmt.Fprintf(w, "migration: %s (%s database)\n", m.Name, m.Database)
+	}
 	a.printNotes(p.Warnings, p.Diagnostics)
 	if len(p.NextSteps) > 0 && !dryRun {
 		fmt.Fprintln(w, "\nnext steps:")

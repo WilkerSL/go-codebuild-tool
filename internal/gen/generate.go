@@ -238,6 +238,10 @@ func (g *generator) userFile(filePath, tmpl string, data any) {
 	g.add(filePath, tmpl, data, OwnerUser, false)
 }
 
+func (g *generator) generatedFile(filePath, tmpl string, data any) {
+	g.add(filePath, tmpl, data, OwnerGenerated, false)
+}
+
 func noun(name string) string {
 	return strings.ReplaceAll(naming.Snake(name), "_", " ")
 }

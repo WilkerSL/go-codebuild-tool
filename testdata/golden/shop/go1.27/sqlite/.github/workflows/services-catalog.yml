@@ -1,0 +1,45 @@
+name: services/catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/catalog/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-catalog.yml"
+  pull_request:
+    paths:
+      - "services/catalog/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-catalog.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: services/catalog
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/catalog/go.mod
+          cache-dependency-path: services/catalog/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/catalog/Dockerfile -t services-catalog .

@@ -1,0 +1,8 @@
+.git
+.github
+.env
+certs
+bin
+**/*.db
+**/*.db-shm
+**/*.db-wal

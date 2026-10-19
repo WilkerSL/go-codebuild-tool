@@ -1,0 +1,61 @@
+name: services/catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/catalog/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-catalog.yml"
+  pull_request:
+    paths:
+      - "services/catalog/**"
+      - "go.work"
+      - "contracts/**"
+      - "databases/shared/**"
+      - ".github/workflows/services-catalog.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: app
+          MYSQL_USER: app
+          MYSQL_PASSWORD: app
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      GOWORK: "off"
+      TEST_DATABASE_URL: app:app@tcp(localhost:3306)/app
+    defaults:
+      run:
+        working-directory: services/catalog
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/catalog/go.mod
+          cache-dependency-path: services/catalog/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/catalog/Dockerfile -t services-catalog .

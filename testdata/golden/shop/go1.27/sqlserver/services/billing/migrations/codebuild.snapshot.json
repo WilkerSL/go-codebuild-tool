@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "dialect": "sqlserver",
+  "migrations": [
+    "0001_init"
+  ],
+  "tables": [
+    {
+      "name": "invoice_items",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "invoice_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "product_id",
+          "kind": "int64"
+        },
+        {
+          "name": "quantity",
+          "kind": "int32",
+          "default": {
+            "kind": "literal",
+            "value": "1"
+          }
+        },
+        {
+          "name": "price",
+          "kind": "float64"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_invoice_items",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_invoice_items_invoice_id",
+          "columns": [
+            "invoice_id"
+          ]
+        },
+        {
+          "name": "ix_invoice_items_product_id",
+          "columns": [
+            "product_id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_invoice_items_invoice_id",
+          "columns": [
+            "invoice_id"
+          ],
+          "refTable": "invoices",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
+      "name": "invoices",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "uuid"
+        },
+        {
+          "name": "owner_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "number",
+          "kind": "string",
+          "size": 32
+        },
+        {
+          "name": "status",
+          "kind": "string",
+          "size": 32,
+          "default": {
+            "kind": "literal",
+            "value": "draft"
+          }
+        },
+        {
+          "name": "notes",
+          "kind": "string",
+          "size": 500,
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time",
+          "default": {
+            "kind": "now"
+          }
+        },
+        {
+          "name": "deleted_at",
+          "kind": "time",
+          "nullable": true
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_invoices",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_invoices_owner_id",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "ix_invoices_status",
+          "columns": [
+            "status"
+          ]
+        },
+        {
+          "name": "ux_invoices_number",
+          "columns": [
+            "number"
+          ],
+          "unique": true,
+          "notDeleted": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "ck_invoices_status",
+          "column": "status",
+          "values": [
+            "draft",
+            "issued",
+            "paid"
+          ]
+        }
+      ]
+    }
+  ]
+}

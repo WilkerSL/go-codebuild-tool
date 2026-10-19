@@ -1,0 +1,53 @@
+name: {{.Dir}}
+
+on:
+  push:
+    branches: [main]
+    paths:
+{{- range .Paths}}
+      - "{{.}}"
+{{- end}}
+  pull_request:
+    paths:
+{{- range .Paths}}
+      - "{{.}}"
+{{- end}}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+{{- if and .TestDB .CI.Services}}
+    services:
+{{.CI.Services}}
+{{- end}}
+    env:
+      GOWORK: "off"
+{{- if and .TestDB .CI.TestDatabaseURL}}
+      TEST_DATABASE_URL: {{.CI.TestDatabaseURL}}
+{{- end}}
+    defaults:
+      run:
+        working-directory: {{.Dir}}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: {{.Dir}}/go.mod
+          cache-dependency-path: {{.Dir}}/go.sum
+{{- if and .TestDB .CI.Setup}}
+{{.CI.Setup}}
+{{- end}}
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+{{- if .Binaries}}
+      - name: Container image
+        working-directory: .
+        run: docker build -f {{.Dir}}/Dockerfile -t {{.Slug}} .
+{{- end}}

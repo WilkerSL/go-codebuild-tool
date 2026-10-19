@@ -1,0 +1,43 @@
+name: services/identity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/identity/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-identity.yml"
+  pull_request:
+    paths:
+      - "services/identity/**"
+      - "go.work"
+      - "contracts/**"
+      - ".github/workflows/services-identity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: services/identity
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: services/identity/go.mod
+          cache-dependency-path: services/identity/go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Container image
+        working-directory: .
+        run: docker build -f services/identity/Dockerfile -t services-identity .

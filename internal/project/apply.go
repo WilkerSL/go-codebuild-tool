@@ -64,7 +64,7 @@ func Apply(p *Plan) (*ApplyResult, error) {
 		changes = append(changes, f)
 	}
 	slices.SortStableFunc(changes, func(a, b FileChange) int {
-		return boolOrder(a.Path == SnapshotFile) - boolOrder(b.Path == SnapshotFile)
+		return boolOrder(a.Owner == OwnerState) - boolOrder(b.Owner == OwnerState)
 	})
 	var staged []stagedFile
 	discard := func() {

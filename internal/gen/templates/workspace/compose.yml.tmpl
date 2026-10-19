@@ -1,0 +1,145 @@
+{{.YAMLHeader}}
+
+name: {{.Project}}
+
+services:
+  certs:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    image: {{.Project}}-gateway
+    entrypoint: ["/app/devcerts", "-out", "/certs", "-hosts", "localhost,127.0.0.1"]
+    volumes:
+      - certs:/certs
+{{- if .SQLServer}}
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: {{.SQLServerPassword}}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {{.SQLServerPassword}} -C -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    entrypoint:
+      - /opt/mssql-tools18/bin/sqlcmd
+      - -S
+      - sqlserver
+      - -U
+      - sa
+      - -P
+      - {{.SQLServerPassword}}
+      - -C
+      - -Q
+      - "{{range .Databases}}IF DB_ID('{{.Name}}') IS NULL CREATE DATABASE [{{.Name}}]; {{end}}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+{{- else if eq .Dialect.Name "postgres"}}
+{{- range .Databases}}
+
+  {{.Host}}:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: {{.Name}}
+    volumes:
+      - {{.Volume}}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d {{.Name}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+{{- end}}
+{{- else if eq .Dialect.Name "mysql"}}
+{{- range .Databases}}
+
+  {{.Host}}:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: {{.Name}}
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app
+    volumes:
+      - {{.Volume}}:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+{{- end}}
+{{- end}}
+{{- range .Jobs}}
+
+  {{.Name}}:
+    build:
+      context: .
+      dockerfile: {{.Dir}}/Dockerfile
+    image: {{.Image}}
+    entrypoint: ["/app/migrate", "up"]
+    environment:
+{{- range .Env}}
+      {{index . 0}}: "{{index . 1}}"
+{{- end}}
+{{- if .Data}}
+    volumes:
+      - {{.Database.Volume}}:/data
+{{- end}}
+{{- if .DependsOn}}
+    depends_on:
+{{- range .DependsOn}}
+      {{index . 0}}:
+        condition: {{index . 1}}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- range .Modules}}
+
+  {{.Name}}:
+    build:
+      context: .
+      dockerfile: {{.Dir}}/Dockerfile
+    image: {{.Image}}
+{{- if .Expose}}
+    ports:
+      - "{{.Expose}}"
+{{- end}}
+    environment:
+{{- range .Env}}
+      {{index . 0}}: "{{index . 1}}"
+{{- end}}
+    volumes:
+      - certs:/certs:ro
+{{- if and .Data .Database}}
+      - {{.Database.Volume}}:/data
+{{- end}}
+    healthcheck:
+      test: ["CMD", "{{.Health}}", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+{{- range .DependsOn}}
+      {{index . 0}}:
+        condition: {{index . 1}}
+{{- end}}
+{{- end}}
+
+volumes:
+  certs:
+{{- if .SQLServer}}
+  sqlserver-data:
+{{- else}}
+{{- range .Databases}}
+  {{.Volume}}:
+{{- end}}
+{{- end}}
