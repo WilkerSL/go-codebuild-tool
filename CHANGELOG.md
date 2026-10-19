@@ -15,7 +15,7 @@ All notable changes to this project are documented in this file. The format foll
 - Generated projects with three layers per domain: generated handlers, user-owned services with explicit methods, and generated repositories that accept a transaction through `WithTx`. When a spec change needs a new service method, codebuild writes it in a new `service_<method>.go` file instead of editing existing services.
 - `net/http` handlers with RFC 9457 problem details, validation without reflection, pagination and filters, soft delete, has-many and many-to-many routes, request IDs propagated to logs, `/livez` and `/readyz` probes, graceful shutdown with a drain delay and environment configuration.
 - `database.DBTX`, `database.InTx` and an embedded migrator compatible with the golang-migrate table layout.
-- A multi-stage distroless `Dockerfile`, `.dockerignore` and a GitHub Actions workflow with a database service container in every starter project, plus `AGENTS.md`.
+- A multi-stage distroless `Dockerfile`, `.dockerignore`, a GitHub Actions workflow with a database service container and a `.gitattributes` that keeps LF line endings in every starter project, plus `AGENTS.md`.
 - Generated validation, repository and transaction tests.
 - File ownership rules: regenerated `*_gen.go` files, user files created once, refusal to overwrite generated files whose header was removed, stale file detection and `--prune`.
 - CLI commands `build`, `check`, `plan`, `mcp` and `version` with `--json`, `--upgrade-go` and documented exit codes.

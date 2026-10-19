@@ -383,6 +383,9 @@ func TestEmptyStarter(t *testing.T) {
 	if strings.Contains(readTestFile(t, filepath.Join(dir, "migrations", "embed_gen.go")), "//go:embed") {
 		t.Fatal("embed directive without migrations does not compile")
 	}
+	if readTestFile(t, filepath.Join(dir, ".gitattributes")) != "* text=auto eol=lf\n" {
+		t.Fatal("missing .gitattributes")
+	}
 }
 
 func TestInvalidSpecIsReported(t *testing.T) {

@@ -10,7 +10,7 @@ codebuild decides what it may write by who owns each file. `codebuild plan` show
 | `cmd/api/main.go`, `cmd/migrate/main.go` | you | Created once. |
 | `internal/platform/config/config.go` | you | Created once. |
 | `internal/platform/database/database.go` | you | Created once; it calls the generated `Connect`. |
-| `AGENTS.md`, `.gitignore`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml` | you | Created once. |
+| `AGENTS.md`, `.gitignore`, `.gitattributes`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml` | you | Created once. `.gitattributes` keeps LF line endings even when Git converts them on Windows. |
 | `specs/*.go` | you | Never written by codebuild. |
 | `migrations/NNNN_<name>.up.sql`, `.down.sql` | you after creation | Created once when the schema changes; existing migrations are never modified. |
 | `migrations/codebuild.snapshot.json` | codebuild | The schema produced by all generated migrations. Commit it. |

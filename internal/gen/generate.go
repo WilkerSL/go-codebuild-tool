@@ -143,6 +143,7 @@ func Generate(opts Options) ([]File, error) {
 	g.userGoFile("cmd/migrate/main.go", "project/migrate.go.tmpl", pv)
 	g.userFile("AGENTS.md", "project/agents.md.tmpl", pv)
 	g.userFile(".gitignore", "project/gitignore.tmpl", pv)
+	g.userFile(".gitattributes", "project/gitattributes.tmpl", pv)
 	g.userFile(".dockerignore", "project/dockerignore.tmpl", pv)
 	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
 	g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
