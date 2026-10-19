@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -142,6 +143,34 @@ func workspaceEndToEnd(t *testing.T, bin, dialect string) {
 	if resp, _ := c.as("ses_unknown").send(http.MethodGet, "/auth/me", nil, nil); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("/auth/me with the identity service down = %d, want 503", resp.StatusCode)
 	}
+	if os.Getenv("CODEBUILD_E2E_DOCKER") == "1" {
+		gateway.stop()
+		for _, p := range running {
+			p.stop()
+		}
+		composeCheck(t, dir)
+	}
+}
+
+func composeCheck(t *testing.T, dir string) {
+	project := []string{"compose", "--project-name", "codebuild-e2e-shop"}
+	compose := func(args ...string) string {
+		t.Helper()
+		return command(t, dir, nil, "docker", append(slices.Clone(project), args...)...)
+	}
+	t.Cleanup(func() {
+		run(dir, nil, "", "docker", append(slices.Clone(project), "down", "--volumes", "--rmi", "all")...)
+	})
+	compose("config", "--quiet")
+	compose("up", "--detach", "--build")
+	c := client{t: t, base: "http://localhost:8080"}
+	waitReady(t, c.base, func() string {
+		out, _ := run(dir, nil, "", "docker", append(slices.Clone(project), "logs")...)
+		return out
+	})
+	shopSmoke(t, c, func(email string) {
+		compose("exec", "-T", "identity", "/app/accounts", "set-role", email, "admin")
+	})
 }
 
 func fieldErrors(out map[string]any) []string {

@@ -104,6 +104,8 @@ jobs:
         run: docker exec ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Codebuild_Passw0rd -C -Q "CREATE DATABASE codebuild"
       - name: Generate, build, test and exercise every project and dialect against real databases
         run: go test -count=1 -timeout 60m -run TestEndToEnd -v ./cmd/codebuild
+      - name: Generate, build, test and run a microservice workspace
+        run: go test -count=1 -timeout 60m -run TestWorkspaceEndToEnd -v ./cmd/codebuild
 
   build:
     needs: test
