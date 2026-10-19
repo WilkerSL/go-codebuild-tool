@@ -18,6 +18,7 @@ CREATE TABLE "orgs" (
     "slug" VARCHAR(64) NOT NULL,
     "plan" VARCHAR(32) NOT NULL DEFAULT 'free',
     "active" BOOLEAN NOT NULL DEFAULT TRUE,
+    "locale" TEXT NOT NULL DEFAULT 'en-US',
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "deleted_at" TIMESTAMPTZ,

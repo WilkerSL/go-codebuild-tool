@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/WilkerSL/go-codebuild-tool/internal/dialect"
 	"github.com/WilkerSL/go-codebuild-tool/internal/goversion"
@@ -425,13 +426,13 @@ func TestEmptyStarter(t *testing.T) {
 
 func TestInvalidSpecIsReported(t *testing.T) {
 	dir := starter(t, "1.27.0", "postgres")
-	writeTestFile(t, filepath.Join(dir, "specs", "broken.go"), "//go:build spec\n\npackage specs\n\ntype Broken struct {\n\tID int64 `gen:\"pk,auot\"`\n}\n")
+	writeTestFile(t, filepath.Join(dir, "specs", "broken.go"), "//go:build ignore\n\npackage specs\n\ntype Broken struct {\n\tID int64 `gen:\"pk,auot\"`\n}\n")
 	_, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
 	var perr *Error
 	if !errors.As(err, &perr) || perr.Kind != KindInvalidSpec || len(perr.Diagnostics) == 0 || perr.Diagnostics[0].Suggestion != "auto" {
 		t.Fatalf("error = %v", err)
 	}
-	diags, err := ValidateSpec(dir, "broken.go", []byte("//go:build spec\n\npackage specs\n\ntype Broken struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"))
+	diags, err := ValidateSpec(dir, "broken.go", []byte("//go:build ignore\n\npackage specs\n\ntype Broken struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"))
 	if err != nil || diags.HasErrors() {
 		t.Fatalf("ValidateSpec = %v %v", diags, err)
 	}
@@ -494,7 +495,7 @@ func TestServiceMethodScaffolds(t *testing.T) {
 		t.Fatalf("plan after moving Service: %v %+v", err, again.Files)
 	}
 
-	writeTestFile(t, filepath.Join(dir, "specs", "badges.go"), "//go:build spec\n\npackage specs\n\ntype Badge struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tUsers []User `gen:\"rel=many_to_many:User,via=user_badges\"`\n}\n")
+	writeTestFile(t, filepath.Join(dir, "specs", "badges.go"), "//go:build ignore\n\npackage specs\n\ntype Badge struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tUsers []User `gen:\"rel=many_to_many:User,via=user_badges\"`\n}\n")
 	plan = build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
 	for _, name := range []string{"service_list_badge_users.go", "service_link_badge_users.go", "service_unlink_badge_users.go"} {
 		if !exists(filepath.Join(dir, "internal", "users", name)) {
@@ -540,5 +541,155 @@ func TestAuthServiceScaffolds(t *testing.T) {
 	}
 	if !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "ignores the error returned by app.RegisterRoutes") }) {
 		t.Fatalf("warnings = %v", plan.Warnings)
+	}
+}
+
+func addPhone(t *testing.T, dir, column string) {
+	t.Helper()
+	usersSpec := filepath.Join(dir, "specs", "users.go")
+	writeTestFile(t, usersSpec, strings.Replace(readTestFile(t, usersSpec), "\tBio       *string   `gen:\"max=500\"`\n",
+		"\tBio       *string   `gen:\"max=500\"`\n\t"+column+" *string `gen:\"max=20\"`\n", 1))
+}
+
+func planError(t *testing.T, dir string) *Error {
+	t.Helper()
+	_, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	var perr *Error
+	if !errors.As(err, &perr) {
+		t.Fatalf("error = %v", err)
+	}
+	return perr
+}
+
+func TestDuplicateMigrationVersions(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	addPhone(t, dir, "Phone")
+	build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	migrations := filepath.Join(dir, "migrations")
+	writeTestFile(t, filepath.Join(migrations, "0002_alter_orgs.up.sql"), "SELECT 1;\n")
+	writeTestFile(t, filepath.Join(migrations, "0002_alter_orgs.down.sql"), "SELECT 1;\n")
+	if perr := planError(t, dir); perr.Code != "migration_conflict" || !strings.Contains(perr.Message, "0002_alter_orgs and 0002_alter_users share version 2") {
+		t.Fatalf("error = %+v", perr)
+	}
+}
+
+func TestMergedOlderMigration(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	addPhone(t, dir, "Phone")
+	build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	addPhone(t, dir, "Fax")
+	build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	migrations := filepath.Join(dir, "migrations")
+	for _, ext := range []string{".up.sql", ".down.sql"} {
+		if err := os.Rename(filepath.Join(migrations, "0002_alter_users"+ext), filepath.Join(migrations, "0002_alter_users_phone"+ext)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if perr := planError(t, dir); perr.Code != "migration_conflict" || !strings.Contains(perr.Message, "0002_alter_users_phone is older than the newest migration") {
+		t.Fatalf("error = %+v", perr)
+	}
+}
+
+func TestInterruptedBuildReusesMigration(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	snapshot := filepath.Join(dir, filepath.FromSlash(SnapshotFile))
+	before := readTestFile(t, snapshot)
+	addPhone(t, dir, "Phone")
+	build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	writeTestFile(t, snapshot, before)
+	plan := build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if plan.Migration != nil || !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "earlier build was interrupted") }) {
+		t.Fatalf("migration = %+v, warnings = %v", plan.Migration, plan.Warnings)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "migrations", "0003_alter_users.up.sql")); err == nil {
+		t.Fatal("the interrupted migration was generated twice")
+	}
+	if snap := readTestFile(t, snapshot); !strings.Contains(snap, `"0002_alter_users"`) || !strings.Contains(snap, `"phone"`) {
+		t.Fatalf("snapshot was not repaired:\n%s", snap)
+	}
+}
+
+func TestHandWrittenMigrationIsRecorded(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	migrations := filepath.Join(dir, "migrations")
+	writeTestFile(t, filepath.Join(migrations, "0002_seed.up.sql"), "INSERT INTO countries (code, name) VALUES ('BR', 'Brazil');\n")
+	writeTestFile(t, filepath.Join(migrations, "0002_seed.down.sql"), "DELETE FROM countries WHERE code = 'BR';\n")
+	build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	addPhone(t, dir, "Phone")
+	plan := build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if plan.Migration == nil || plan.Migration.Name != "0003_alter_users" {
+		t.Fatalf("migration = %+v", plan.Migration)
+	}
+	if snap := readTestFile(t, filepath.Join(dir, filepath.FromSlash(SnapshotFile))); !strings.Contains(snap, `"0002_seed"`) {
+		t.Fatalf("the hand-written migration is not recorded:\n%s", snap)
+	}
+}
+
+func TestApplyHoldsAProjectLock(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	addPhone(t, dir, "Phone")
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := filepath.Join(dir, LockFile)
+	writeTestFile(t, lock, "4242\n")
+	_, err = Apply(plan)
+	var perr *Error
+	if !errors.As(err, &perr) || perr.Code != "locked" || !strings.Contains(perr.Message, "4242") {
+		t.Fatalf("error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "migrations", "0002_alter_users.up.sql")); err == nil {
+		t.Fatal("files were written while another build held the lock")
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(lock, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(plan); err != nil {
+		t.Fatalf("a stale lock blocked the build: %v", err)
+	}
+	if _, err := os.Stat(lock); err == nil {
+		t.Fatal("the lock was not released")
+	}
+}
+
+func TestApplyRejectsAnOutdatedPlan(t *testing.T) {
+	dir := starter(t, "1.27.0", "postgres")
+	addPhone(t, dir, "Phone")
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, "migrations", "0002_alter_users.up.sql"), "SELECT 1;\n")
+	_, err = Apply(plan)
+	var perr *Error
+	if !errors.As(err, &perr) || perr.Code != "plan_outdated" {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(readTestFile(t, filepath.Join(dir, "internal", "users", "model_gen.go")), "Phone") {
+		t.Fatal("generated files were written although the plan was outdated")
+	}
+	entries, _ := os.ReadDir(filepath.Join(dir, "internal", "users"))
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".codebuild-") {
+			t.Fatalf("temporary file %s was left behind", e.Name())
+		}
+	}
+}
+
+func TestNearestModuleWinsOverParentConfig(t *testing.T) {
+	parent := t.TempDir()
+	writeTestFile(t, filepath.Join(parent, ConfigFile), string(DefaultConfig("mysql").Marshal()))
+	writeTestFile(t, filepath.Join(parent, "go.mod"), "module example.com/parent\n\ngo 1.27.0\n")
+	child := filepath.Join(parent, "services", "api")
+	copySpecs(t, child)
+	writeTestFile(t, filepath.Join(child, "go.mod"), "module example.com/api\n\ngo 1.27.0\n")
+	plan, err := BuildPlan(context.Background(), Options{Dir: filepath.Join(child, "specs"), Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Root != child || plan.Module != "example.com/api" || plan.Dialect != dialect.Default {
+		t.Fatalf("root %s, module %s, dialect %s", plan.Root, plan.Module, plan.Dialect)
 	}
 }

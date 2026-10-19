@@ -5,6 +5,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -22,6 +23,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -38,13 +40,14 @@ WHERE "deleted_at" IS NULL
     AND ($1::text IS NULL OR "slug" = $1)
     AND ($2::text IS NULL OR "plan" = $2);
 
--- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active)
+-- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active) input(Locale)
 INSERT INTO "orgs" (
     "id",
     "name",
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 ) VALUES (
@@ -53,6 +56,7 @@ INSERT INTO "orgs" (
     $3,
     $4,
     $5,
+    $6,
     now(),
     now()
 )
@@ -62,24 +66,27 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at";
 
--- update args: input(Name) input(Slug) input(Plan) input(Active) id(ID)
+-- update args: input(Name) input(Slug) input(Plan) input(Active) input(Locale) id(ID)
 UPDATE "orgs"
 SET
     "name" = $1,
     "slug" = $2,
     "plan" = $3,
     "active" = $4,
+    "locale" = $5,
     "updated_at" = now()
-WHERE "id" = $5 AND "deleted_at" IS NULL
+WHERE "id" = $6 AND "deleted_at" IS NULL
 RETURNING
     "id",
     "name",
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at";
 

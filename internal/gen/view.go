@@ -212,6 +212,7 @@ type domainView struct {
 	UpdateArgs       string
 	DeleteArgs       string
 	ConstraintCases  []constraintCase
+	NotNullCases     []constraintCase
 	FKFallback       string
 	Relations        []*relationView
 	HasManyRelations []*relationView
@@ -284,6 +285,8 @@ func argExpr(f *schema.Field, expr string) string {
 		return "database.NullTimeArg(" + expr + ")"
 	case f.Kind == schema.KindTime:
 		return "database.TimeArg(" + expr + ")"
+	case f.Kind == schema.KindBytes && !f.Nullable:
+		return "database.BytesArg(" + expr + ")"
 	}
 	return expr
 }
@@ -395,6 +398,8 @@ func convertBlock(f *schema.Field) string {
 			w("%s = %s\n", in, req)
 		case f.HasDefault:
 			w("%s = %s\nif %s != nil {\n%s = *%s\n}\n", in, defaultLiteral(f), req, in, req)
+		case f.Kind == schema.KindBytes:
+			w("%s = []byte{}\nif %s != nil {\n%s = *%s\n}\n", in, req, in, req)
 		default:
 			w("if %s != nil {\n%s = *%s\n}\n", req, in, req)
 		}

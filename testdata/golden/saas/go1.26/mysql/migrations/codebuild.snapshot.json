@@ -1,6 +1,9 @@
 {
   "version": 1,
   "dialect": "mysql",
+  "migrations": [
+    "0001_init"
+  ],
   "tables": [
     {
       "name": "audit_log",
@@ -102,6 +105,14 @@
           "default": {
             "kind": "literal",
             "value": "true"
+          }
+        },
+        {
+          "name": "locale",
+          "kind": "string",
+          "default": {
+            "kind": "literal",
+            "value": "en-US"
           }
         },
         {

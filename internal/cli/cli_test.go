@@ -131,7 +131,7 @@ func TestStarterBuildPlanAndCheck(t *testing.T) {
 func TestInvalidSpecExitCode(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "specs"), 0o755)
-	os.WriteFile(filepath.Join(dir, "specs", "items.go"), []byte("//go:build spec\n\npackage specs\n\ntype Item struct {\n\tID int64 `gen:\"pk,auto,uniqe\"`\n}\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "specs", "items.go"), []byte("//go:build ignore\n\npackage specs\n\ntype Item struct {\n\tID int64 `gen:\"pk,auto,uniqe\"`\n}\n"), 0o644)
 	r := run(t, "", false, "go1.27.0", "build", "--starter", "--module", "example.com/x", "--dir", dir)
 	if r.code != ExitInvalidSpec || !strings.Contains(r.stderr, `did you mean "unique"?`) {
 		t.Fatalf("invalid spec: %+v", r)

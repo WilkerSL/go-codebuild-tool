@@ -67,7 +67,7 @@ func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 
 func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error) {
 	id := uuid.NewV7()
-	item, err := scanProject(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt)).Scan)
+	item, err := scanProject(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)).Scan)
 	if err != nil {
 		return Project{}, writeError("create project", err)
 	}
@@ -75,7 +75,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Project, error) {
-	item, err := scanProject(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, in.Logo, database.NullTimeArg(in.DueAt), database.UUIDArg(id)).Scan)
+	item, err := scanProject(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, database.ErrNotFound
 	}
@@ -152,6 +152,12 @@ func writeError(op string, err error) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	field := constraintField(ce)
+	if ce.Kind == database.NotNullViolation {
+		if field == "" {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+		return validation.Errors{{Field: field, Message: "is required"}}
+	}
 	if ce.Kind == database.ForeignKeyViolation {
 		return validation.Errors{{Field: field, Message: "references a record that does not exist"}}
 	}
@@ -161,6 +167,8 @@ func writeError(op string, err error) error {
 
 func constraintField(ce *database.ConstraintError) string {
 	switch {
+	case ce.Kind == database.NotNullViolation:
+		return notNullField(ce)
 	case ce.PrimaryKey:
 		return "id"
 	case ce.Matches("pk_projects", "id"):
@@ -169,6 +177,24 @@ func constraintField(ce *database.ConstraintError) string {
 		return "orgId"
 	case ce.Matches("fk_projects_owner_id", "owner_id"):
 		return "ownerId"
+	}
+	return ""
+}
+
+func notNullField(ce *database.ConstraintError) string {
+	switch {
+	case ce.HasColumn("org_id"):
+		return "orgId"
+	case ce.HasColumn("name"):
+		return "name"
+	case ce.HasColumn("budget"):
+		return "budget"
+	case ce.HasColumn("priority"):
+		return "priority"
+	case ce.HasColumn("archived"):
+		return "archived"
+	case ce.HasColumn("logo"):
+		return "logo"
 	}
 	return ""
 }

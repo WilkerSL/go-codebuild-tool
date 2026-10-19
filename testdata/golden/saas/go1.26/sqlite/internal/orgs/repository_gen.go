@@ -34,6 +34,7 @@ func scanOrg(scan func(dest ...any) error) (Org, error) {
 		&item.Slug,
 		&item.Plan,
 		&item.Active,
+		&item.Locale,
 		database.ScanTime(&item.CreatedAt),
 		database.ScanTime(&item.UpdatedAt),
 	)
@@ -68,7 +69,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Org, error) {
 	if err != nil {
 		return Org{}, fmt.Errorf("create org: %w", err)
 	}
-	item, err := scanOrg(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Slug, in.Plan, in.Active).Scan)
+	item, err := scanOrg(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), in.Name, in.Slug, in.Plan, in.Active, in.Locale).Scan)
 	if err != nil {
 		return Org{}, writeError("create org", err)
 	}
@@ -76,7 +77,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Org, error) {
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (Org, error) {
-	item, err := scanOrg(r.db.QueryRowContext(ctx, updateQuery, in.Name, in.Slug, in.Plan, in.Active, database.UUIDArg(id)).Scan)
+	item, err := scanOrg(r.db.QueryRowContext(ctx, updateQuery, in.Name, in.Slug, in.Plan, in.Active, in.Locale, database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Org{}, database.ErrNotFound
 	}
@@ -146,6 +147,12 @@ func writeError(op string, err error) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	field := constraintField(ce)
+	if ce.Kind == database.NotNullViolation {
+		if field == "" {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+		return validation.Errors{{Field: field, Message: "is required"}}
+	}
 	if ce.Kind == database.ForeignKeyViolation {
 		return validation.Errors{{Field: field, Message: "references a record that does not exist"}}
 	}
@@ -155,12 +162,30 @@ func writeError(op string, err error) error {
 
 func constraintField(ce *database.ConstraintError) string {
 	switch {
+	case ce.Kind == database.NotNullViolation:
+		return notNullField(ce)
 	case ce.PrimaryKey:
 		return "id"
 	case ce.Matches("pk_orgs", "id"):
 		return "id"
 	case ce.Matches("ux_orgs_slug", "slug"):
 		return "slug"
+	}
+	return ""
+}
+
+func notNullField(ce *database.ConstraintError) string {
+	switch {
+	case ce.HasColumn("name"):
+		return "name"
+	case ce.HasColumn("slug"):
+		return "slug"
+	case ce.HasColumn("plan"):
+		return "plan"
+	case ce.HasColumn("active"):
+		return "active"
+	case ce.HasColumn("locale"):
+		return "locale"
 	}
 	return ""
 }

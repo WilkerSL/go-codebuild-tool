@@ -1,4 +1,4 @@
-//go:build spec
+//go:build ignore
 
 package specs
 

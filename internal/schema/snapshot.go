@@ -9,17 +9,21 @@ import (
 const SnapshotVersion = 1
 
 type Snapshot struct {
-	Version int      `json:"version"`
-	Dialect string   `json:"dialect"`
-	Tables  []*Table `json:"tables"`
+	Version    int      `json:"version"`
+	Dialect    string   `json:"dialect"`
+	Migrations []string `json:"migrations"`
+	Tables     []*Table `json:"tables"`
 }
 
-func NewSnapshot(dialect string, db *Database) *Snapshot {
+func NewSnapshot(dialect string, db *Database, migrations []string) *Snapshot {
 	tables := db.Tables
 	if tables == nil {
 		tables = []*Table{}
 	}
-	return &Snapshot{Version: SnapshotVersion, Dialect: dialect, Tables: tables}
+	if migrations == nil {
+		migrations = []string{}
+	}
+	return &Snapshot{Version: SnapshotVersion, Dialect: dialect, Migrations: migrations, Tables: tables}
 }
 
 func (s *Snapshot) Database() *Database {

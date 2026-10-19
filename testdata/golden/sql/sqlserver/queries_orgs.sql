@@ -5,6 +5,7 @@ SELECT
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 FROM [orgs]
@@ -22,6 +23,7 @@ SELECT
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 FROM [orgs]
@@ -40,13 +42,14 @@ WHERE [deleted_at] IS NULL
     AND (@p2 IS NULL OR [plan] = @p2)
 OPTION (RECOMPILE);
 
--- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active)
+-- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active) input(Locale)
 INSERT INTO [orgs] (
     [id],
     [name],
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 )
@@ -56,6 +59,7 @@ OUTPUT
     INSERTED.[slug],
     INSERTED.[plan],
     INSERTED.[active],
+    INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
 VALUES (
@@ -64,17 +68,19 @@ VALUES (
     @p3,
     @p4,
     @p5,
+    @p6,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
 );
 
--- update args: input(Name) input(Slug) input(Plan) input(Active) id(ID)
+-- update args: input(Name) input(Slug) input(Plan) input(Active) input(Locale) id(ID)
 UPDATE [orgs]
 SET
     [name] = @p1,
     [slug] = @p2,
     [plan] = @p3,
     [active] = @p4,
+    [locale] = @p5,
     [updated_at] = SYSUTCDATETIME()
 OUTPUT
     INSERTED.[id],
@@ -82,9 +88,10 @@ OUTPUT
     INSERTED.[slug],
     INSERTED.[plan],
     INSERTED.[active],
+    INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p5 AND [deleted_at] IS NULL;
+WHERE [id] = @p6 AND [deleted_at] IS NULL;
 
 -- delete args: id(ID)
 UPDATE [orgs]

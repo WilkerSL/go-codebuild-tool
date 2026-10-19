@@ -2,6 +2,7 @@ package project
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -215,16 +216,13 @@ func (p *planner) locate(context.Context) error {
 	if p.opts.Module != "" {
 		return newError(KindUsage, "unexpected_module", "--module is only valid together with --starter")
 	}
-	root, ok := findUp(abs, ConfigFile)
-	if !ok {
-		root, ok = findUp(abs, "go.mod")
-	}
+	root, ok := findUp(abs, "go.mod")
 	if !ok {
 		return newError(KindConfig, "no_module", fmt.Sprintf("no go.mod found in %s or its parents; create a project with codebuild build --starter --module <path>", abs))
 	}
 	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil {
-		return newError(KindConfig, "no_module", fmt.Sprintf("%s has %s but no go.mod next to it", root, ConfigFile))
+		return newError(KindConfig, "no_module", fmt.Sprintf("read %s: %v", filepath.Join(root, "go.mod"), err))
 	}
 	mf, err := goversion.ParseModFile("go.mod", data)
 	if err != nil {
@@ -421,27 +419,78 @@ func analyze(sources []spec.Source, d dialect.Dialect, caps goversion.Capabiliti
 
 var migrationFile = regexp.MustCompile(`^([0-9]+)_(.+)\.(up|down)\.sql$`)
 
-func (p *planner) planMigrations(context.Context) error {
-	entries, err := os.ReadDir(filepath.Join(p.root, MigrationsDir))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return newError(KindInternal, "read_migrations", err.Error())
-	}
-	var maxVersion uint64
+type migrationFiles struct {
+	version uint64
+	base    string
+	up      []byte
+	down    []byte
+}
+
+func (p *planner) readMigrations(entries []fs.DirEntry) ([]*migrationFiles, int, error) {
+	byBase := map[string]*migrationFiles{}
+	byVersion := map[uint64][]string{}
 	width := 4
 	for _, entry := range entries {
 		m := migrationFile.FindStringSubmatch(entry.Name())
 		if entry.IsDir() || m == nil {
 			continue
 		}
-		p.hasSQL = true
 		v, err := strconv.ParseUint(m[1], 10, 64)
 		if err != nil {
 			continue
 		}
-		maxVersion = max(maxVersion, v)
+		p.hasSQL = true
 		width = max(width, len(m[1]))
+		base := m[1] + "_" + m[2]
+		mf, ok := byBase[base]
+		if !ok {
+			mf = &migrationFiles{version: v, base: base}
+			byBase[base] = mf
+			byVersion[v] = append(byVersion[v], base)
+		}
+		data, err := os.ReadFile(filepath.Join(p.root, MigrationsDir, entry.Name()))
+		if err != nil {
+			return nil, 0, newError(KindInternal, "read_migrations", err.Error())
+		}
+		if m[3] == "up" {
+			mf.up = normalize(data)
+		} else {
+			mf.down = normalize(data)
+		}
+	}
+	var files []*migrationFiles
+	var duplicates []string
+	for v, bases := range byVersion {
+		if len(bases) > 1 {
+			slices.Sort(bases)
+			duplicates = append(duplicates, fmt.Sprintf("%s share version %d", strings.Join(bases, " and "), v))
+		}
+	}
+	if len(duplicates) > 0 {
+		slices.Sort(duplicates)
+		return nil, 0, newError(KindConfig, "migration_conflict", fmt.Sprintf(
+			"%s: %s. Two branches probably generated a migration with the same number. Keep the migration that was already applied, "+
+				"delete the files of the other one (or renumber them if a database already ran them) and run codebuild build again, "+
+				"which regenerates the missing changes as the next migration.", MigrationsDir, strings.Join(duplicates, "; ")))
+	}
+	for _, mf := range byBase {
+		files = append(files, mf)
+	}
+	slices.SortFunc(files, func(a, b *migrationFiles) int { return cmp.Compare(a.version, b.version) })
+	return files, width, nil
+}
+
+func (p *planner) planMigrations(context.Context) error {
+	entries, err := os.ReadDir(filepath.Join(p.root, MigrationsDir))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return newError(KindInternal, "read_migrations", err.Error())
+	}
+	files, width, err := p.readMigrations(entries)
+	if err != nil {
+		return err
 	}
 	var old *schema.Database
+	var known []string
 	snapshotPath := filepath.Join(p.root, filepath.FromSlash(SnapshotFile))
 	data, err := os.ReadFile(snapshotPath)
 	switch {
@@ -451,6 +500,12 @@ func (p *planner) planMigrations(context.Context) error {
 			return newError(KindConfig, "invalid_snapshot", fmt.Sprintf("%s: %v", SnapshotFile, err))
 		}
 		old = snap.Database()
+		known = snap.Migrations
+		if known == nil {
+			for _, mf := range files {
+				known = append(known, mf.base)
+			}
+		}
 	case errors.Is(err, fs.ErrNotExist):
 		if p.hasSQL {
 			return newError(KindConfig, "snapshot_missing", fmt.Sprintf(
@@ -460,28 +515,75 @@ func (p *planner) planMigrations(context.Context) error {
 	default:
 		return newError(KindInternal, "read_snapshot", err.Error())
 	}
+	var latestKnown, maxVersion uint64
+	for _, mf := range files {
+		maxVersion = max(maxVersion, mf.version)
+		if slices.Contains(known, mf.base) {
+			latestKnown = max(latestKnown, mf.version)
+		}
+	}
+	var unknown []*migrationFiles
+	var merged []string
+	for _, mf := range files {
+		switch {
+		case slices.Contains(known, mf.base):
+		case mf.version < latestKnown:
+			merged = append(merged, mf.base)
+		default:
+			unknown = append(unknown, mf)
+		}
+	}
+	if len(merged) > 0 {
+		return newError(KindConfig, "migration_conflict", fmt.Sprintf(
+			"%s %s older than the newest migration recorded in %s but %s not part of it, so it probably came from another branch in a merge "+
+				"and a database that is already past it would never run it. If no database ran it yet, delete its .up.sql and .down.sql files and run codebuild build "+
+				"to regenerate its changes as the next migration; otherwise rename it to a number above %d.",
+			strings.Join(merged, ", "), plural(len(merged), "is", "are"), SnapshotFile, plural(len(merged), "is", "are"), latestKnown))
+	}
 	next := schema.Build(p.model)
 	diff := schema.Diff(old, next, schema.DiffOptions{RecreateDependents: p.dialect.RecreateDependents()})
 	if !diff.Empty() {
-		version := maxVersion + 1
-		base := fmt.Sprintf("%0*d_%s", width, version, schema.MigrationName(old, diff.Changes))
-		up := path.Join(MigrationsDir, base+".up.sql")
-		down := path.Join(MigrationsDir, base+".down.sql")
-		p.add(up, []byte(p.dialect.Migration(diff.Changes, old, next)), OwnerMigration)
-		p.add(down, []byte(p.dialect.Migration(diff.Down(), next, old)), OwnerMigration)
-		p.plan.Migration = &MigrationInfo{Version: version, Name: base, Up: up, Down: down}
-		p.plan.Warnings = append(p.plan.Warnings, diff.Warnings...)
+		upSQL := []byte(p.dialect.Migration(diff.Changes, old, next))
+		downSQL := []byte(p.dialect.Migration(diff.Down(), next, old))
+		if n := len(unknown); n > 0 && bytes.Equal(unknown[n-1].up, upSQL) && bytes.Equal(unknown[n-1].down, downSQL) {
+			last := unknown[n-1]
+			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
+				"%s already contains these schema changes but %s does not record it, probably because an earlier build was interrupted; only the snapshot is updated", last.base, SnapshotFile))
+		} else {
+			version := maxVersion + 1
+			base := fmt.Sprintf("%0*d_%s", width, version, schema.MigrationName(old, diff.Changes))
+			up := path.Join(MigrationsDir, base+".up.sql")
+			down := path.Join(MigrationsDir, base+".down.sql")
+			p.add(up, upSQL, OwnerMigration)
+			p.add(down, downSQL, OwnerMigration)
+			p.plan.Migration = &MigrationInfo{Version: version, Name: base, Up: up, Down: down}
+			p.plan.Warnings = append(p.plan.Warnings, diff.Warnings...)
+		}
+	}
+	for _, mf := range unknown {
+		known = append(known, mf.base)
+	}
+	if p.plan.Migration != nil {
+		known = append(known, p.plan.Migration.Name)
 	}
 	if p.plan.PreviousDialect != "" && p.hasSQL {
 		p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
 			"existing migrations were written for %s and will not run on %s; new migrations use %s", p.plan.PreviousDialect, p.dialect.Name(), p.dialect.Name()))
 	}
-	snapshot, err := schema.NewSnapshot(p.dialect.Name(), next).Marshal()
+	slices.Sort(known)
+	snapshot, err := schema.NewSnapshot(p.dialect.Name(), next, slices.Compact(known)).Marshal()
 	if err != nil {
 		return newError(KindInternal, "snapshot", err.Error())
 	}
 	p.add(SnapshotFile, snapshot, OwnerState)
 	return nil
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 func (p *planner) add(filePath string, content []byte, owner Owner) {

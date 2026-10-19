@@ -7,7 +7,7 @@ This file is generated from the marker registry of codebuild (`internal/spec`). 
 Every domain has one spec file in `specs/<domain>.go`. The file name is the domain name and becomes the Go package `internal/<domain>`, so it must contain only lowercase letters and digits.
 
 ```go
-//go:build spec
+//go:build ignore
 
 package specs
 
@@ -31,7 +31,7 @@ type User struct {
 ```
 
 ```ebnf
-SpecFile   = "//go:build spec" "package specs" [ Imports ] { AliasDecl } EntityDecl { AliasDecl } .
+SpecFile   = "//go:build ignore" "package specs" [ Imports ] { AliasDecl } EntityDecl { AliasDecl } .
 Imports    = "import" of "time" | "uuid" | "github.com/google/uuid" .
 AliasDecl  = "type" Name "=" FieldType .
 EntityDecl = "type" EntityName "struct" "{" [ MetaField ] { Field } "}" .
@@ -48,7 +48,7 @@ AutoValue  = "create" | "update" .
 
 Rules:
 
-- The first line is `//go:build spec`, which keeps specs out of normal builds while gofmt, gopls and the type checker keep working.
+- The first line is `//go:build ignore`, which keeps specs out of normal builds and out of `go mod tidy` (it reads every other build tag, so a constraint such as `spec` would make it resolve the imports of the specs). gofmt and the type checker keep working.
 - The package is `specs` and the only imports are `time`, `uuid` (Go 1.27+) and `github.com/google/uuid` (Go 1.26). Both UUID packages are accepted for every Go version.
 - Exactly one entity struct per file. Type aliases such as `type Email = string` are allowed and resolved.
 - Fields are exported and not embedded. Tags only use the `gen` key; JSON tags are generated.
@@ -352,7 +352,7 @@ Diagnostics are printed as `file:line:column: message (did you mean "x"?) [code]
 | Code | Meaning |
 |---|---|
 | `syntax` | The file is not valid Go. |
-| `build_tag` | The file does not start with `//go:build spec`. |
+| `build_tag` | The file does not start with `//go:build ignore`, or uses a constraint such as `//go:build spec` that `go mod tidy` still reads. |
 | `package_name` | The package clause is not `package specs`. |
 | `unsupported_import` | An import other than `time`, `uuid` or `github.com/google/uuid`. |
 | `unsupported_decl` | A declaration other than the entity struct or a type alias. |

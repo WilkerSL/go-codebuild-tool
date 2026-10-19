@@ -81,7 +81,7 @@ func replaceSource(sources []spec.Source, name, content string) []spec.Source {
 
 func changedSaaS(t *testing.T) []spec.Source {
 	sources := loadSaaS(t)
-	sources = replaceSource(sources, "specs/saas/users.go", `//go:build spec
+	sources = replaceSource(sources, "specs/saas/users.go", `//go:build ignore
 
 package specs
 
@@ -104,7 +104,7 @@ type User struct {
 	Tags      []Tag     `+"`gen:\"rel=many_to_many:Tag,via=user_tags\"`"+`
 }
 `)
-	sources = replaceSource(sources, "specs/saas/tags.go", `//go:build spec
+	sources = replaceSource(sources, "specs/saas/tags.go", `//go:build ignore
 
 package specs
 
@@ -117,7 +117,7 @@ type Tag struct {
 }
 `)
 	sources = replaceSource(sources, "specs/saas/countries.go", "")
-	sources = replaceSource(sources, "specs/saas/comments.go", `//go:build spec
+	sources = replaceSource(sources, "specs/saas/comments.go", `//go:build ignore
 
 package specs
 
@@ -246,7 +246,7 @@ func TestConstraintName(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	const header = "//go:build spec\n\npackage specs\n\n"
+	const header = "//go:build ignore\n\npackage specs\n\n"
 	model, diags := spec.Parse([]spec.Source{
 		{Name: "specs/orgs.go", Content: []byte(header + "type Org struct {\n\t_    struct{} `gen:\"softdelete\"`\n\tID   int64    `gen:\"pk,auto\"`\n\tSlug string   `gen:\"unique\"`\n}\n")},
 		{Name: "specs/teams.go", Content: []byte(header + "type Team struct {\n\tID    int64 `gen:\"pk,auto\"`\n\tOrgID int64 `gen:\"rel=belongs_to:Org,ondelete=cascade\"`\n}\n")},
@@ -290,7 +290,7 @@ func TestMigrationName(t *testing.T) {
 	if got := schema.MigrationName(db, schema.Diff(db, next, schema.DiffOptions{}).Changes); got != "update_schema" {
 		t.Errorf("update migration name = %s", got)
 	}
-	withComments := parse(t, replaceSource(loadSaaS(t), "specs/saas/comments.go", "//go:build spec\n\npackage specs\n\ntype Comment struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"))
+	withComments := parse(t, replaceSource(loadSaaS(t), "specs/saas/comments.go", "//go:build ignore\n\npackage specs\n\ntype Comment struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"))
 	if got := schema.MigrationName(db, schema.Diff(db, schema.Build(withComments), schema.DiffOptions{}).Changes); got != "create_comments" {
 		t.Errorf("create migration name = %s", got)
 	}
@@ -301,7 +301,7 @@ func TestMigrationName(t *testing.T) {
 
 func TestSnapshotRoundTrip(t *testing.T) {
 	db := schema.Build(parse(t, loadSaaS(t)))
-	data, err := schema.NewSnapshot("postgres", db).Marshal()
+	data, err := schema.NewSnapshot("postgres", db, []string{"0001_init"}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,5 +318,17 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	}
 	if _, err := schema.UnmarshalSnapshot([]byte(`{"version":99,"dialect":"postgres","tables":[]}`)); err == nil {
 		t.Error("expected version error")
+	}
+}
+
+func TestMySQLTextDefaultsUseExpressions(t *testing.T) {
+	d := MySQL{}
+	text := &schema.Column{Name: "locale", Kind: schema.ColumnString, Default: &schema.Default{Kind: schema.DefaultLiteral, Value: "en-US"}}
+	if got := d.columnDef(text); got != "`locale` LONGTEXT NOT NULL DEFAULT ('en-US')" {
+		t.Fatalf("text column = %s", got)
+	}
+	sized := &schema.Column{Name: "plan", Kind: schema.ColumnString, Size: 32, Default: &schema.Default{Kind: schema.DefaultLiteral, Value: "free"}}
+	if got := d.columnDef(sized); got != "`plan` VARCHAR(32) NOT NULL DEFAULT 'free'" {
+		t.Fatalf("sized column = %s", got)
 	}
 }

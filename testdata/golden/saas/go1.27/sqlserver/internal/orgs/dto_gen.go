@@ -11,6 +11,7 @@ type CreateInput struct {
 	Slug   string
 	Plan   string
 	Active bool
+	Locale string
 }
 
 type UpdateInput struct {
@@ -18,6 +19,7 @@ type UpdateInput struct {
 	Slug   string
 	Plan   string
 	Active bool
+	Locale string
 }
 
 type ListParams struct {
@@ -32,6 +34,7 @@ type createRequest struct {
 	Slug   *string `json:"slug"`
 	Plan   *string `json:"plan"`
 	Active *bool   `json:"active"`
+	Locale *string `json:"locale"`
 }
 
 func (req createRequest) input() (CreateInput, error) {
@@ -59,6 +62,11 @@ func (req createRequest) input() (CreateInput, error) {
 		in.Active = *req.Active
 	}
 
+	in.Locale = "en-US"
+	if req.Locale != nil {
+		in.Locale = *req.Locale
+	}
+
 	return in, errs.Err()
 }
 
@@ -67,6 +75,7 @@ type updateRequest struct {
 	Slug   *string `json:"slug"`
 	Plan   *string `json:"plan"`
 	Active *bool   `json:"active"`
+	Locale *string `json:"locale"`
 }
 
 func (req updateRequest) input() (UpdateInput, error) {
@@ -92,6 +101,11 @@ func (req updateRequest) input() (UpdateInput, error) {
 	in.Active = true
 	if req.Active != nil {
 		in.Active = *req.Active
+	}
+
+	in.Locale = "en-US"
+	if req.Locale != nil {
+		in.Locale = *req.Locale
 	}
 
 	return in, errs.Err()

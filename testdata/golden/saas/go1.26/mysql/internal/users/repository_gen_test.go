@@ -64,6 +64,7 @@ func fixtureOrgInput(t *testing.T, ctx context.Context, db *sql.DB) orgs.CreateI
 		Slug:   fixtureString(16),
 		Plan:   orgs.PlanFree,
 		Active: true,
+		Locale: "a",
 	}
 }
 

@@ -37,6 +37,7 @@ func validCreateInput() CreateInput {
 		Slug:   fixtureString(16),
 		Plan:   PlanFree,
 		Active: true,
+		Locale: "a",
 	}
 }
 
@@ -85,6 +86,7 @@ func validUpdateInput() UpdateInput {
 		Slug:   fixtureString(16),
 		Plan:   PlanFree,
 		Active: true,
+		Locale: "a",
 	}
 }
 

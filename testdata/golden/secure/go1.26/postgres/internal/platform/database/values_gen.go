@@ -74,6 +74,13 @@ func NullUUIDArg(u *uuid.UUID) any {
 	return u.String()
 }
 
+func BytesArg(b []byte) any {
+	if b == nil {
+		return []byte{}
+	}
+	return b
+}
+
 func TimeArg(t time.Time) any {
 	return t.UTC()
 }

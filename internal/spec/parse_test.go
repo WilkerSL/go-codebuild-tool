@@ -10,7 +10,7 @@ import (
 	"github.com/WilkerSL/go-codebuild-tool/internal/schema"
 )
 
-const header = "//go:build spec\n\npackage specs\n\n"
+const header = "//go:build ignore\n\npackage specs\n\n"
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -166,6 +166,11 @@ func TestParseDiagnostics(t *testing.T) {
 			name:  "missing build tag",
 			files: map[string]string{"specs/items.go": "package specs\n\ntype Item struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"},
 			want:  []wantDiag{{at: "package", code: CodeBuildTag}},
+		},
+		{
+			name:  "constraint read by go mod tidy",
+			files: map[string]string{"specs/items.go": "//go:build spec\n\npackage specs\n\ntype Item struct {\n\tID int64 `gen:\"pk,auto\"`\n}\n"},
+			want:  []wantDiag{{at: "//go:build spec", code: CodeBuildTag, suggestion: "//go:build ignore", contains: "go mod tidy"}},
 		},
 		{
 			name:  "unsupported import",

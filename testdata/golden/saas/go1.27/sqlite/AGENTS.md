@@ -9,7 +9,7 @@ This project was created with [codebuild](https://github.com/WilkerSL/go-codebui
 ## Workflow for changes to the API
 
 1. Read the spec grammar: the MCP resource `codebuild://grammar` or `go tool codebuild` docs (`docs/spec-reference.md` in the codebuild repository).
-2. Write or edit one file per domain in `specs/<domain>.go`. Each file starts with `//go:build spec`, declares `package specs` and exactly one entity struct.
+2. Write or edit one file per domain in `specs/<domain>.go`. Each file starts with `//go:build ignore`, declares `package specs` and exactly one entity struct.
 3. Validate: MCP tool `validate`, or `go tool codebuild check`.
 4. Preview: MCP tool `plan`, or `go tool codebuild plan`. Show the plan to the user.
 5. Wait for the user's approval of the plan.

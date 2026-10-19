@@ -9,6 +9,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -26,6 +27,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -49,9 +51,11 @@ INSERT INTO "orgs" (
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 ) VALUES (
+    ?,
     ?,
     ?,
     ?,
@@ -66,6 +70,7 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"`
 
@@ -76,6 +81,7 @@ SET
     "slug" = ?,
     "plan" = ?,
     "active" = ?,
+    "locale" = ?,
     "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
 WHERE "id" = ? AND "deleted_at" IS NULL
 RETURNING
@@ -84,6 +90,7 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"`
 

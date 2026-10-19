@@ -26,6 +26,7 @@ func LoadMigrations(fsys fs.FS) ([]Migration, error) {
 		return nil, fmt.Errorf("database: read migrations: %w", err)
 	}
 	byVersion := map[uint64]*Migration{}
+	ups := map[uint64]bool{}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -54,14 +55,20 @@ func LoadMigrations(fsys fs.FS) ([]Migration, error) {
 			m = &Migration{Version: version, Name: name}
 			byVersion[version] = m
 		}
+		if m.Name != name {
+			return nil, fmt.Errorf("database: migrations %s_%s and %s_%s share version %d; renumber one of them", prefix, m.Name, prefix, name, version)
+		}
 		if up {
-			m.Up = string(data)
+			m.Up, ups[version] = string(data), true
 		} else {
 			m.Down = string(data)
 		}
 	}
 	migrations := make([]Migration, 0, len(byVersion))
 	for _, m := range byVersion {
+		if !ups[m.Version] {
+			return nil, fmt.Errorf("database: migration %d_%s has a .down.sql file but no .up.sql file", m.Version, m.Name)
+		}
 		migrations = append(migrations, *m)
 	}
 	slices.SortFunc(migrations, func(a, b Migration) int {
@@ -87,6 +94,9 @@ func MigrateUp(ctx context.Context, db *sql.DB, fsys fs.FS) ([]uint64, error) {
 	}
 	defer conn.Close()
 	defer unlockMigrations(context.WithoutCancel(ctx), conn)
+	if err := checkHistory(ctx, conn, migrations); err != nil {
+		return nil, err
+	}
 	var applied []uint64
 	for _, m := range migrations {
 		current, dirty, err := readVersion(ctx, conn)
@@ -99,7 +109,7 @@ func MigrateUp(ctx context.Context, db *sql.DB, fsys fs.FS) ([]uint64, error) {
 		if m.Version <= current {
 			continue
 		}
-		err = applyMigration(ctx, conn, current, m.Version, m.Up)
+		err = applyMigration(ctx, conn, current, m.Version, m.Up, recordMigration(m))
 		if errors.Is(err, errConcurrentMigration) {
 			continue
 		}
@@ -142,7 +152,7 @@ func MigrateDown(ctx context.Context, db *sql.DB, fsys fs.FS, steps int) ([]uint
 		if idx > 0 {
 			previous = migrations[idx-1].Version
 		}
-		if err := applyMigration(ctx, conn, current, previous, migrations[idx].Down); err != nil && !errors.Is(err, errConcurrentMigration) {
+		if err := applyMigration(ctx, conn, current, previous, migrations[idx].Down, forgetMigration(current)); err != nil && !errors.Is(err, errConcurrentMigration) {
 			return reverted, fmt.Errorf("database: revert migration %d_%s: %w", current, migrations[idx].Name, err)
 		}
 		reverted = append(reverted, current)
@@ -198,7 +208,72 @@ func dirtyError(version uint64) error {
 	return fmt.Errorf("database: migration %d failed halfway and left the schema dirty; repair the database, then fix the row in schema_migrations", version)
 }
 
-func applyInTransaction(ctx context.Context, conn *sql.Conn, version uint64, script string) error {
+type historyChange func(ctx context.Context, exec DBTX) error
+
+func recordMigration(m Migration) historyChange {
+	return func(ctx context.Context, exec DBTX) error {
+		_, err := exec.ExecContext(ctx, historyInsertSQL, int64(m.Version), m.Name)
+		return err
+	}
+}
+
+func forgetMigration(version uint64) historyChange {
+	return func(ctx context.Context, exec DBTX) error {
+		_, err := exec.ExecContext(ctx, historyDeleteSQL, int64(version))
+		return err
+	}
+}
+
+func checkHistory(ctx context.Context, conn *sql.Conn, migrations []Migration) error {
+	current, dirty, err := readVersion(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if dirty {
+		return dirtyError(current)
+	}
+	rows, err := conn.QueryContext(ctx, "SELECT version FROM schema_migrations_history")
+	if err != nil {
+		return fmt.Errorf("database: read migration history: %w", err)
+	}
+	applied := map[uint64]bool{}
+	for rows.Next() {
+		var version int64
+		if err := rows.Scan(&version); err != nil {
+			rows.Close()
+			return fmt.Errorf("database: read migration history: %w", err)
+		}
+		applied[uint64(version)] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("database: read migration history: %w", err)
+	}
+	var skipped []string
+	for _, m := range migrations {
+		if m.Version > current || applied[m.Version] {
+			continue
+		}
+		if len(applied) == 0 {
+			if err := recordMigration(m)(ctx, conn); err != nil {
+				return fmt.Errorf("database: record migration history: %w", err)
+			}
+			continue
+		}
+		skipped = append(skipped, fmt.Sprintf("%d_%s", m.Version, m.Name))
+	}
+	if len(skipped) > 0 {
+		verb := "are"
+		if len(skipped) == 1 {
+			verb = "is"
+		}
+		return fmt.Errorf("database: %s %s older than the applied version %d but never ran, probably because it arrived in a merge; rename it to a version above %d and run migrate up again",
+			strings.Join(skipped, ", "), verb, current, current)
+	}
+	return nil
+}
+
+func applyInTransaction(ctx context.Context, conn *sql.Conn, version uint64, script string, history historyChange) error {
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -210,6 +285,9 @@ func applyInTransaction(ctx context.Context, conn *sql.Conn, version uint64, scr
 		}
 	}
 	if err := setVersion(ctx, tx, version, false); err != nil {
+		return err
+	}
+	if err := history(ctx, tx); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -273,9 +351,21 @@ func splitStatements(script string) []string {
 	return stmts
 }
 
+const (
+	historyInsertSQL = "INSERT INTO schema_migrations_history (version, name) VALUES (@p1, @p2)"
+	historyDeleteSQL = "DELETE FROM schema_migrations_history WHERE version = @p1"
+)
+
 func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "IF OBJECT_ID(N'schema_migrations', N'U') IS NULL CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BIT NOT NULL)")
-	return err
+	for _, stmt := range []string{
+		"IF OBJECT_ID(N'schema_migrations', N'U') IS NULL CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BIT NOT NULL)",
+		"IF OBJECT_ID(N'schema_migrations_history', N'U') IS NULL CREATE TABLE schema_migrations_history (version BIGINT NOT NULL PRIMARY KEY, name NVARCHAR(255) NOT NULL)",
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lockMigrations(ctx context.Context, conn *sql.Conn) error {
@@ -295,8 +385,8 @@ func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
 	return err
 }
 
-func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string) error {
-	return applyInTransaction(ctx, conn, to, script)
+func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string, history historyChange) error {
+	return applyInTransaction(ctx, conn, to, script, history)
 }
 
 func setVersion(ctx context.Context, exec DBTX, version uint64, dirty bool) error {

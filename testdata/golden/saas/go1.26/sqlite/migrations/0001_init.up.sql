@@ -17,6 +17,7 @@ CREATE TABLE "orgs" (
     "slug" TEXT NOT NULL,
     "plan" TEXT NOT NULL DEFAULT 'free',
     "active" BOOLEAN NOT NULL DEFAULT 1,
+    "locale" TEXT NOT NULL DEFAULT 'en-US',
     "created_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     "updated_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     "deleted_at" DATETIME,

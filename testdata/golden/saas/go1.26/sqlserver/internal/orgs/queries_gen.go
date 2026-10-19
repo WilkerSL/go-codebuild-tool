@@ -9,6 +9,7 @@ SELECT
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 FROM [orgs]
@@ -26,6 +27,7 @@ SELECT
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 FROM [orgs]
@@ -51,6 +53,7 @@ INSERT INTO [orgs] (
     [slug],
     [plan],
     [active],
+    [locale],
     [created_at],
     [updated_at]
 )
@@ -60,6 +63,7 @@ OUTPUT
     INSERTED.[slug],
     INSERTED.[plan],
     INSERTED.[active],
+    INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
 VALUES (
@@ -68,6 +72,7 @@ VALUES (
     @p3,
     @p4,
     @p5,
+    @p6,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
 )`
@@ -79,6 +84,7 @@ SET
     [slug] = @p2,
     [plan] = @p3,
     [active] = @p4,
+    [locale] = @p5,
     [updated_at] = SYSUTCDATETIME()
 OUTPUT
     INSERTED.[id],
@@ -86,9 +92,10 @@ OUTPUT
     INSERTED.[slug],
     INSERTED.[plan],
     INSERTED.[active],
+    INSERTED.[locale],
     INSERTED.[created_at],
     INSERTED.[updated_at]
-WHERE [id] = @p5 AND [deleted_at] IS NULL`
+WHERE [id] = @p6 AND [deleted_at] IS NULL`
 
 const deleteQuery = `
 UPDATE [orgs]

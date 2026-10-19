@@ -142,6 +142,7 @@ func Generate(opts Options) ([]File, error) {
 	g.goFile("internal/platform/database/errors_gen.go", "platform/errors.go.tmpl", pv)
 	g.goFile("internal/platform/database/values_gen.go", "platform/values.go.tmpl", pv)
 	g.goFile("internal/platform/database/migrate_gen.go", "platform/migrate.go.tmpl", pv)
+	g.goFile("internal/platform/database/migrate_gen_test.go", "platform/migrate_test.go.tmpl", pv)
 	g.goFile("internal/platform/database/tx_gen.go", "platform/tx.go.tmpl", pv)
 	g.goFile("internal/platform/database/connect_gen.go", opts.Dialect.Name()+".connect", pv)
 	g.goFile("internal/app/routes_gen.go", "project/app.go.tmpl", pv)

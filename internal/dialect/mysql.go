@@ -104,7 +104,11 @@ func (d MySQL) literal(c *schema.Column) string {
 	if c.Default.Kind == schema.DefaultNow {
 		return "(UTC_TIMESTAMP(6))"
 	}
-	return literal(c, c.Default.Value, "", "TRUE", "FALSE")
+	value := literal(c, c.Default.Value, "", "TRUE", "FALSE")
+	if t := d.ColumnType(c); t == "LONGTEXT" || t == "LONGBLOB" {
+		return "(" + value + ")"
+	}
+	return value
 }
 
 func (d MySQL) columnDef(c *schema.Column) string {

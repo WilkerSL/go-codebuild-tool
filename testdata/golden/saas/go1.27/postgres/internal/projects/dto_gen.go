@@ -88,6 +88,7 @@ func (req createRequest) input() (CreateInput, error) {
 		in.Archived = *req.Archived
 	}
 
+	in.Logo = []byte{}
 	if req.Logo != nil {
 		in.Logo = *req.Logo
 	}
@@ -152,6 +153,7 @@ func (req updateRequest) input() (UpdateInput, error) {
 		in.Archived = *req.Archived
 	}
 
+	in.Logo = []byte{}
 	if req.Logo != nil {
 		in.Logo = *req.Logo
 	}

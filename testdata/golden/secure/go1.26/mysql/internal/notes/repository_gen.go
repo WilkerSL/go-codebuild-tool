@@ -233,6 +233,12 @@ func writeError(op string, err error) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	field := constraintField(ce)
+	if ce.Kind == database.NotNullViolation {
+		if field == "" {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+		return validation.Errors{{Field: field, Message: "is required"}}
+	}
 	if ce.Kind == database.ForeignKeyViolation {
 		return validation.Errors{{Field: field, Message: "references a record that does not exist"}}
 	}
@@ -242,6 +248,8 @@ func writeError(op string, err error) error {
 
 func constraintField(ce *database.ConstraintError) string {
 	switch {
+	case ce.Kind == database.NotNullViolation:
+		return notNullField(ce)
 	case ce.PrimaryKey:
 		return "id"
 	case ce.Matches("pk_notes", "id"):
@@ -250,6 +258,16 @@ func constraintField(ce *database.ConstraintError) string {
 		return "ownerId"
 	case ce.Matches("fk_notes_folder_id", "folder_id"):
 		return "folderId"
+	}
+	return ""
+}
+
+func notNullField(ce *database.ConstraintError) string {
+	switch {
+	case ce.HasColumn("title"):
+		return "title"
+	case ce.HasColumn("pinned"):
+		return "pinned"
 	}
 	return ""
 }

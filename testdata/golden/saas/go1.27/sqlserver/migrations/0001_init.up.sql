@@ -18,6 +18,7 @@ CREATE TABLE [orgs] (
     [slug] NVARCHAR(64) NOT NULL,
     [plan] NVARCHAR(32) NOT NULL CONSTRAINT [df_orgs_plan] DEFAULT N'free',
     [active] BIT NOT NULL CONSTRAINT [df_orgs_active] DEFAULT 1,
+    [locale] NVARCHAR(MAX) NOT NULL CONSTRAINT [df_orgs_locale] DEFAULT N'en-US',
     [created_at] DATETIME2(7) NOT NULL CONSTRAINT [df_orgs_created_at] DEFAULT SYSUTCDATETIME(),
     [updated_at] DATETIME2(7) NOT NULL CONSTRAINT [df_orgs_updated_at] DEFAULT SYSUTCDATETIME(),
     [deleted_at] DATETIME2(7) NULL,

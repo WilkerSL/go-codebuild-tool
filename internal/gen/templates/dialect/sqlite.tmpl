@@ -11,6 +11,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 		return &ConstraintError{Kind: UniqueViolation, PrimaryKey: true, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
 	case sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY:
 		return &ConstraintError{Kind: ForeignKeyViolation, Err: err}, true
+	case sqlite3.SQLITE_CONSTRAINT_NOTNULL:
+		return &ConstraintError{Kind: NotNullViolation, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
 	}
 	return nil, false
 }
@@ -77,9 +79,21 @@ func Connect(dsn string) (*sql.DB, error) {
 {{- end}}
 
 {{define "sqlite.migrate" -}}
+const (
+	historyInsertSQL = "INSERT INTO schema_migrations_history (version, name) VALUES (?, ?)"
+	historyDeleteSQL = "DELETE FROM schema_migrations_history WHERE version = ?"
+)
+
 func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)")
-	return err
+	for _, stmt := range []string{
+		"CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS schema_migrations_history (version INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL)",
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lockMigrations(context.Context, *sql.Conn) error {
@@ -90,7 +104,7 @@ func unlockMigrations(context.Context, *sql.Conn) error {
 	return nil
 }
 
-func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string) error {
+func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string, history historyChange) error {
 	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		return err
 	}
@@ -117,6 +131,9 @@ func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script
 		}
 	}
 	if err := checkForeignKeys(ctx, conn); err != nil {
+		return err
+	}
+	if err := history(ctx, conn); err != nil {
 		return err
 	}
 	if err := setVersion(ctx, conn, to, false); err != nil {

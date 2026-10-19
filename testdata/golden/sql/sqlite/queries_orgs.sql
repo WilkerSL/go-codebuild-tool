@@ -5,6 +5,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -22,6 +23,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -38,16 +40,18 @@ WHERE "deleted_at" IS NULL
     AND (? IS NULL OR "slug" = ?)
     AND (? IS NULL OR "plan" = ?);
 
--- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active)
+-- create args: id(ID) input(Name) input(Slug) input(Plan) input(Active) input(Locale)
 INSERT INTO "orgs" (
     "id",
     "name",
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 ) VALUES (
+    ?,
     ?,
     ?,
     ?,
@@ -62,16 +66,18 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at";
 
--- update args: input(Name) input(Slug) input(Plan) input(Active) id(ID)
+-- update args: input(Name) input(Slug) input(Plan) input(Active) input(Locale) id(ID)
 UPDATE "orgs"
 SET
     "name" = ?,
     "slug" = ?,
     "plan" = ?,
     "active" = ?,
+    "locale" = ?,
     "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
 WHERE "id" = ? AND "deleted_at" IS NULL
 RETURNING
@@ -80,6 +86,7 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at";
 

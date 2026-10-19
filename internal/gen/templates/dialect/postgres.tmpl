@@ -9,6 +9,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 		return &ConstraintError{Kind: UniqueViolation, Constraint: pgErr.ConstraintName, Err: err}, true
 	case "23503":
 		return &ConstraintError{Kind: ForeignKeyViolation, Constraint: pgErr.ConstraintName, Err: err}, true
+	case "23502":
+		return &ConstraintError{Kind: NotNullViolation, Columns: []string{pgErr.ColumnName}, Message: pgErr.Message, Err: err}, true
 	}
 	return nil, false
 }
@@ -38,9 +40,21 @@ func Connect(dsn string) (*sql.DB, error) {
 {{define "postgres.migrate" -}}
 const migrationLockID = 7384629113
 
+const (
+	historyInsertSQL = "INSERT INTO schema_migrations_history (version, name) VALUES ($1, $2)"
+	historyDeleteSQL = "DELETE FROM schema_migrations_history WHERE version = $1"
+)
+
 func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)")
-	return err
+	for _, stmt := range []string{
+		"CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS schema_migrations_history (version BIGINT NOT NULL PRIMARY KEY, name VARCHAR(255) NOT NULL)",
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lockMigrations(ctx context.Context, conn *sql.Conn) error {
@@ -53,8 +67,8 @@ func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
 	return err
 }
 
-func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string) error {
-	return applyInTransaction(ctx, conn, to, script)
+func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string, history historyChange) error {
+	return applyInTransaction(ctx, conn, to, script, history)
 }
 
 func setVersion(ctx context.Context, exec DBTX, version uint64, dirty bool) error {

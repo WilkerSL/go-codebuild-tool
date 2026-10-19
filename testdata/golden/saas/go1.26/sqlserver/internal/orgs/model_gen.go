@@ -20,6 +20,7 @@ type Org struct {
 	Slug      string    `json:"slug"`
 	Plan      string    `json:"plan"`
 	Active    bool      `json:"active"`
+	Locale    string    `json:"locale"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

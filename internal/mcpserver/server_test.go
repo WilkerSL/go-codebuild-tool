@@ -104,7 +104,7 @@ func TestValidateAndListDomains(t *testing.T) {
 	var validated validateOutput
 	res := call(t, session, "validate", map[string]any{
 		"file":    "comments.go",
-		"content": "//go:build spec\n\npackage specs\n\nimport \"uuid\"\n\ntype Comment struct {\n\tID     uuid.UUID `gen:\"pk,auto\"`\n\tUserID uuid.UUID `gen:\"rel=belongs_to:Usr\"`\n\tBody   string    `gen:\"requird\"`\n}\n",
+		"content": "//go:build ignore\n\npackage specs\n\nimport \"uuid\"\n\ntype Comment struct {\n\tID     uuid.UUID `gen:\"pk,auto\"`\n\tUserID uuid.UUID `gen:\"rel=belongs_to:Usr\"`\n\tBody   string    `gen:\"requird\"`\n}\n",
 	}, &validated)
 	if res.IsError || validated.Valid || len(validated.Diagnostics) != 2 {
 		t.Fatalf("validate = %+v", validated)
@@ -116,7 +116,7 @@ func TestValidateAndListDomains(t *testing.T) {
 	}
 	call(t, session, "validate", map[string]any{
 		"file":    "specs/comments.go",
-		"content": "//go:build spec\n\npackage specs\n\nimport \"uuid\"\n\ntype Comment struct {\n\tID     uuid.UUID `gen:\"pk,auto\"`\n\tUserID uuid.UUID `gen:\"rel=belongs_to:User\"`\n}\n",
+		"content": "//go:build ignore\n\npackage specs\n\nimport \"uuid\"\n\ntype Comment struct {\n\tID     uuid.UUID `gen:\"pk,auto\"`\n\tUserID uuid.UUID `gen:\"rel=belongs_to:User\"`\n}\n",
 	}, &validated)
 	if !validated.Valid {
 		t.Fatalf("valid spec rejected: %+v", validated)
@@ -180,5 +180,32 @@ func TestGenerateRequiresUpgradeConsent(t *testing.T) {
 	gomod, _ := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if !strings.Contains(string(gomod), "go 1.27.0") {
 		t.Fatalf("go.mod = %s", gomod)
+	}
+}
+
+func TestToolsStayInsideTheServerDirectory(t *testing.T) {
+	dir := newProject(t, "module example.com/app\n\ngo 1.27.0\n")
+	other := newProject(t, "module example.com/other\n\ngo 1.27.0\n")
+	session := connect(t, dir)
+	for _, target := range []string{"..", "../other", other, filepath.Join(dir, "..")} {
+		var generated generateOutput
+		res := call(t, session, "generate", map[string]any{"dir": target}, &generated)
+		if !res.IsError || generated.Error == nil || generated.Error.Code != "outside_root" {
+			t.Fatalf("generate %s = %+v", target, generated)
+		}
+	}
+	var planned planOutput
+	real, _ := filepath.EvalSymlinks(dir)
+	if res := call(t, session, "plan", map[string]any{"dir": "specs"}, &planned); res.IsError || planned.Plan == nil || planned.Plan.Root != real {
+		t.Fatalf("plan inside the project = %+v", planned)
+	}
+	sub := filepath.Join(dir, "specs")
+	nested := connect(t, sub)
+	res := call(t, nested, "generate", nil, nil)
+	if !res.IsError {
+		t.Fatal("generate wrote to a project above the server directory")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "internal")); err == nil {
+		t.Fatal("files were written outside the server directory")
 	}
 }

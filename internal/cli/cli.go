@@ -84,7 +84,7 @@ Plan flags:
 
 Exit codes:
   0 success, 1 error, 2 usage, 3 invalid spec, 4 unsupported Go version,
-  5 toolchain too old, 6 file ownership conflict, 7 configuration conflict,
+  5 toolchain too old, 6 file conflict (ownership, outdated plan or a concurrent build), 7 configuration conflict,
   8 plan has changes (only with plan --exit-code)
 `
 

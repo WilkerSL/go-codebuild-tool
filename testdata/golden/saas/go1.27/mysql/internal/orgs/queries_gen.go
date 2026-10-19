@@ -8,6 +8,7 @@ const getQuery = "SELECT\n" +
 	"    `slug`,\n" +
 	"    `plan`,\n" +
 	"    `active`,\n" +
+	"    `locale`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
 	"FROM `orgs`\n" +
@@ -23,6 +24,7 @@ const listQuery = "SELECT\n" +
 	"    `slug`,\n" +
 	"    `plan`,\n" +
 	"    `active`,\n" +
+	"    `locale`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
 	"FROM `orgs`\n" +
@@ -44,9 +46,11 @@ const createQuery = "INSERT INTO `orgs` (\n" +
 	"    `slug`,\n" +
 	"    `plan`,\n" +
 	"    `active`,\n" +
+	"    `locale`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
 	") VALUES (\n" +
+	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
@@ -62,6 +66,7 @@ const updateQuery = "UPDATE `orgs`\n" +
 	"    `slug` = ?,\n" +
 	"    `plan` = ?,\n" +
 	"    `active` = ?,\n" +
+	"    `locale` = ?,\n" +
 	"    `updated_at` = UTC_TIMESTAMP(6)\n" +
 	"WHERE `id` = ? AND `deleted_at` IS NULL"
 

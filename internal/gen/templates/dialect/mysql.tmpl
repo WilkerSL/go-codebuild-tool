@@ -10,6 +10,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 		return &ConstraintError{Kind: UniqueViolation, Message: myErr.Message, PrimaryKey: primary, Err: err}, true
 	case 1451, 1452:
 		return &ConstraintError{Kind: ForeignKeyViolation, Message: myErr.Message, Err: err}, true
+	case 1048, 1364:
+		return &ConstraintError{Kind: NotNullViolation, Message: myErr.Message, Err: err}, true
 	}
 	return nil, false
 }
@@ -46,9 +48,21 @@ func Connect(dsn string) (*sql.DB, error) {
 {{- end}}
 
 {{define "mysql.migrate" -}}
+const (
+	historyInsertSQL = "INSERT INTO schema_migrations_history (version, name) VALUES (?, ?)"
+	historyDeleteSQL = "DELETE FROM schema_migrations_history WHERE version = ?"
+)
+
 func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)")
-	return err
+	for _, stmt := range []string{
+		"CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BOOLEAN NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS schema_migrations_history (version BIGINT NOT NULL PRIMARY KEY, name VARCHAR(255) NOT NULL)",
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lockMigrations(ctx context.Context, conn *sql.Conn) error {
@@ -67,7 +81,7 @@ func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
 	return err
 }
 
-func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string) error {
+func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string, history historyChange) error {
 	marker := to
 	if marker == 0 {
 		marker = from
@@ -79,6 +93,9 @@ func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script
 		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("statement %d: %w", i+1, err)
 		}
+	}
+	if err := history(ctx, conn); err != nil {
+		return err
 	}
 	return setVersion(ctx, conn, to, false)
 }

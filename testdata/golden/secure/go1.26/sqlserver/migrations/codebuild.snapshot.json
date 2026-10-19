@@ -1,6 +1,9 @@
 {
   "version": 1,
   "dialect": "sqlserver",
+  "migrations": [
+    "0001_init"
+  ],
   "tables": [
     {
       "name": "auth_api_keys",

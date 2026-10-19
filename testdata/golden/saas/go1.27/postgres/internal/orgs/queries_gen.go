@@ -9,6 +9,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -26,6 +27,7 @@ SELECT
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 FROM "orgs"
@@ -49,6 +51,7 @@ INSERT INTO "orgs" (
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"
 ) VALUES (
@@ -57,6 +60,7 @@ INSERT INTO "orgs" (
     $3,
     $4,
     $5,
+    $6,
     now(),
     now()
 )
@@ -66,6 +70,7 @@ RETURNING
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"`
 
@@ -76,14 +81,16 @@ SET
     "slug" = $2,
     "plan" = $3,
     "active" = $4,
+    "locale" = $5,
     "updated_at" = now()
-WHERE "id" = $5 AND "deleted_at" IS NULL
+WHERE "id" = $6 AND "deleted_at" IS NULL
 RETURNING
     "id",
     "name",
     "slug",
     "plan",
     "active",
+    "locale",
     "created_at",
     "updated_at"`
 

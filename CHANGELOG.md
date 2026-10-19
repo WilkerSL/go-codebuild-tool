@@ -19,12 +19,23 @@ All notable changes to this project are documented in this file. The format foll
 - `app.RegisterRoutes` returns an error and new `main.go` files check it. `codebuild plan` warns when an authenticated project still ignores it.
 - The manual wiring hint uses `NewService(db)`.
 - Golden projects live in `testdata/golden/<project>/go1.NN/<dialect>`.
+- Spec files start with `//go:build ignore`. `go mod tidy` reads every build tag except `ignore`, so `//go:build spec` made it resolve the imports of the specs: it added `github.com/google/uuid` back on Go 1.27 and failed on the `uuid` import on Go 1.26. Other constraints are now reported with code `build_tag`.
+- The project root is the directory of the nearest `go.mod`; a `codebuild.json` in a parent directory no longer captures builds in a monorepo.
+- Exit code 6 also covers an outdated plan and a concurrent build.
+
+### Fixed
+
+- Migrations that share a version number, which made one of them disappear silently, now fail both the build and the migrator. The snapshot records the migrations it incorporates, so a migration merged from another branch with a number below the newest one fails the build, and the migrator keeps `schema_migrations_history` next to `schema_migrations` to refuse older migrations that never ran instead of skipping them forever.
+- Builds write every file to a temporary file before renaming, write the snapshot last, refuse to apply a plan when files changed since it was computed, and hold `.codebuild.lock` so the CLI and the MCP server never write at the same time. A migration left without its snapshot by an interrupted build is recognized and reused instead of being generated twice.
+- The MCP tools only accept directories inside the directory the server was started in (after resolving symbolic links), and they refuse projects whose root lies above it; `generate` is annotated as destructive.
+- Non-nullable `[]byte` fields that the client omits are stored as empty values instead of NULL, and not-null violations become HTTP 422 with the field name in every dialect.
+- MySQL string columns without `max=` use an expression default (`DEFAULT ('x')`), which `LONGTEXT` requires.
 
 ## [0.1.0] - 2026-10-18
 
 ### Added
 
-- Spec files in `specs/<domain>.go` with `//go:build spec`, parsed with `go/parser` and `go/types`, supporting the entity markers `table`, `softdelete`, `noroutes` and `readonly` and the field markers `pk`, `auto`, `required`, `notempty`, `unique`, `index`, `min`, `max`, `email`, `enum`, `default`, `omit`, `column`, `rel`, `ondelete`, `fk` and `via`.
+- Spec files in `specs/<domain>.go` with `//go:build ignore`, parsed with `go/parser` and `go/types`, supporting the entity markers `table`, `softdelete`, `noroutes` and `readonly` and the field markers `pk`, `auto`, `required`, `notempty`, `unique`, `index`, `min`, `max`, `email`, `enum`, `default`, `omit`, `column`, `rel`, `ondelete`, `fk` and `via`.
 - Positioned diagnostics with stable codes and "did you mean" suggestions.
 - Go version detection from `go.mod`, a capability table for Go 1.26 (`encoding/json`, `github.com/google/uuid`) and Go 1.27 (`encoding/json/v2`, standard library `uuid`), consent flow for projects below Go 1.26 and toolchain checks that honor `GOTOOLCHAIN`.
 - PostgreSQL, SQL Server, MySQL and SQLite dialects with dialect-specific queries, column types, constraint error mapping that works with localized server messages, and incremental migrations derived from a schema snapshot.

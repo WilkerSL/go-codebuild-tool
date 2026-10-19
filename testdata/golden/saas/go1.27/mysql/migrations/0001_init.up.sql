@@ -20,6 +20,7 @@ CREATE TABLE `orgs` (
     `slug` VARCHAR(64) NOT NULL,
     `plan` VARCHAR(32) NOT NULL DEFAULT 'free',
     `active` BOOLEAN NOT NULL DEFAULT TRUE,
+    `locale` LONGTEXT NOT NULL DEFAULT ('en-US'),
     `created_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `updated_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `deleted_at` DATETIME(6),

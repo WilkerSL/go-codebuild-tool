@@ -205,9 +205,13 @@ func (p *parser) checkHeader(f *ast.File, file string) {
 	if f.Name.Name != "specs" {
 		p.errorf(p.pos(f.Name.Pos()), CodePackageName, "specs", "spec files must declare package specs, found package %s", f.Name.Name)
 	}
-	if !p.hasSpecConstraint(f) {
-		p.errorf(schema.Pos{File: file, Line: 1, Column: 1}, CodeBuildTag, "",
-			"spec files must start with //go:build spec so they stay out of the normal build")
+	switch p.buildConstraint(f) {
+	case constraintMissing:
+		p.errorf(schema.Pos{File: file, Line: 1, Column: 1}, CodeBuildTag, "//go:build ignore",
+			"spec files must start with //go:build ignore so they stay out of the build and out of go mod tidy")
+	case constraintTidy:
+		p.errorf(schema.Pos{File: file, Line: 1, Column: 1}, CodeBuildTag, "//go:build ignore",
+			"go mod tidy considers every build tag except ignore, so it reads this spec and adds or breaks its imports; replace the constraint with //go:build ignore")
 	}
 	for _, imp := range f.Imports {
 		importPath, err := strconv.Unquote(imp.Path.Value)
@@ -219,7 +223,15 @@ func (p *parser) checkHeader(f *ast.File, file string) {
 	}
 }
 
-func (p *parser) hasSpecConstraint(f *ast.File) bool {
+type constraintState int
+
+const (
+	constraintMissing constraintState = iota
+	constraintTidy
+	constraintIgnored
+)
+
+func (p *parser) buildConstraint(f *ast.File) constraintState {
 	for _, group := range f.Comments {
 		if group.Pos() >= f.Package {
 			break
@@ -229,15 +241,16 @@ func (p *parser) hasSpecConstraint(f *ast.File) bool {
 				continue
 			}
 			expr, err := constraint.Parse(c.Text)
-			if err != nil {
-				return false
+			if err != nil || expr.Eval(func(string) bool { return false }) {
+				return constraintMissing
 			}
-			withSpec := expr.Eval(func(tag string) bool { return tag == "spec" })
-			withoutSpec := expr.Eval(func(string) bool { return false })
-			return withSpec && !withoutSpec
+			if expr.Eval(func(tag string) bool { return tag != "ignore" }) {
+				return constraintTidy
+			}
+			return constraintIgnored
 		}
 	}
-	return false
+	return constraintMissing
 }
 
 func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {

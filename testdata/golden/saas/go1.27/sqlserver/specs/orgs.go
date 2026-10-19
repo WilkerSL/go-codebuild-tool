@@ -1,4 +1,4 @@
-//go:build spec
+//go:build ignore
 
 package specs
 
@@ -15,6 +15,7 @@ type Org struct {
 	Slug      string    `gen:"required,unique,max=64"`
 	Plan      string    `gen:"enum=free|pro|enterprise,default=free,index"`
 	Active    bool      `gen:"default=true"`
+	Locale    string    `gen:"default=en-US"`
 	CreatedAt time.Time `gen:"auto=create"`
 	UpdatedAt time.Time `gen:"auto=update"`
 	Users     []User    `gen:"rel=has_many:User"`

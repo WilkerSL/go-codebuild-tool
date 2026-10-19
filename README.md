@@ -3,7 +3,7 @@
 codebuild turns small Go spec files into a complete REST API: domain types, request validation, `net/http` handlers, `database/sql` repositories with SQL written for your database, migrations, and the application bootstrap.
 
 ```go
-//go:build spec
+//go:build ignore
 
 package specs
 
@@ -62,7 +62,7 @@ mkdir specs
 Create `specs/orgs.go` and `specs/users.go`:
 
 ```go
-//go:build spec
+//go:build ignore
 
 package specs
 
@@ -81,7 +81,7 @@ type Org struct {
 ```
 
 ```go
-//go:build spec
+//go:build ignore
 
 package specs
 
@@ -137,7 +137,7 @@ The last request answers `422` with a problem document listing every invalid fie
 
 Global flags: `--json` for machine-readable output, `--upgrade-go` to authorize raising a `go` directive below 1.26 without a prompt, `--dir` to point at another project. `build` and `plan` also accept `--dialect`, `--change-dialect` and `--prune`.
 
-Exit codes: `0` success, `1` error, `2` usage, `3` invalid spec, `4` unsupported Go version, `5` toolchain too old, `6` file ownership conflict, `7` configuration conflict, `8` pending changes (`plan --exit-code`).
+Exit codes: `0` success, `1` error, `2` usage, `3` invalid spec, `4` unsupported Go version, `5` toolchain too old, `6` file conflict (ownership, outdated plan or a concurrent build), `7` configuration conflict, `8` pending changes (`plan --exit-code`).
 
 ## Dialects
 

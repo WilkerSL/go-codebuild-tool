@@ -12,7 +12,7 @@ type DiagnosticDoc struct {
 
 var diagnosticDocs = []DiagnosticDoc{
 	{CodeSyntax, "The file is not valid Go."},
-	{CodeBuildTag, "The file does not start with `//go:build spec`."},
+	{CodeBuildTag, "The file does not start with `//go:build ignore`, or uses a constraint such as `//go:build spec` that `go mod tidy` still reads."},
 	{CodePackageName, "The package clause is not `package specs`."},
 	{CodeUnsupportedImport, "An import other than `time`, `uuid` or `github.com/google/uuid`."},
 	{CodeUnsupportedDecl, "A declaration other than the entity struct or a type alias."},
@@ -63,7 +63,7 @@ func Reference() string {
 	w("```go\n%s```\n\n", exampleSpec)
 	w("```ebnf\n%s```\n\n", grammarEBNF)
 	w("Rules:\n\n")
-	w("- The first line is `//go:build spec`, which keeps specs out of normal builds while gofmt, gopls and the type checker keep working.\n")
+	w("- The first line is `//go:build ignore`, which keeps specs out of normal builds and out of `go mod tidy` (it reads every other build tag, so a constraint such as `spec` would make it resolve the imports of the specs). gofmt and the type checker keep working.\n")
 	w("- The package is `specs` and the only imports are `time`, `uuid` (Go 1.27+) and `github.com/google/uuid` (Go 1.26). Both UUID packages are accepted for every Go version.\n")
 	w("- Exactly one entity struct per file. Type aliases such as `type Email = string` are allowed and resolved.\n")
 	w("- Fields are exported and not embedded. Tags only use the `gen` key; JSON tags are generated.\n")
@@ -131,7 +131,7 @@ func Reference() string {
 	return b.String()
 }
 
-const exampleSpec = `//go:build spec
+const exampleSpec = `//go:build ignore
 
 package specs
 
@@ -154,7 +154,7 @@ type User struct {
 }
 `
 
-const grammarEBNF = `SpecFile   = "//go:build spec" "package specs" [ Imports ] { AliasDecl } EntityDecl { AliasDecl } .
+const grammarEBNF = `SpecFile   = "//go:build ignore" "package specs" [ Imports ] { AliasDecl } EntityDecl { AliasDecl } .
 Imports    = "import" of "time" | "uuid" | "github.com/google/uuid" .
 AliasDecl  = "type" Name "=" FieldType .
 EntityDecl = "type" EntityName "struct" "{" [ MetaField ] { Field } "}" .

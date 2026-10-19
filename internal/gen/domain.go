@@ -124,6 +124,11 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 			dv.ConstraintCases = append(dv.ConstraintCases, constraintCase{Constraint: name, Column: f.Column, Field: f.JSON})
 		}
 	}
+	for _, f := range e.Fields {
+		if !f.Nullable && !f.Auto() && !f.Owner && (f.InCreate() || f.InUpdate()) {
+			dv.NotNullCases = append(dv.NotNullCases, constraintCase{Column: f.Column, Field: f.InputJSON()})
+		}
+	}
 	refs := e.BelongsTo()
 	for _, f := range refs {
 		dv.ConstraintCases = append(dv.ConstraintCases, constraintCase{Constraint: schema.ConstraintName("fk", e.Table, f.Column), Column: f.Column, Field: f.JSON})

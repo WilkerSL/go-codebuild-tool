@@ -21,6 +21,7 @@ type ConstraintKind int
 const (
 	UniqueViolation ConstraintKind = iota + 1
 	ForeignKeyViolation
+	NotNullViolation
 )
 
 type ConstraintError struct {
@@ -35,8 +36,11 @@ type ConstraintError struct {
 
 func (e *ConstraintError) Error() string {
 	kind := "unique"
-	if e.Kind == ForeignKeyViolation {
+	switch e.Kind {
+	case ForeignKeyViolation:
 		kind = "foreign key"
+	case NotNullViolation:
+		kind = "not null"
 	}
 	if e.Constraint != "" {
 		return fmt.Sprintf("database: %s constraint %s violated: %v", kind, e.Constraint, e.Err)
@@ -46,6 +50,18 @@ func (e *ConstraintError) Error() string {
 
 func (e *ConstraintError) Unwrap() error {
 	return e.Err
+}
+
+func (e *ConstraintError) HasColumn(column string) bool {
+	if slices.Contains(e.Columns, column) {
+		return true
+	}
+	for _, quote := range []string{"'", "\"", "`"} {
+		if strings.Contains(e.Message, quote+column+quote) || strings.Contains(e.Message, "."+column+quote) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *ConstraintError) Matches(constraint, column string) bool {
@@ -71,6 +87,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 		return &ConstraintError{Kind: UniqueViolation, Message: myErr.Message, PrimaryKey: primary, Err: err}, true
 	case 1451, 1452:
 		return &ConstraintError{Kind: ForeignKeyViolation, Message: myErr.Message, Err: err}, true
+	case 1048, 1364:
+		return &ConstraintError{Kind: NotNullViolation, Message: myErr.Message, Err: err}, true
 	}
 	return nil, false
 }

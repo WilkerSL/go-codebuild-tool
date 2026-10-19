@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -46,6 +47,9 @@ func New(opts Options) *mcp.Server {
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
 	h := handler{dir: dir, toolchain: opts.Toolchain}
 	server := mcp.NewServer(&mcp.Implementation{Name: "codebuild", Version: opts.Version}, &mcp.ServerOptions{Instructions: instructions})
 	server.AddResource(&mcp.Resource{
@@ -72,10 +76,10 @@ func New(opts Options) *mcp.Server {
 		Description: "Dry run of generate: lists every file that would be created, regenerated, skipped or flagged, the new migration, warnings and next steps. Writes nothing.",
 		Annotations: &mcp.ToolAnnotations{Title: "Plan generation", ReadOnlyHint: true},
 	}, h.plan)
-	destructive := false
+	destructive := true
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "generate",
-		Description: "Apply the plan: regenerate *_gen.go files, create missing user files, write the new migration and update go.mod with the allowed dependencies. Never overwrites user files or existing migrations. Call it only after the user approved the plan.",
+		Description: "Apply the plan: overwrite *_gen.go files, create missing user files, write the new migration and update go.mod with the allowed dependencies; with prune it also deletes stale generated files. Never overwrites user files or existing migrations. Call it only after the user approved the plan.",
 		Annotations: &mcp.ToolAnnotations{Title: "Generate code", DestructiveHint: &destructive, IdempotentHint: true},
 	}, h.generate)
 	return server
@@ -100,14 +104,37 @@ func (nopWriteCloser) Close() error {
 	return nil
 }
 
-func (h handler) resolve(dir string) string {
+func (h handler) resolve(dir string) (string, error) {
+	path := h.dir
 	switch {
 	case dir == "":
-		return h.dir
 	case filepath.IsAbs(dir):
-		return dir
+		path = filepath.Clean(dir)
+	case filepath.IsLocal(dir):
+		path = filepath.Join(h.dir, dir)
+	default:
+		return "", &project.Error{Code: "outside_root", Message: fmt.Sprintf("dir %q leaves the directory the MCP server was started in (%s)", dir, h.dir)}
 	}
-	return filepath.Join(h.dir, dir)
+	if err := project.Within(h.dir, path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func (h handler) buildPlan(ctx context.Context, opts project.Options) (*project.Plan, error) {
+	dir, err := h.resolve(opts.Dir)
+	if err != nil {
+		return nil, err
+	}
+	opts.Dir = dir
+	plan, err := project.BuildPlan(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := project.Within(h.dir, plan.Root); err != nil {
+		return nil, err
+	}
+	return plan, nil
 }
 
 func toolError(err error) (*mcp.CallToolResult, *project.Error) {
@@ -119,11 +146,18 @@ func toolError(err error) (*mcp.CallToolResult, *project.Error) {
 }
 
 type dirInput struct {
-	Dir string `json:"dir,omitempty" jsonschema:"project directory, absolute or relative to the server directory; defaults to the server directory"`
+	Dir string `json:"dir,omitempty" jsonschema:"project directory inside the server directory, absolute or relative; defaults to the server directory"`
 }
 
 func (h handler) listDomains(_ context.Context, _ *mcp.CallToolRequest, in dirInput) (*mcp.CallToolResult, *project.Info, error) {
-	info, err := project.Inspect(h.resolve(in.Dir))
+	dir, err := h.resolve(in.Dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := project.Inspect(dir)
+	if err == nil {
+		err = project.Within(h.dir, info.Root)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +176,11 @@ type validateOutput struct {
 }
 
 func (h handler) validate(_ context.Context, _ *mcp.CallToolRequest, in validateInput) (*mcp.CallToolResult, validateOutput, error) {
-	diags, err := project.ValidateSpec(h.resolve(in.Dir), in.File, []byte(in.Content))
+	dir, err := h.resolve(in.Dir)
+	if err != nil {
+		return nil, validateOutput{}, err
+	}
+	diags, err := project.ValidateSpec(dir, in.File, []byte(in.Content))
 	if err != nil {
 		return nil, validateOutput{}, err
 	}
@@ -163,7 +201,7 @@ type planOutput struct {
 }
 
 func (h handler) plan(ctx context.Context, _ *mcp.CallToolRequest, in planInput) (*mcp.CallToolResult, planOutput, error) {
-	plan, err := project.BuildPlan(ctx, project.Options{Dir: h.resolve(in.Dir), UpgradeGo: in.UpgradeGo, Toolchain: h.toolchain})
+	plan, err := h.buildPlan(ctx, project.Options{Dir: in.Dir, UpgradeGo: in.UpgradeGo, Toolchain: h.toolchain})
 	if err != nil {
 		res, perr := toolError(err)
 		return res, planOutput{Error: perr}, nil
@@ -184,7 +222,7 @@ type generateOutput struct {
 }
 
 func (h handler) generate(ctx context.Context, _ *mcp.CallToolRequest, in generateInput) (*mcp.CallToolResult, generateOutput, error) {
-	plan, err := project.BuildPlan(ctx, project.Options{Dir: h.resolve(in.Dir), UpgradeGo: in.UpgradeGo, Prune: in.Prune, Toolchain: h.toolchain})
+	plan, err := h.buildPlan(ctx, project.Options{Dir: in.Dir, UpgradeGo: in.UpgradeGo, Prune: in.Prune, Toolchain: h.toolchain})
 	if err != nil {
 		res, perr := toolError(err)
 		return res, generateOutput{Error: perr}, nil

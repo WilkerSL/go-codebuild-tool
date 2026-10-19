@@ -7,6 +7,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 	switch msErr.Number {
 	case 2601, 2627:
 		return &ConstraintError{Kind: UniqueViolation, Message: msErr.Message, Err: err}, true
+	case 515:
+		return &ConstraintError{Kind: NotNullViolation, Message: msErr.Message, Err: err}, true
 	case 547:
 		if strings.Contains(msErr.Message, "FOREIGN KEY") || strings.Contains(msErr.Message, "REFERENCE") || strings.Contains(msErr.Message, "\"fk_") {
 			return &ConstraintError{Kind: ForeignKeyViolation, Message: msErr.Message, Err: err}, true
@@ -40,9 +42,21 @@ func Connect(dsn string) (*sql.DB, error) {
 {{- end}}
 
 {{define "sqlserver.migrate" -}}
+const (
+	historyInsertSQL = "INSERT INTO schema_migrations_history (version, name) VALUES (@p1, @p2)"
+	historyDeleteSQL = "DELETE FROM schema_migrations_history WHERE version = @p1"
+)
+
 func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "IF OBJECT_ID(N'schema_migrations', N'U') IS NULL CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BIT NOT NULL)")
-	return err
+	for _, stmt := range []string{
+		"IF OBJECT_ID(N'schema_migrations', N'U') IS NULL CREATE TABLE schema_migrations (version BIGINT NOT NULL PRIMARY KEY, dirty BIT NOT NULL)",
+		"IF OBJECT_ID(N'schema_migrations_history', N'U') IS NULL CREATE TABLE schema_migrations_history (version BIGINT NOT NULL PRIMARY KEY, name NVARCHAR(255) NOT NULL)",
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lockMigrations(ctx context.Context, conn *sql.Conn) error {
@@ -62,8 +76,8 @@ func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
 	return err
 }
 
-func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string) error {
-	return applyInTransaction(ctx, conn, to, script)
+func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string, history historyChange) error {
+	return applyInTransaction(ctx, conn, to, script, history)
 }
 
 func setVersion(ctx context.Context, exec DBTX, version uint64, dirty bool) error {

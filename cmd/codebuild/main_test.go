@@ -336,6 +336,9 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 	}
 	suffix := fmt.Sprint(time.Now().UnixNano())
 	org := c.expect("POST", "/orgs", map[string]any{"name": "Acme", "slug": "acme-" + suffix}, http.StatusCreated)
+	if org["locale"] != "en-US" {
+		t.Fatalf("text default not applied: %v", org)
+	}
 	orgID := org["id"].(string)
 	email := "ann-" + suffix + "@example.com"
 	user := c.expect("POST", "/users", map[string]any{"name": "Ann", "email": email, "orgId": orgID}, http.StatusCreated)
@@ -380,6 +383,7 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 	if project["priority"].(float64) != 3 || project["logo"] != "aGk=" {
 		t.Fatalf("project = %v", project)
 	}
+	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Hermes"}, http.StatusCreated)
 	c.expect("DELETE", "/orgs/"+orgID, nil, http.StatusNoContent)
 	c.expect("DELETE", "/users/"+userID+"/tags/"+tagID, nil, http.StatusNoContent)
 	c.expect("DELETE", "/users/"+userID, nil, http.StatusNoContent)

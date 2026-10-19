@@ -22,6 +22,7 @@ type ConstraintKind int
 const (
 	UniqueViolation ConstraintKind = iota + 1
 	ForeignKeyViolation
+	NotNullViolation
 )
 
 type ConstraintError struct {
@@ -36,8 +37,11 @@ type ConstraintError struct {
 
 func (e *ConstraintError) Error() string {
 	kind := "unique"
-	if e.Kind == ForeignKeyViolation {
+	switch e.Kind {
+	case ForeignKeyViolation:
 		kind = "foreign key"
+	case NotNullViolation:
+		kind = "not null"
 	}
 	if e.Constraint != "" {
 		return fmt.Sprintf("database: %s constraint %s violated: %v", kind, e.Constraint, e.Err)
@@ -47,6 +51,18 @@ func (e *ConstraintError) Error() string {
 
 func (e *ConstraintError) Unwrap() error {
 	return e.Err
+}
+
+func (e *ConstraintError) HasColumn(column string) bool {
+	if slices.Contains(e.Columns, column) {
+		return true
+	}
+	for _, quote := range []string{"'", "\"", "`"} {
+		if strings.Contains(e.Message, quote+column+quote) || strings.Contains(e.Message, "."+column+quote) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *ConstraintError) Matches(constraint, column string) bool {
@@ -73,6 +89,8 @@ func Constraint(err error) (*ConstraintError, bool) {
 		return &ConstraintError{Kind: UniqueViolation, PrimaryKey: true, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
 	case sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY:
 		return &ConstraintError{Kind: ForeignKeyViolation, Err: err}, true
+	case sqlite3.SQLITE_CONSTRAINT_NOTNULL:
+		return &ConstraintError{Kind: NotNullViolation, Columns: failedColumns(sqliteErr.Error()), Err: err}, true
 	}
 	return nil, false
 }

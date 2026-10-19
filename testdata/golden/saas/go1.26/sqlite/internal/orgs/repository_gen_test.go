@@ -62,6 +62,7 @@ func fixtureOrgInput(t *testing.T, ctx context.Context, db *sql.DB) orgs.CreateI
 		Slug:   fixtureString(16),
 		Plan:   orgs.PlanFree,
 		Active: true,
+		Locale: "a",
 	}
 }
 
@@ -101,6 +102,7 @@ func TestRepositoryCRUD(t *testing.T) {
 		Slug:   created.Slug,
 		Plan:   orgs.PlanFree,
 		Active: true,
+		Locale: "a",
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -113,6 +115,7 @@ func TestRepositoryCRUD(t *testing.T) {
 		Slug:   created.Slug,
 		Plan:   orgs.PlanFree,
 		Active: true,
+		Locale: "a",
 	}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("update missing: %v", err)
 	}
