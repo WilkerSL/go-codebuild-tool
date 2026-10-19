@@ -1,0 +1,12 @@
+go 1.27.0
+
+use (
+	.
+	./contracts
+	./databases/shared
+	./gateway
+	./services/billing
+	./services/catalog
+	./services/identity
+	./services/inventory
+)
