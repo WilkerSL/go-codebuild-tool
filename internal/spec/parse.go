@@ -99,6 +99,14 @@ type entityDecl struct {
 	uuidImp string
 	spec    *ast.TypeSpec
 	st      *ast.StructType
+	service *serviceDecl
+}
+
+type serviceDecl struct {
+	source string
+	spec   *ast.TypeSpec
+	meta   *ast.Field
+	svc    *schema.Service
 }
 
 type parser struct {
@@ -109,6 +117,7 @@ type parser struct {
 	fieldMarkers    map[*schema.Field]markerSet
 	relationMarkers map[*schema.Relation]markerSet
 	entityMarkers   map[*schema.Entity]markerSet
+	services        []*serviceDecl
 }
 
 func Parse(sources []Source) (*schema.Model, schema.Diagnostics) {
@@ -143,12 +152,20 @@ func Parse(sources []Source) (*schema.Model, schema.Diagnostics) {
 	}
 	conf := types.Config{Importer: newSyntheticImporter(), Error: p.addTypeError}
 	p.pkg, _ = conf.Check("specs", p.fset, files, p.info)
+	model.Services = p.buildServices()
 	for _, d := range decls {
 		if e := p.buildEntity(d); e != nil {
 			model.Entities = append(model.Entities, e)
+			if d.service != nil {
+				e.Service = d.service.svc
+				d.service.svc.Entities = append(d.service.svc.Entities, e)
+			}
 		}
 	}
 	slices.SortFunc(model.Entities, func(a, b *schema.Entity) int { return strings.Compare(a.Name, b.Name) })
+	for _, s := range model.Services {
+		slices.SortFunc(s.Entities, func(a, b *schema.Entity) int { return strings.Compare(a.Name, b.Name) })
+	}
 	p.validateModel(model)
 	p.diags.Sort()
 	return model, p.diags
@@ -253,6 +270,19 @@ func (p *parser) buildConstraint(f *ast.File) constraintState {
 	return constraintMissing
 }
 
+func isServiceName(name string) bool {
+	trimmed, ok := strings.CutSuffix(name, "Service")
+	return ok && trimmed != "" && ast.IsExported(name)
+}
+
+func ServiceName(typeName string) string {
+	return strings.ReplaceAll(naming.Snake(strings.TrimSuffix(typeName, "Service")), "_", "")
+}
+
+func entityDomain(name string) string {
+	return naming.Plural(strings.ReplaceAll(naming.Snake(name), "_", ""))
+}
+
 func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {
 	domain := strings.TrimSuffix(path.Base(file), ".go")
 	uuidImport := ""
@@ -263,6 +293,7 @@ func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {
 		}
 	}
 	var decls []entityDecl
+	var services []*ast.TypeSpec
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
@@ -286,6 +317,10 @@ func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {
 							"type %s is not a struct; spec files only declare entity structs and type aliases such as type %s = string", ts.Name.Name, ts.Name.Name)
 						continue
 					}
+					if isServiceName(ts.Name.Name) {
+						services = append(services, ts)
+						continue
+					}
 					decls = append(decls, entityDecl{source: file, domain: domain, uuidImp: uuidImport, spec: ts, st: st})
 				}
 			default:
@@ -293,18 +328,86 @@ func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {
 			}
 		}
 	}
+	if len(services) > 0 {
+		for _, extra := range services[1:] {
+			p.errorf(p.pos(extra.Pos()), CodeEntityCount, "", "%s declares more than one service; move %s to specs/%s.go", file, extra.Name.Name, ServiceName(extra.Name.Name))
+		}
+		for _, d := range decls {
+			p.errorf(p.pos(d.spec.Pos()), CodeEntityCount, "", "%s declares the service %s, so %s must be a field of it: %s struct{ ... }", file, services[0].Name.Name, d.spec.Name.Name, d.spec.Name.Name)
+		}
+		return p.expandService(f, file, services[0], uuidImport)
+	}
 	switch {
 	case len(decls) == 0:
 		p.errorf(p.pos(f.Name.Pos()), CodeEntityCount, "", "%s declares no entity; each spec file declares exactly one entity struct", file)
 	case len(decls) > 1:
 		for _, d := range decls[1:] {
 			p.errorf(p.pos(d.spec.Pos()), CodeEntityCount, "",
-				"%s declares more than one entity; move %s to specs/%s.go", file, d.spec.Name.Name, naming.Plural(strings.ReplaceAll(naming.Snake(d.spec.Name.Name), "_", "")))
+				"%s declares more than one entity; move %s to specs/%s.go", file, d.spec.Name.Name, entityDomain(d.spec.Name.Name))
 		}
 		decls = decls[:1]
 	}
 	p.checkDomain(f, file, domain)
 	return decls
+}
+
+func (p *parser) expandService(f *ast.File, file string, ts *ast.TypeSpec, uuidImport string) []entityDecl {
+	s := &serviceDecl{source: file, spec: ts}
+	p.services = append(p.services, s)
+	name := ServiceName(ts.Name.Name)
+	if base := strings.TrimSuffix(path.Base(file), ".go"); base != name {
+		p.errorf(schema.Pos{File: file, Line: 1, Column: 1}, CodeDomainName, name+".go", "the service %s must be declared in specs/%s.go", ts.Name.Name, name)
+	}
+	p.checkName(p.pos(ts.Name.Pos()), name, "service name")
+	var decls []entityDecl
+	var specs []ast.Spec
+	for _, field := range ts.Type.(*ast.StructType).Fields.List {
+		if len(field.Names) == 1 && field.Names[0].Name == "_" {
+			if s.meta != nil {
+				p.errorf(p.pos(field.Pos()), CodeInvalidTag, "", "service %s declares more than one _ struct{} field", ts.Name.Name)
+				continue
+			}
+			s.meta = field
+			continue
+		}
+		inner, isStruct := field.Type.(*ast.StructType)
+		switch {
+		case len(field.Names) == 0:
+			p.errorf(p.pos(field.Pos()), CodeEmbeddedField, "", "embedded fields are not supported in services; declare entities as Name struct{ ... }")
+			continue
+		case !isStruct:
+			p.errorf(p.pos(field.Type.Pos()), CodeUnsupportedType, "", "fields of the service %s declare entities and must be written as %s struct{ ... }", ts.Name.Name, field.Names[0].Name)
+			continue
+		case len(field.Names) > 1:
+			p.errorf(p.pos(field.Names[1].Pos()), CodeUnsupportedDecl, "", "declare one entity per field of the service %s", ts.Name.Name)
+			continue
+		case field.Tag != nil:
+			p.errorf(p.pos(field.Tag.Pos()), CodeInvalidTag, "", "entity fields of a service take no tag; put entity markers on the _ struct{} field inside %s", field.Names[0].Name)
+		}
+		ident := field.Names[0]
+		spec := &ast.TypeSpec{Name: &ast.Ident{NamePos: ident.Pos(), Name: ident.Name}, Type: inner}
+		specs = append(specs, spec)
+		field.Type = &ast.Ident{NamePos: inner.Pos(), Name: ident.Name}
+		domain := entityDomain(ident.Name)
+		p.checkName(p.pos(ident.Pos()), domain, "domain "+domain+" of "+ident.Name)
+		decls = append(decls, entityDecl{source: file, domain: domain, uuidImp: uuidImport, spec: spec, st: inner, service: s})
+	}
+	if len(specs) > 0 {
+		f.Decls = append(f.Decls, &ast.GenDecl{Tok: token.TYPE, Specs: specs})
+	}
+	if len(decls) == 0 {
+		p.errorf(p.pos(ts.Name.Pos()), CodeEntityCount, "", "service %s declares no entity; add fields such as Invoice struct{ ... }", ts.Name.Name)
+	}
+	return decls
+}
+
+func (p *parser) checkName(pos schema.Pos, name, what string) {
+	switch {
+	case !domainPattern.MatchString(name):
+		p.errorf(pos, CodeDomainName, "", "%s %q is not a valid Go package name; use letters and digits only", what, name)
+	case reservedDomains[name] || token.IsKeyword(name) || types.Universe.Lookup(name) != nil:
+		p.errorf(pos, CodeDomainName, "", "%s %q is reserved because it collides with a Go keyword or a package used by the generated code", what, name)
+	}
 }
 
 func (p *parser) checkDomain(f *ast.File, file, domain string) {
@@ -425,9 +528,14 @@ func (p *parser) markerSet(markers []marker, scope markerScope) markerSet {
 			continue
 		}
 		if def.scope != scope {
-			if scope == scopeField {
+			switch {
+			case def.scope == scopeService:
+				p.errorf(m.pos, CodeMarkerScope, "", "%s is a service marker; put it on the _ struct{} field of the XxxService struct", m.key)
+			case scope == scopeService:
+				p.errorf(m.pos, CodeMarkerScope, "", "%s is not a service marker; services only take database=", m.key)
+			case scope == scopeField:
 				p.errorf(m.pos, CodeMarkerScope, "", "%s is an entity marker; put it on the _ struct{} field", m.key)
-			} else {
+			default:
 				p.errorf(m.pos, CodeMarkerScope, "", "%s is a field marker and cannot be used on the _ struct{} field", m.key)
 			}
 			continue
@@ -946,4 +1054,45 @@ func (p *parser) checkEntity(e *schema.Entity) {
 			generated[name] = "constant"
 		}
 	}
+}
+
+var databaseModes = []string{string(schema.DatabaseOwn), string(schema.DatabaseShared)}
+
+func (p *parser) buildServices() []*schema.Service {
+	var services []*schema.Service
+	for _, s := range p.services {
+		svc := &schema.Service{
+			Name:     ServiceName(s.spec.Name.Name),
+			TypeName: s.spec.Name.Name,
+			File:     s.source,
+			Pos:      p.pos(s.spec.Name.Pos()),
+		}
+		s.svc = svc
+		services = append(services, svc)
+		if s.meta == nil {
+			p.errorf(svc.Pos, CodeInvalidValue, "_ struct{} `gen:\"database=own\"`", "service %s must declare its database with _ struct{} `gen:\"database=own\"` or `gen:\"database=shared\"`", svc.TypeName)
+			continue
+		}
+		if st, ok := s.meta.Type.(*ast.StructType); !ok || len(st.Fields.List) > 0 {
+			p.errorf(p.pos(s.meta.Type.Pos()), CodeUnsupportedType, "struct{}", "the _ field carries service markers and must have type struct{}")
+			continue
+		}
+		markers, ok := p.parseTag(s.meta.Tag)
+		if !ok {
+			continue
+		}
+		set := p.markerSet(markers, scopeService)
+		if !set.has("database") {
+			p.errorf(p.pos(s.meta.Pos()), CodeInvalidValue, "database=own", "service %s must declare database=own or database=shared", svc.TypeName)
+			continue
+		}
+		m := set.get("database")
+		if !slices.Contains(databaseModes, m.value) {
+			p.errorf(m.pos, CodeInvalidValue, naming.Suggest(m.value, databaseModes), "unknown database mode %q; use own or shared", m.value)
+			continue
+		}
+		svc.Database = schema.DatabaseMode(m.value)
+	}
+	slices.SortFunc(services, func(a, b *schema.Service) int { return strings.Compare(a.Name, b.Name) })
+	return services
 }

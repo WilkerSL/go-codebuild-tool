@@ -66,7 +66,7 @@ func cascadePaths(d Dialect, m *schema.Model) schema.Diagnostics {
 	joins := map[string]bool{}
 	for _, e := range m.Entities {
 		for _, f := range e.Fields {
-			if f.Ref == nil || f.Ref.OnDelete == schema.OnDeleteRestrict {
+			if f.Ref == nil || f.Ref.OnDelete == schema.OnDeleteRestrict || f.External(e) {
 				continue
 			}
 			target := m.Entity(f.Ref.Entity)

@@ -87,11 +87,17 @@ func Reference() string {
 	w("| JSON member | lowerCamelCase of the field | `OrgID` -> `orgId` |\n")
 	w("| Route | kebab-case of the table | `order_items` -> `/order-items` |\n")
 	w("| Constraints | `pk_`, `ux_`, `ix_`, `fk_`, `ck_`, `df_` + table + column, shortened with a hash past 63 characters | `ux_users_email` |\n\n")
-	for _, scope := range []string{"entity", "field"} {
-		if scope == "entity" {
+	for _, scope := range []string{"entity", "field", "service"} {
+		switch scope {
+		case "entity":
 			w("## Entity markers\n\n")
-		} else {
+		case "field":
 			w("## Field markers\n\n")
+		default:
+			w("## Microservices\n\n")
+			w("A spec file may declare one `XxxService` struct instead of an entity. Each field written as `Invoice struct{ ... }` is an entity of that service, with the same markers as a top-level entity; its domain is the snake_case plural of its name without underscores (`InvoiceItem` -> `invoiceitems`). The file is named after the service (`BillingService` -> `specs/billing.go`), and once a project declares a service every entity must live in one. Each service becomes its own Go module exposing gRPC, and a generated gateway is the only REST API.\n\n")
+			w("```go\ntype BillingService struct {\n\t_       struct{} `gen:\"database=own\"`\n\tInvoice struct {\n\t\tID     uuid.UUID `gen:\"pk,auto\"`\n\t\tUserID uuid.UUID `gen:\"rel=belongs_to:User\"`\n\t}\n}\n```\n\n")
+			w("## Service markers\n\n")
 		}
 		for _, m := range Markers() {
 			if m.Scope != scope {

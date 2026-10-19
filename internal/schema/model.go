@@ -105,6 +105,7 @@ func (k Kind) BitSize() int {
 
 type Model struct {
 	Entities []*Entity
+	Services []*Service
 }
 
 func (m *Model) Entity(name string) *Entity {
@@ -143,6 +144,7 @@ type Entity struct {
 	NoRoutes   bool
 	ReadOnly   bool
 	UUIDImport string
+	Service    *Service
 	Auth       []Method
 	Register   bool
 	Public     Operations

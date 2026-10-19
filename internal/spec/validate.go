@@ -36,6 +36,7 @@ func (p *parser) validateModel(m *schema.Model) {
 			}
 		}
 	}
+	p.checkServices(m)
 }
 
 func (p *parser) checkAuthModel(m *schema.Model) {
@@ -299,6 +300,39 @@ func (p *parser) checkCycles(m *schema.Model) {
 	for _, e := range m.Entities {
 		if state[e.Name] == unvisited {
 			visit(e.Name)
+		}
+	}
+}
+
+func (p *parser) checkServices(m *schema.Model) {
+	domains := map[string]*schema.Entity{}
+	for _, e := range m.Entities {
+		if other, ok := domains[e.Domain]; ok {
+			p.errorf(e.Pos, CodeDomainName, "", "entities %s and %s both map to the domain %s; rename one of them", other.Name, e.Name, e.Domain)
+			continue
+		}
+		domains[e.Domain] = e
+	}
+	if !m.Workspace() {
+		return
+	}
+	for _, e := range m.Entities {
+		if e.Service == nil {
+			p.errorf(e.Pos, CodeEntityCount, "", "the project declares microservices (%s), so %s must be a field of one of them", m.Services[0].TypeName, e.Name)
+		}
+	}
+	for _, e := range m.Entities {
+		if e.Service == nil {
+			continue
+		}
+		for _, r := range e.Relations {
+			target := m.Entity(r.Target)
+			if r.Kind != schema.RelationManyToMany || target == nil || target.Service == nil || schema.SameDatabase(e, target) {
+				continue
+			}
+			p.errorf(p.relationPos(r, "rel"), CodeInvalidCombination, "",
+				"%s and %s live in different databases (%s and %s), so a many_to_many join table cannot reference both; give both services database=shared or model the link as an entity",
+				e.Name, target.Name, e.DatabaseName(), target.DatabaseName())
 		}
 	}
 }

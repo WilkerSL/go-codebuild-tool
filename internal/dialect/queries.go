@@ -110,7 +110,7 @@ func visible(d Dialect, e *schema.Entity, qualified bool, chain map[*schema.Enti
 	chain[e] = true
 	defer delete(chain, e)
 	for _, f := range e.Fields {
-		if f.Ref == nil || f.Ref.OnDelete != schema.OnDeleteCascade || f.Ref.Target == nil || chain[f.Ref.Target] || f.Ref.Target.PK() == nil {
+		if f.Ref == nil || f.Ref.OnDelete != schema.OnDeleteCascade || f.Ref.Target == nil || chain[f.Ref.Target] || f.Ref.Target.PK() == nil || f.External(e) {
 			continue
 		}
 		parent := f.Ref.Target
@@ -307,7 +307,7 @@ func SoftDeleteRules(d Dialect, m *schema.Model, e *schema.Entity) []DeleteRule 
 	var rules []DeleteRule
 	for _, child := range m.Entities {
 		for _, f := range child.Fields {
-			if f.Ref == nil || f.Ref.Entity != e.Name {
+			if f.Ref == nil || f.Ref.Entity != e.Name || f.External(child) {
 				continue
 			}
 			b := newBuilder(d)

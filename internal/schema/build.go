@@ -28,12 +28,32 @@ func ConstraintName(prefix string, parts ...string) string {
 }
 
 func Build(m *Model) *Database {
+	return buildDatabase(m, func(*Entity) bool { return true })
+}
+
+func BuildDatabases(m *Model) map[string]*Database {
+	out := map[string]*Database{}
+	for _, s := range m.Services {
+		name := s.DatabaseName()
+		if out[name] == nil {
+			out[name] = buildDatabase(m, func(e *Entity) bool { return e.DatabaseName() == name })
+		}
+	}
+	return out
+}
+
+func buildDatabase(m *Model, include func(*Entity) bool) *Database {
 	db := &Database{}
 	for _, e := range m.Entities {
-		db.Tables = append(db.Tables, buildTable(m, e))
+		if include(e) {
+			db.Tables = append(db.Tables, buildTable(m, e))
+		}
 	}
 	seen := map[string]bool{}
 	for _, e := range m.Entities {
+		if !include(e) {
+			continue
+		}
 		for _, r := range e.Relations {
 			if r.Kind != RelationManyToMany || r.Via == "" || seen[r.Via] {
 				continue
@@ -46,7 +66,9 @@ func Build(m *Model) *Database {
 			db.Tables = append(db.Tables, buildJoinTable(r.Via, e, target))
 		}
 	}
-	db.Tables = append(db.Tables, authTables(m.AuthEntity())...)
+	if auth := m.AuthEntity(); auth != nil && include(auth) {
+		db.Tables = append(db.Tables, authTables(auth)...)
+	}
 	slices.SortFunc(db.Tables, func(a, b *Table) int { return cmp.Compare(a.Name, b.Name) })
 	return db
 }
@@ -117,7 +139,7 @@ func buildTable(m *Model, e *Entity) *Table {
 		case f.Index || f.Ref != nil:
 			t.Indexes = append(t.Indexes, &Index{Name: ConstraintName("ix", t.Name, f.Column), Columns: []string{f.Column}})
 		}
-		if f.Ref != nil {
+		if f.Ref != nil && !f.External(e) {
 			if target := m.Entity(f.Ref.Entity); target != nil && target.PK() != nil {
 				t.ForeignKeys = append(t.ForeignKeys, &ForeignKey{
 					Name:       ConstraintName("fk", t.Name, f.Column),

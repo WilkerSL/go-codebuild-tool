@@ -323,6 +323,30 @@ Rules:
 - Example: `Tags []Tag `gen:"rel=many_to_many:Tag,via=user_tags"``
 - Common error: `rel=many_to_many:Tag` without via= fails with invalid_value.
 
+## Microservices
+
+A spec file may declare one `XxxService` struct instead of an entity. Each field written as `Invoice struct{ ... }` is an entity of that service, with the same markers as a top-level entity; its domain is the snake_case plural of its name without underscores (`InvoiceItem` -> `invoiceitems`). The file is named after the service (`BillingService` -> `specs/billing.go`), and once a project declares a service every entity must live in one. Each service becomes its own Go module exposing gRPC, and a generated gateway is the only REST API.
+
+```go
+type BillingService struct {
+	_       struct{} `gen:"database=own"`
+	Invoice struct {
+		ID     uuid.UUID `gen:"pk,auto"`
+		UserID uuid.UUID `gen:"rel=belongs_to:User"`
+	}
+}
+```
+
+## Service markers
+
+### `database`
+
+- Syntax: `database=own|shared`
+- Applies to: service (`_ struct{}` inside a `XxxService` struct); required
+- Effect: Chooses the database of a microservice. `own` gives the service its own database, migrations and snapshot; references to entities of other services become IDs without foreign keys, checked with a gRPC call to the owning service. `shared` puts the service in the database shared by every `shared` service, where foreign keys between them keep working.
+- Example: `_ struct{} `gen:"database=own"``
+- Common error: A service without `database=` fails with invalid_value: the choice is explicit.
+
 ## Request semantics
 
 - Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.

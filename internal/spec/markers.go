@@ -9,6 +9,7 @@ type markerScope int
 const (
 	scopeEntity markerScope = iota + 1
 	scopeField
+	scopeService
 )
 
 type valueMode int
@@ -37,6 +38,16 @@ type markerDef struct {
 }
 
 var markerDefs = []markerDef{
+	{
+		name: "database", scope: scopeService, value: valueRequired,
+		doc: MarkerDoc{
+			Syntax:      "database=own|shared",
+			AppliesTo:   "service (`_ struct{}` inside a `XxxService` struct); required",
+			Description: "Chooses the database of a microservice. `own` gives the service its own database, migrations and snapshot; references to entities of other services become IDs without foreign keys, checked with a gRPC call to the owning service. `shared` puts the service in the database shared by every `shared` service, where foreign keys between them keep working.",
+			Example:     "_ struct{} `gen:\"database=own\"`",
+			CommonError: "A service without `database=` fails with invalid_value: the choice is explicit.",
+		},
+	},
 	{
 		name: "table", scope: scopeEntity, value: valueRequired,
 		doc: MarkerDoc{
@@ -342,9 +353,12 @@ var markerDefs = []markerDef{
 func init() {
 	for i := range markerDefs {
 		markerDefs[i].doc.Name = markerDefs[i].name
-		if markerDefs[i].scope == scopeEntity {
+		switch markerDefs[i].scope {
+		case scopeEntity:
 			markerDefs[i].doc.Scope = "entity"
-		} else {
+		case scopeService:
+			markerDefs[i].doc.Scope = "service"
+		default:
 			markerDefs[i].doc.Scope = "field"
 		}
 	}
