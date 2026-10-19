@@ -60,7 +60,6 @@ func listParamsFrom(req *catalogv1.CategoryListRequest) (ListParams, error) {
 }
 
 func (s *GRPCServer) Get(ctx context.Context, req *catalogv1.CategoryGetRequest) (*catalogv1.Category, error) {
-
 	id := req.GetId()
 	item, err := s.svc.Get(ctx, id)
 	if err != nil {
@@ -70,7 +69,6 @@ func (s *GRPCServer) Get(ctx context.Context, req *catalogv1.CategoryGetRequest)
 }
 
 func (s *GRPCServer) List(ctx context.Context, req *catalogv1.CategoryListRequest) (*catalogv1.CategoryPage, error) {
-
 	p, err := listParamsFrom(req)
 	if err != nil {
 		return nil, s.fail(ctx, err)
@@ -83,7 +81,6 @@ func (s *GRPCServer) List(ctx context.Context, req *catalogv1.CategoryListReques
 }
 
 func (s *GRPCServer) Exists(ctx context.Context, req *catalogv1.CategoryExistsRequest) (*commonv1.ExistsResponse, error) {
-
 	id := req.GetId()
 	ok, err := s.svc.Exists(ctx, id)
 	if err != nil {

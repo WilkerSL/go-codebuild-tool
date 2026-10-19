@@ -55,7 +55,9 @@ func listParamsFrom(req *{{$g.Alias}}.{{$g.List.Request}}) (ListParams, error) {
 }
 
 func (s *GRPCServer) Get(ctx context.Context, req *{{$g.Alias}}.{{$g.Get.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
-	{{$g.Get.Authorize}}
+{{- with $g.Get.Authorize}}
+	{{.}}
+{{- end}}
 	{{$g.IDParse}}
 	item, err := s.svc.Get(ctx, {{$g.Get.Owner}}id)
 	if err != nil {
@@ -65,7 +67,9 @@ func (s *GRPCServer) Get(ctx context.Context, req *{{$g.Alias}}.{{$g.Get.Request
 }
 
 func (s *GRPCServer) List(ctx context.Context, req *{{$g.Alias}}.{{$g.List.Request}}) (*{{$g.Alias}}.{{$g.Page}}, error) {
-	{{$g.List.Authorize}}
+{{- with $g.List.Authorize}}
+	{{.}}
+{{- end}}
 	p, err := listParamsFrom(req)
 	if err != nil {
 		return nil, s.fail(ctx, err)
@@ -78,7 +82,9 @@ func (s *GRPCServer) List(ctx context.Context, req *{{$g.Alias}}.{{$g.List.Reque
 }
 
 func (s *GRPCServer) Exists(ctx context.Context, req *{{$g.Alias}}.{{$g.Exists.Request}}) (*commonv1.ExistsResponse, error) {
-	{{$g.Exists.Authorize}}
+{{- with $g.Exists.Authorize}}
+	{{.}}
+{{- end}}
 	{{$g.IDParse}}
 	ok, err := s.svc.Exists(ctx, {{$g.Exists.Owner}}id)
 	if err != nil {
@@ -116,7 +122,9 @@ func createInputFrom(req *{{$g.Alias}}.{{$g.Create.Request}}) (CreateInput, erro
 }
 
 func (s *GRPCServer) Create(ctx context.Context, req *{{$g.Alias}}.{{$g.Create.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
-	{{$g.Create.Authorize}}
+{{- with $g.Create.Authorize}}
+	{{.}}
+{{- end}}
 	in, err := createInputFrom(req)
 	if err != nil {
 		return nil, s.fail(ctx, err)
@@ -137,7 +145,9 @@ func updateInputFrom(req *{{$g.Alias}}.{{$g.Update.Request}}) (UpdateInput, erro
 }
 
 func (s *GRPCServer) Update(ctx context.Context, req *{{$g.Alias}}.{{$g.Update.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
-	{{$g.Update.Authorize}}
+{{- with $g.Update.Authorize}}
+	{{.}}
+{{- end}}
 	{{$g.IDParse}}
 	in, err := updateInputFrom(req)
 	if err != nil {
@@ -153,7 +163,9 @@ func (s *GRPCServer) Update(ctx context.Context, req *{{$g.Alias}}.{{$g.Update.R
 {{- end}}
 
 func (s *GRPCServer) Delete(ctx context.Context, req *{{$g.Alias}}.{{$g.Delete.Request}}) (*emptypb.Empty, error) {
-	{{$g.Delete.Authorize}}
+{{- with $g.Delete.Authorize}}
+	{{.}}
+{{- end}}
 	{{$g.IDParse}}
 	if err := s.svc.Delete(ctx, {{$g.Delete.Owner}}id); err != nil {
 		return nil, s.fail(ctx, err)
@@ -168,7 +180,9 @@ func {{.ParamsFunc}}(req *{{$g.Alias}}.{{.List.Request}}) (ListParams, error) {
 }
 
 func (s *GRPCServer) {{.List.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.List.Request}}) (*{{$g.Alias}}.{{$g.Page}}, error) {
-	{{.List.Authorize}}
+{{- with .List.Authorize}}
+	{{.}}
+{{- end}}
 	{{.SourceParse}}
 {{- with .SourceCheck}}
 	if res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}}); err != nil {
@@ -190,7 +204,9 @@ func (s *GRPCServer) {{.List.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Li
 {{- if .Writable}}
 
 func (s *GRPCServer) {{.Link.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Link.Request}}) (*emptypb.Empty, error) {
-	{{.Link.Authorize}}
+{{- with .Link.Authorize}}
+	{{.}}
+{{- end}}
 	{{.SourceParse}}
 	{{.TargetIDExpr}}
 	if err := s.svc.{{.LinkMethod}}(ctx, {{.Link.Owner}}{{.SourceIDVar}}, id); err != nil {
@@ -200,7 +216,9 @@ func (s *GRPCServer) {{.Link.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Li
 }
 
 func (s *GRPCServer) {{.Unlink.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Unlink.Request}}) (*emptypb.Empty, error) {
-	{{.Unlink.Authorize}}
+{{- with .Unlink.Authorize}}
+	{{.}}
+{{- end}}
 	{{.SourceParse}}
 	{{.TargetIDExpr}}
 	if err := s.svc.{{.UnlinkMethod}}(ctx, {{.Unlink.Owner}}{{.SourceIDVar}}, id); err != nil {

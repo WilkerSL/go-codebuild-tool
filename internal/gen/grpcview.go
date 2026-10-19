@@ -188,7 +188,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 	}
 	gv.Get = op("Get", e.Name+"GetRequest", e.Policy(schema.OpRead))
 	gv.List = op("List", e.Name+"ListRequest", e.Policy(schema.OpRead))
-	gv.Exists = op("Exists", e.Name+"ExistsRequest", e.Policy(schema.OpRead))
+	gv.Exists = op("Exists", e.Name+"ExistsRequest", schema.Policy{Public: true})
 	gv.Create = op("Create", e.Name+"CreateRequest", e.Policy(schema.OpCreate))
 	gv.Update = op("Update", e.Name+"UpdateRequest", e.Policy(schema.OpUpdate))
 	gv.Delete = op("Delete", e.Name+"DeleteRequest", e.Policy(schema.OpDelete))

@@ -59,6 +59,17 @@ func TestGenerateShopWorkspace(t *testing.T) {
 			t.Errorf("missing %s", p)
 		}
 	}
+	for _, f := range ws.Files {
+		if f.Path != "services/inventory/internal/stocks/grpc_gen.go" && f.Path != "services/billing/internal/invoices/grpc_gen.go" {
+			continue
+		}
+		_, exists, _ := strings.Cut(string(f.Content), "func (s *GRPCServer) Exists(")
+		exists, _, _ = strings.Cut(exists, "\n}\n")
+		owned := strings.Contains(f.Path, "invoices")
+		if strings.Contains(exists, "grpcx.Authorize(ctx)") != owned || strings.Contains(exists, `"admin"`) {
+			t.Errorf("%s: Exists must only require a caller for owned entities and never a role:\n%s", f.Path, exists)
+		}
+	}
 	if *dumpWorkspace == "" {
 		return
 	}

@@ -94,9 +94,6 @@ func (s *GRPCServer) List(ctx context.Context, req *identityv1.UserListRequest) 
 }
 
 func (s *GRPCServer) Exists(ctx context.Context, req *identityv1.UserExistsRequest) (*commonv1.ExistsResponse, error) {
-	if _, err := grpcx.Authorize(ctx, "admin"); err != nil {
-		return nil, err
-	}
 	id, err := grpcx.ParseUUID(req.GetId(), "id")
 	if err != nil {
 		return nil, err

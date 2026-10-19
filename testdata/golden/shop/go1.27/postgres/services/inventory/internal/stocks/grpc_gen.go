@@ -88,9 +88,6 @@ func (s *GRPCServer) List(ctx context.Context, req *inventoryv1.StockListRequest
 }
 
 func (s *GRPCServer) Exists(ctx context.Context, req *inventoryv1.StockExistsRequest) (*commonv1.ExistsResponse, error) {
-	if _, err := grpcx.Authorize(ctx, "admin"); err != nil {
-		return nil, err
-	}
 	id := req.GetId()
 	ok, err := s.svc.Exists(ctx, id)
 	if err != nil {
