@@ -1,0 +1,24 @@
+name: Feature request
+description: A new marker, dialect feature, generated behavior or command
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you need to build, and what does the generated code make hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The spec syntax or command you would like, and the code you expect codebuild to generate
+      render: go
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: How you solve it today, for example in a user-owned service.go file

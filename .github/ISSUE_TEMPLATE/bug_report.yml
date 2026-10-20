@@ -1,0 +1,66 @@
+name: Bug report
+description: codebuild generates wrong code, fails on a valid spec or a generated project misbehaves
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Security problems in codebuild or in the code it generates must not be reported here; follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: codebuild version
+      description: Output of `codebuild version` (first line)
+      placeholder: codebuild 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: go
+    attributes:
+      label: Go version
+      description: Output of `go version` and the `go` directive of the project
+      placeholder: go1.27.0 windows/amd64, go.mod declares go 1.27.0
+    validations:
+      required: true
+  - type: dropdown
+    id: dialect
+    attributes:
+      label: Dialect
+      options:
+        - postgres
+        - sqlserver
+        - mysql
+        - sqlite
+        - not related to a database
+    validations:
+      required: true
+  - type: dropdown
+    id: layout
+    attributes:
+      label: Project layout
+      options:
+        - monolith
+        - microservice workspace
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: Specs
+      description: The smallest set of spec files that reproduces the problem
+      render: go
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Commands you ran, for example codebuild build and go test ./...
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+      description: Include the full output, diagnostics or failing test
+    validations:
+      required: true

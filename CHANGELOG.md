@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `SECURITY.md` with the supported versions and private vulnerability reporting, issue forms and a pull request template.
+- A weekly workflow that fails when a newer version exists of a module written into generated projects (database drivers, gRPC, protobuf, `github.com/google/uuid`), and Dependabot updates for the modules of the tool and the GitHub Actions.
+
+### Changed
+
+- Microservice workspaces are documented as experimental: their layout and generated code may change between minor releases.
+
 ## [0.2.0] - 2026-10-19
 
 ### Added

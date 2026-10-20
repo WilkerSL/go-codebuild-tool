@@ -1,5 +1,7 @@
 # Microservices
 
+> **Experimental.** Microservice workspaces are new in 0.2.0. The layout, the contracts and the generated code may change between minor releases, and no project has run them in production yet. Read the generated code and the limits below before relying on it.
+
 A project whose specs declare `<Name>Service` structs becomes a microservice workspace: one Go module per service exposing gRPC, a generated gateway that is the only REST API, the gRPC contracts, and the files to run everything with Docker Compose.
 
 ```go

@@ -1,0 +1,22 @@
+name: Dependencies
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pinned:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Module versions written into generated projects are current
+        env:
+          CODEBUILD_CHECK_PINNED: "1"
+        run: go test -count=1 -run TestPinnedModulesAreCurrent -v ./internal/gen

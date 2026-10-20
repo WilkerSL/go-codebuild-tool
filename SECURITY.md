@@ -1,0 +1,34 @@
+# Security policy
+
+codebuild writes security-sensitive code into your projects: password hashing, sessions, JWT and API keys, cookies and cross-origin checks, SQL queries, and, in microservice workspaces, mutual TLS and the signed internal token between services. Vulnerabilities in that code matter as much as vulnerabilities in the tool itself.
+
+## Supported versions
+
+| Version | Supported |
+|---|---|
+| 0.2.x | yes |
+| older | no |
+
+Before 1.0, fixes ship only in the latest minor release.
+
+## Reporting a vulnerability
+
+Report privately through GitHub: open the [Security tab](https://github.com/WilkerSL/go-codebuild-tool/security) of the repository and choose "Report a vulnerability". Do not open a public issue, pull request or discussion.
+
+Include:
+
+- the codebuild version, the Go version and the dialect;
+- the specs and commands that produce the vulnerable code, or the affected file of the tool;
+- the impact you expect and, if you have one, a proof of concept.
+
+The report stays private until a fix is released. Fixed versions are published as a new release with an advisory that credits the reporter, unless you prefer to stay anonymous.
+
+## Fixing generated projects
+
+Generated `*_gen.go` files are rewritten by every build, so most fixes reach a project by upgrading codebuild and running `codebuild build`. The advisory says when a fix also needs a change in files you own, such as `service.go`, `main.go` or configuration.
+
+## Scope
+
+In scope: the codebuild binary and MCP server (for example writing outside the project directory) and any code or configuration it generates with its default settings.
+
+Out of scope: vulnerabilities in the Go toolchain, database drivers or other dependencies (report them upstream), and changes you made to user-owned files.
