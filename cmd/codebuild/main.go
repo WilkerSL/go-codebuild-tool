@@ -1,3 +1,5 @@
+// Codebuild turns small Go spec files into a complete REST API, or into a workspace of
+// gRPC services behind a REST gateway. See the README for the commands and flags.
 package main
 
 import (

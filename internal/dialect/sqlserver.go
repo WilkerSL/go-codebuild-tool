@@ -67,6 +67,8 @@ func (SQLServer) Now() string { return "SYSUTCDATETIME()" }
 
 func (SQLServer) Strategy() InsertStrategy { return ReturnRow }
 
+// SQL Server refuses a bare OUTPUT clause on tables that have triggers, so the new row
+// goes into a table variable first and the statement reads it back from there.
 func outputInto(returning []Returned) (string, string, string) {
 	defs := make([]string, len(returning))
 	outs := make([]string, len(returning))

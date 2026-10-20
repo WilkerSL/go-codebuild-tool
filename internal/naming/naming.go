@@ -1,3 +1,5 @@
+// Package naming converts names between the styles a generated project needs and finds
+// the closest valid name when a spec has a typo.
 package naming
 
 import (
@@ -195,6 +197,8 @@ func IsSQLIdentifier(s string) bool {
 	return true
 }
 
+// Suggest returns the candidate closest to input, or "" when even the best match is too
+// far off to be a typo. Longer words tolerate a few more mistakes.
 func Suggest(input string, candidates []string) string {
 	if input == "" || len(candidates) == 0 {
 		return ""

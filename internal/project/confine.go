@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 )
 
+// Within reports whether path stays inside root. Symbolic links are resolved first;
+// otherwise a link inside the project could send the MCP server anywhere on the disk.
 func Within(root, path string) error {
 	realRoot, err := resolveExisting(root)
 	if err != nil {

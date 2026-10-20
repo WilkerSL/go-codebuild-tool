@@ -242,6 +242,9 @@ func (s *diffState) diffTable(o, n *Table) {
 	}
 }
 
+// planCreates orders new tables so each one is created after the tables it references.
+// When tables reference each other in a cycle, one of the foreign keys is added
+// afterwards with its own statement.
 func (s *diffState) planCreates(created []*Table, existing map[string]bool) {
 	available := map[string]bool{}
 	for name := range existing {

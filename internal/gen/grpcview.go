@@ -188,6 +188,8 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 	}
 	gv.Get = op("Get", e.Name+"GetRequest", e.Policy(schema.OpRead))
 	gv.List = op("List", e.Name+"ListRequest", e.Policy(schema.OpRead))
+	// Exists only serves other services checking a reference, never the gateway, so it
+	// ignores the read roles. Owned rows are still scoped to the caller.
 	gv.Exists = op("Exists", e.Name+"ExistsRequest", schema.Policy{Public: true})
 	gv.Create = op("Create", e.Name+"CreateRequest", e.Policy(schema.OpCreate))
 	gv.Update = op("Update", e.Name+"UpdateRequest", e.Policy(schema.OpUpdate))

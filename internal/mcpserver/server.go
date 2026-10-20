@@ -1,3 +1,5 @@
+// Package mcpserver lets AI agents drive codebuild over MCP, with the same plans and
+// safety checks as the command line.
 package mcpserver
 
 import (

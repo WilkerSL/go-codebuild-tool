@@ -1,3 +1,5 @@
+// Package project ties the pieces together: it finds the project, plans every file and
+// migration, decides who owns each file and applies the plan atomically.
 package project
 
 import (
@@ -564,6 +566,9 @@ func (p *planner) planDatabase(dir string, next *schema.Database) (*MigrationInf
 			unknown = append(unknown, mf)
 		}
 	}
+	// A migration older than the newest one in the snapshot, but missing from it, almost
+	// always came from another branch. A database already past that version would never
+	// run it, so we stop and explain instead of guessing.
 	if len(merged) > 0 {
 		return nil, false, newError(KindConfig, "migration_conflict", fmt.Sprintf(
 			"%s %s older than the newest migration recorded in %s but %s not part of it, so it probably came from another branch in a merge "+

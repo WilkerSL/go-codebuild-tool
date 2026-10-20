@@ -34,6 +34,8 @@ func FormatGo(src []byte) ([]byte, error) {
 	return FormatGoModule(src, "")
 }
 
+// Templates import everything they might need. FormatGoModule drops the imports a file
+// ends up not using, groups the rest the way goimports does and runs gofmt.
 func FormatGoModule(src []byte, module string) ([]byte, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", src, parser.ParseComments)

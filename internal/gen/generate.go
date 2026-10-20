@@ -1,3 +1,6 @@
+// Package gen renders the code of a project from embedded templates. Most of the logic
+// lives in the view types, which precompute code fragments so the templates stay
+// readable.
 package gen
 
 import (

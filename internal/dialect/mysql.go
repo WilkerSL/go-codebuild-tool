@@ -105,6 +105,8 @@ func (d MySQL) literal(c *schema.Column) string {
 		return "(UTC_TIMESTAMP(6))"
 	}
 	value := literal(c, c.Default.Value, "", "TRUE", "FALSE")
+	// MySQL only takes a default on TEXT and BLOB columns when it is written as an
+	// expression, hence the parentheses.
 	if t := d.ColumnType(c); t == "LONGTEXT" || t == "LONGBLOB" {
 		return "(" + value + ")"
 	}

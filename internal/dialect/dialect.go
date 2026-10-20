@@ -1,3 +1,5 @@
+// Package dialect knows how each supported database spells things: column types,
+// quoting, placeholders, queries and the DDL of migrations.
 package dialect
 
 import (

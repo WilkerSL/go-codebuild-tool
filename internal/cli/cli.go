@@ -1,3 +1,5 @@
+// Package cli is the command line front end. It parses flags, asks before risky changes
+// and prints plans as text or JSON; the actual work happens in package project.
 package cli
 
 import (

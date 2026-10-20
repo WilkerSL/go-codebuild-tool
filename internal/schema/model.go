@@ -1,3 +1,5 @@
+// Package schema holds the model parsed from the specs, the database derived from it and
+// the diff that turns two versions of that database into a migration.
 package schema
 
 import (

@@ -1,3 +1,5 @@
+// Package goversion decides which Go features the generated code may use, from the go
+// directive of the project and the toolchain installed on the machine.
 package goversion
 
 import (
@@ -126,6 +128,9 @@ func Max(a, b string) string {
 	return b
 }
 
+// UpgradeTarget picks the version to move a project to when its go directive is too old.
+// We prefer the toolchain the user already has over the newest release, so nothing has
+// to be downloaded just to build.
 func UpgradeTarget(local string) string {
 	v := strings.TrimPrefix(local, "go")
 	if t, err := Resolve(v); err == nil && t.Status == StatusSupported {

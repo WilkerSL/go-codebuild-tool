@@ -1,3 +1,4 @@
+// Package textdiff is a small line diff used for plan summaries and --diff output.
 package textdiff
 
 import (

@@ -254,6 +254,9 @@ func (s *Set) Generate() ([]Output, error) {
 	return out, nil
 }
 
+// protoc-gen-go stamps its own comments on every file, including its version and the
+// source path. We keep only our header, so the contracts change when the specs change,
+// not when a dependency is bumped.
 func stripComments(name string, src []byte) ([]byte, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, name, src, parser.SkipObjectResolution)

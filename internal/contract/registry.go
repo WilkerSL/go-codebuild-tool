@@ -47,6 +47,9 @@ func (r *Registry) Marshal() ([]byte, error) {
 	return append(data, '\n'), nil
 }
 
+// assign keeps field numbers stable: known fields keep their number, new ones take the
+// next free number and removed ones are reserved, so old clients can still read what
+// new servers send.
 func (r *Registry) assign(message string, names []string) (map[string]int32, []int32) {
 	entry := r.Messages[message]
 	if entry == nil {

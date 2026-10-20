@@ -63,6 +63,8 @@ func Apply(p *Plan) (*ApplyResult, error) {
 		}
 		changes = append(changes, f)
 	}
+	// State files such as the snapshot go last. If the build stops halfway, the next run
+	// still sees the old snapshot and recognizes the migration it already wrote.
 	slices.SortStableFunc(changes, func(a, b FileChange) int {
 		return boolOrder(a.Owner == OwnerState) - boolOrder(b.Owner == OwnerState)
 	})
@@ -168,6 +170,9 @@ func stageFile(path string, content []byte) (string, error) {
 	return name, nil
 }
 
+// lockProject makes sure the CLI and the MCP server never write the same project at the
+// same time. A lock left behind by a crashed run is taken over once it is older than
+// staleLock.
 func lockProject(root string) (func(), error) {
 	path := filepath.Join(root, LockFile)
 	for range 2 {

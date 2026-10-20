@@ -54,6 +54,9 @@ func (p *planner) checkLayout(context.Context) error {
 	return nil
 }
 
+// workspaceRoot handles commands run inside one module of a workspace, such as
+// services/billing: when a parent directory holds codebuild.json and a go.work that uses
+// the module, the parent is the project.
 func workspaceRoot(module string) string {
 	if exists(filepath.Join(module, ConfigFile)) {
 		return module
@@ -176,6 +179,9 @@ func relativeDir(from, to string) string {
 	return rel
 }
 
+// planModuleFile creates or completes the go.mod of one module. Local modules get a
+// replace directive, so the module also builds alone with GOWORK=off, which is how its
+// Dockerfile and its CI workflow build it.
 func (p *planner) planModuleFile(m gen.Module) error {
 	file := m.Dir + "/go.mod"
 	data, err := os.ReadFile(filepath.Join(p.root, filepath.FromSlash(file)))
@@ -310,6 +316,8 @@ func (p *planner) workspaceSteps(changed map[string]Action) []string {
 		}
 	}
 	if p.plan.HasChanges() {
+		// Inside a workspace ./... stops at nested modules; the module path pattern
+		// covers all of them.
 		all := p.plan.Module + "/..."
 		steps = append(steps, "go build "+all+" && go vet "+all+" && go test "+all)
 	}

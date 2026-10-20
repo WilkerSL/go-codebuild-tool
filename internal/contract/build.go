@@ -1,3 +1,5 @@
+// Package contract turns the entities of a workspace into protobuf contracts. It writes
+// the .proto files and their Go code itself, so nobody needs protoc installed.
 package contract
 
 import (

@@ -1,3 +1,5 @@
+// Package spec reads specs/*.go, type-checks the files and turns their gen tags into the
+// schema model, reporting each problem with its position and, when possible, a suggestion.
 package spec
 
 import (
@@ -351,6 +353,9 @@ func (p *parser) collectDecls(f *ast.File, file string) []entityDecl {
 	return decls
 }
 
+// Entities inside a service are anonymous structs, and go/types has no way to refer to
+// them from a field like []Payment. expandService lifts each one into a named type
+// before the files are type-checked.
 func (p *parser) expandService(f *ast.File, file string, ts *ast.TypeSpec, uuidImport string) []entityDecl {
 	s := &serviceDecl{source: file, spec: ts}
 	p.services = append(p.services, s)
