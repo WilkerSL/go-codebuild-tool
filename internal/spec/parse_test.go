@@ -12,7 +12,7 @@ import (
 
 const header = "//go:build ignore\n\npackage specs\n\n"
 
-func repoRoot(t *testing.T) string {
+func repoRoot(t testing.TB) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
