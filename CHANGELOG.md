@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- `codebuild mcp` is built with `github.com/modelcontextprotocol/go-sdk` v1.8.0.
 - Microservice workspaces are documented as experimental: their layout and generated code may change between minor releases.
 - Generated endpoints require `Content-Type: application/json` (or another `+json` type) on request bodies and answer 415 otherwise. Clients that post JSON without that header, such as `curl -d` or `fetch` with a string body, must set it.
 - Linking and unlinking a many-to-many pair needs read and update access to both entities from either route, so `writeroles=` on one side now also restricts the link routes that start from the other side.
