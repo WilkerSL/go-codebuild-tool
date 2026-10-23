@@ -128,6 +128,7 @@ Compose generates development certificates in a volume, starts one database serv
 | `INTERNAL_TOKEN_PRIVATE_KEY_FILE` | gateway | Ed25519 key that signs internal tokens. |
 | `INTERNAL_TOKEN_PUBLIC_KEY_FILE` | service | One or more PEM public keys that verify them. |
 | `AUTH_*` | gateway, account service | The gateway reads the cookie, origin and login limit settings; the account service reads the session and JWT settings. See [authentication.md](authentication.md). |
+| `METRICS_ADDR`, `OTEL_*`, `CORS_*` | gateway, service | Metrics, tracing and, at the gateway, CORS. See [observability.md](observability.md). |
 
 Every outgoing gRPC call without a deadline gets 10 seconds. A service that is down answers 503 at the gateway, a timeout 504.
 

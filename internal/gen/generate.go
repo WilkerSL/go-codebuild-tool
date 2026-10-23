@@ -144,6 +144,8 @@ func Generate(opts Options) ([]File, error) {
 	g.goFile("internal/platform/httpx/middleware_gen.go", "platform/middleware.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/health_gen.go", "platform/health.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/cors_gen.go", "platform/cors.go.tmpl", pv)
+	g.telemetry(pv)
 	g.goFile("internal/platform/database/errors_gen.go", "platform/errors.go.tmpl", pv)
 	g.goFile("internal/platform/database/values_gen.go", "platform/values.go.tmpl", pv)
 	g.goFile("internal/platform/database/migrate_gen.go", "platform/migrate.go.tmpl", pv)
@@ -294,4 +296,12 @@ func (g *generator) authFiles(pv *projectView, dv *domainView) {
 		g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "AuthService", Method: m})
 		g.tag(dv.Package, "", "AuthService", m.Name)
 	}
+}
+
+func (g *generator) telemetry(data any) {
+	g.goFile("internal/platform/telemetry/telemetry_gen.go", "platform/telemetry.go.tmpl", data)
+	g.goFile("internal/platform/telemetry/metrics_gen.go", "platform/telemetry_metrics.go.tmpl", data)
+	g.goFile("internal/platform/telemetry/trace_gen.go", "platform/telemetry_trace.go.tmpl", data)
+	g.goFile("internal/platform/telemetry/http_gen.go", "platform/telemetry_http.go.tmpl", data)
+	g.goFile("internal/platform/telemetry/telemetry_gen_test.go", "platform/telemetry_test.go.tmpl", data)
 }

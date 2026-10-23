@@ -16,6 +16,7 @@ import (
 	"example.com/shop/gateway/internal/platform/config"
 	"example.com/shop/gateway/internal/platform/grpcx"
 	"example.com/shop/gateway/internal/platform/httpx"
+	"example.com/shop/gateway/internal/platform/telemetry"
 )
 
 func main() {
@@ -47,6 +48,18 @@ func run() error {
 		return err
 	}
 	signer := auth.NewSigner(key)
+	telemetryConfig, err := telemetry.LoadConfig(os.Getenv, "gateway")
+	if err != nil {
+		return err
+	}
+	cors, err := httpx.LoadCORS(os.Getenv)
+	if err != nil {
+		return err
+	}
+	tel, err := telemetry.Start(telemetryConfig, logger)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -64,9 +77,16 @@ func run() error {
 		return err
 	}
 
+	var handler http.Handler = auth.Anonymous(signer, logger, mux)
+	handler = httpx.CORS(cors, handler)
+	handler = httpx.AccessLog(logger, handler)
+	handler = httpx.Recover(logger, handler)
+	handler = telemetry.HTTP(mux, handler, httpx.LivenessPath, httpx.ReadinessPath)
+	handler = httpx.RequestID(handler)
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpx.RequestID(httpx.Recover(logger, httpx.AccessLog(logger, auth.Anonymous(signer, logger, mux)))),
+		Handler:           handler,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
@@ -97,5 +117,5 @@ func run() error {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
-	return nil
+	return tel.Shutdown(shutdownCtx)
 }

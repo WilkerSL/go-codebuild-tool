@@ -1,0 +1,125 @@
+{{.Header}}
+
+package httpx
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	corsMethods = "GET, POST, PUT, DELETE"
+	corsHeaders = "Authorization, Content-Type, X-Request-ID, Traceparent, Tracestate"
+	corsExposed = "Location, Retry-After, WWW-Authenticate, X-Request-ID"
+)
+
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowCredentials bool
+	MaxAge           time.Duration
+}
+
+func LoadCORS(getenv func(string) string) (CORSConfig, error) {
+	cfg := CORSConfig{MaxAge: 10 * time.Minute}
+	var errs []error
+	for origin := range strings.SplitSeq(getenv("CORS_ALLOWED_ORIGINS"), ",") {
+		origin = strings.ToLower(strings.TrimSpace(origin))
+		if origin == "" {
+			continue
+		}
+		if err := checkCORSOrigin(origin); err != nil {
+			errs = append(errs, fmt.Errorf("CORS_ALLOWED_ORIGINS: %w", err))
+			continue
+		}
+		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
+	}
+	if v := getenv("CORS_ALLOW_CREDENTIALS"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("CORS_ALLOW_CREDENTIALS must be true or false, got %q", v))
+		}
+		cfg.AllowCredentials = b
+	}
+	if v := getenv("CORS_MAX_AGE"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			errs = append(errs, fmt.Errorf("CORS_MAX_AGE must be a duration such as 10m, got %q", v))
+		} else {
+			cfg.MaxAge = d
+		}
+	}
+	if cfg.AllowCredentials && slices.Contains(cfg.AllowedOrigins, "*") {
+		errs = append(errs, errors.New("CORS_ALLOW_CREDENTIALS=true needs explicit origins in CORS_ALLOWED_ORIGINS, not *"))
+	}
+	return cfg, errors.Join(errs...)
+}
+
+func checkCORSOrigin(origin string) error {
+	if origin == "*" {
+		return nil
+	}
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil || strings.Contains(strings.TrimPrefix(u.Host, "*."), "*") {
+		return fmt.Errorf("%q must look like https://app.example.com or https://*.example.com", origin)
+	}
+	return nil
+}
+
+func (c CORSConfig) allows(origin string) bool {
+	origin = strings.ToLower(origin)
+	for _, allowed := range c.AllowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+		scheme, suffix, wildcard := strings.Cut(allowed, "://*")
+		if !wildcard {
+			continue
+		}
+		if host, ok := strings.CutPrefix(origin, scheme+"://"); ok && len(host) > len(suffix) && strings.HasSuffix(host, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func CORS(cfg CORSConfig, next http.Handler) http.Handler {
+	if len(cfg.AllowedOrigins) == 0 {
+		return next
+	}
+	maxAge := strconv.Itoa(int(cfg.MaxAge.Seconds()))
+	anyOrigin := slices.Contains(cfg.AllowedOrigins, "*") && !cfg.AllowCredentials
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Add("Vary", "Origin")
+		origin := r.Header.Get("Origin")
+		if origin == "" || !cfg.allows(origin) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if anyOrigin {
+			h.Set("Access-Control-Allow-Origin", "*")
+		} else {
+			h.Set("Access-Control-Allow-Origin", origin)
+		}
+		if cfg.AllowCredentials {
+			h.Set("Access-Control-Allow-Credentials", "true")
+		}
+		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+			h.Add("Vary", "Access-Control-Request-Method")
+			h.Add("Vary", "Access-Control-Request-Headers")
+			h.Set("Access-Control-Allow-Methods", corsMethods)
+			h.Set("Access-Control-Allow-Headers", corsHeaders)
+			h.Set("Access-Control-Max-Age", maxAge)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.Set("Access-Control-Expose-Headers", corsExposed)
+		next.ServeHTTP(w, r)
+	})
+}

@@ -95,6 +95,8 @@ go run ./cmd/api
 
 The API exposes `GET /livez` (process alive) and `GET /readyz` (database reachable, 503 while shutting down). Every response carries `X-Request-ID` and every log line written with a request context includes `request_id`. `SHUTDOWN_DELAY` keeps serving for a while after `/readyz` turns 503 so load balancers can drain traffic.
 
+Optional, all off by default: `METRICS_ADDR` serves Prometheus metrics on `GET /metrics` at that address; `OTEL_EXPORTER_OTLP_ENDPOINT` exports traces over OTLP/HTTP JSON to an OpenTelemetry collector and adds `trace_id` and `span_id` to log lines; `CORS_ALLOWED_ORIGINS` lets browsers on other origins call the API. They are wired in `cmd/api/main.go` through `internal/platform/telemetry` and `httpx.CORS`.
+
 ```bash
 docker build -t app .
 docker run --rm -e DATABASE_URL --entrypoint /app/migrate app up

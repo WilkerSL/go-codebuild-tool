@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -206,5 +207,72 @@ func TestHealth(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ReadinessPath, nil))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("readiness while draining = %d", rec.Code)
+	}
+}
+
+func TestCORS(t *testing.T) {
+	env := map[string]string{
+		"CORS_ALLOWED_ORIGINS":   "https://app.example.com, https://*.example.org",
+		"CORS_ALLOW_CREDENTIALS": "true",
+		"CORS_MAX_AGE":           "1h",
+	}
+	cfg, err := LoadCORS(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reached bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true })
+	serve := func(h http.Handler, method, origin string, preflight bool) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, "/things", nil)
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		if preflight {
+			r.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		}
+		rec := httptest.NewRecorder()
+		reached = false
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	h := CORS(cfg, next)
+	rec := serve(h, http.MethodOptions, "https://app.example.com", true)
+	got := rec.Header()
+	if rec.Code != http.StatusNoContent || reached || got.Get("Access-Control-Allow-Origin") != "https://app.example.com" || got.Get("Access-Control-Allow-Credentials") != "true" || got.Get("Access-Control-Max-Age") != "3600" || !strings.Contains(got.Get("Access-Control-Allow-Headers"), "Authorization") {
+		t.Fatalf("preflight = %d %v", rec.Code, got)
+	}
+	rec = serve(h, http.MethodGet, "https://API.example.org", false)
+	if !reached || rec.Header().Get("Access-Control-Allow-Origin") != "https://API.example.org" || !strings.Contains(rec.Header().Get("Access-Control-Expose-Headers"), "Location") {
+		t.Fatalf("subdomain request = %v", rec.Header())
+	}
+	for _, origin := range []string{"https://evil.com", "https://example.org", "http://app.example.com", "https://app.example.com.evil.com", ""} {
+		rec = serve(h, http.MethodGet, origin, false)
+		if !reached || rec.Header().Get("Access-Control-Allow-Origin") != "" || !slices.Contains(rec.Header().Values("Vary"), "Origin") {
+			t.Errorf("origin %q = %v", origin, rec.Header())
+		}
+	}
+	if rec = serve(h, http.MethodOptions, "https://evil.com", true); !reached || rec.Header().Get("Access-Control-Allow-Methods") != "" {
+		t.Errorf("a preflight from an unknown origin was answered: %v", rec.Header())
+	}
+	if rec = serve(CORS(CORSConfig{}, next), http.MethodGet, "https://app.example.com", false); !reached || len(rec.Header()) != 0 {
+		t.Errorf("CORS without origins changed the response: %v", rec.Header())
+	}
+	public, err := LoadCORS(func(k string) string { return map[string]string{"CORS_ALLOWED_ORIGINS": "*"}[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec = serve(CORS(public, next), http.MethodGet, "https://anyone.dev", false); rec.Header().Get("Access-Control-Allow-Origin") != "*" || rec.Header().Get("Access-Control-Allow-Credentials") != "" {
+		t.Errorf("public CORS = %v", rec.Header())
+	}
+	bad := map[string]string{
+		"CORS_ALLOWED_ORIGINS":   "*, ftp://files.example.com, https://example.com/app, https://a*.example.com",
+		"CORS_ALLOW_CREDENTIALS": "true",
+		"CORS_MAX_AGE":           "soon",
+	}
+	_, err = LoadCORS(func(k string) string { return bad[k] })
+	for _, want := range []string{"ftp://files.example.com", "https://example.com/app", "https://a*.example.com", "CORS_ALLOW_CREDENTIALS", "CORS_MAX_AGE"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("LoadCORS did not report %s: %v", want, err)
+		}
 	}
 }

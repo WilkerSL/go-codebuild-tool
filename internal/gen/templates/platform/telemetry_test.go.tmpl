@@ -1,0 +1,199 @@
+{{.Header}}
+
+package telemetry
+
+import (
+	"context"
+{{- if .Caps.JSONv2}}
+	"encoding/json/v2"
+{{- else}}
+	"encoding/json"
+{{- end}}
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestTraceparent(t *testing.T) {
+	const header = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	sc, ok := ParseTraceparent(header)
+	if !ok || !sc.Sampled || sc.Traceparent() != header {
+		t.Fatalf("ParseTraceparent(%q) = %+v %v", header, sc, ok)
+	}
+	for _, bad := range []string{
+		"",
+		"00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+		"00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+		"00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01",
+		"ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-extra",
+		"00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01",
+	} {
+		if _, ok := ParseTraceparent(bad); ok {
+			t.Errorf("ParseTraceparent(%q) accepted an invalid header", bad)
+		}
+	}
+	if _, ok := ParseTraceparent("cc-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-future"); !ok {
+		t.Error("a future version with extra fields was rejected")
+	}
+	if Tracestate([]string{"a=1", "b=2"}) != "a=1,b=2" || Tracestate([]string{strings.Repeat("x", maxTracestate+1)}) != "" {
+		t.Error("tracestate is not joined and bounded")
+	}
+}
+
+func FuzzParseTraceparent(f *testing.F) {
+	f.Add("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	f.Add("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00")
+	f.Add("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-x")
+	f.Add("--")
+	f.Fuzz(func(t *testing.T, header string) {
+		sc, ok := ParseTraceparent(header)
+		if !ok {
+			return
+		}
+		again, ok := ParseTraceparent(sc.Traceparent())
+		if !ok || again.TraceID != sc.TraceID || again.SpanID != sc.SpanID || again.Sampled != sc.Sampled {
+			t.Fatalf("%q does not survive a round trip: %+v", header, sc)
+		}
+	})
+}
+
+func TestLoadConfig(t *testing.T) {
+	env := map[string]string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318/",
+		"OTEL_EXPORTER_OTLP_HEADERS":  "authorization=Bearer%20abc, x-team = core",
+		"OTEL_TRACES_SAMPLER":         "parentbased_traceidratio",
+		"OTEL_TRACES_SAMPLER_ARG":     "0.25",
+		"METRICS_ADDR":                ":9090",
+	}
+	cfg, err := LoadConfig(func(k string) string { return env[k] }, "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServiceName != "api" || cfg.TracesEndpoint != "http://collector:4318/v1/traces" || cfg.MetricsAddr != ":9090" {
+		t.Fatalf("config = %+v", cfg)
+	}
+	if cfg.TracesHeaders.Get("Authorization") != "Bearer abc" || cfg.TracesHeaders.Get("X-Team") != "core" {
+		t.Fatalf("headers = %v", cfg.TracesHeaders)
+	}
+	if !cfg.Sampler.ParentBased || cfg.Sampler.Ratio != 0.25 {
+		t.Fatalf("sampler = %+v", cfg.Sampler)
+	}
+	env["OTEL_SDK_DISABLED"] = "true"
+	if cfg, _ := LoadConfig(func(k string) string { return env[k] }, "api"); cfg.TracesEndpoint != "" {
+		t.Fatal("OTEL_SDK_DISABLED did not disable tracing")
+	}
+	bad := map[string]string{
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "collector:4318",
+		"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+		"OTEL_EXPORTER_OTLP_HEADERS":  "novalue",
+		"OTEL_TRACES_SAMPLER":         "sometimes",
+		"OTEL_TRACES_SAMPLER_ARG":     "2",
+	}
+	_, err = LoadConfig(func(k string) string { return bad[k] }, "api")
+	for key := range bad {
+		if err == nil || !strings.Contains(err.Error(), key) {
+			t.Errorf("invalid %s was not reported: %v", key, err)
+		}
+	}
+}
+
+func TestSampler(t *testing.T) {
+	var traceID [16]byte
+	traceID[8] = 0x10
+	parent := SpanContext{Sampled: false}
+	tests := []struct {
+		sampler   Sampler
+		hasParent bool
+		want      bool
+	}{
+		{sampler: Sampler{ParentBased: true, Ratio: 1}, hasParent: true, want: false},
+		{sampler: Sampler{ParentBased: true, Ratio: 1}, want: true},
+		{sampler: Sampler{Ratio: 0}, want: false},
+		{sampler: Sampler{Ratio: 0.5}, want: true},
+		{sampler: Sampler{Ratio: 0.01}, want: false},
+	}
+	for _, tt := range tests {
+		if got := tt.sampler.sample(parent, tt.hasParent, traceID); got != tt.want {
+			t.Errorf("%+v with parent %v = %v", tt.sampler, tt.hasParent, got)
+		}
+	}
+}
+
+func TestHTTPRecordsRoutesAndSpans(t *testing.T) {
+	received := make(chan otlpRequest, 4)
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req otlpRequest
+		data, _ := io.ReadAll(r.Body)
+		if r.Header.Get("Content-Type") != "application/json" || r.Header.Get("X-Team") != "core" || json.Unmarshal(data, &req) != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		received <- req
+	}))
+	defer collector.Close()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	tel, err := Start(Config{ServiceName: "api", TracesEndpoint: collector.URL, TracesHeaders: http.Header{"X-Team": {"core"}}, Sampler: Sampler{ParentBased: true, Ratio: 1}}, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	var seen SpanContext
+	mux.HandleFunc("GET /things/{id}", func(w http.ResponseWriter, r *http.Request) {
+		seen, _ = SpanContextFrom(r.Context())
+		w.WriteHeader(http.StatusTeapot)
+	})
+	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) {})
+	handler := HTTP(mux, mux, "/livez")
+	r := httptest.NewRequest(http.MethodGet, "/things/42", nil)
+	r.Header.Set(TraceparentHeader, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("BREW", "/livez", nil))
+	if !seen.Valid() || seen.Traceparent()[3:35] != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("the handler did not see the incoming trace: %+v", seen)
+	}
+	if err := tel.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var spans []otlpSpan
+	for len(received) > 0 {
+		req := <-received
+		spans = append(spans, req.ResourceSpans[0].ScopeSpans[0].Spans...)
+	}
+	if len(spans) != 1 || spans[0].Name != "GET /things/{id}" || spans[0].ParentSpanID != "00f067aa0ba902b7" || spans[0].Kind != int(SpanKindServer) {
+		t.Fatalf("exported spans = %+v", spans)
+	}
+	var page strings.Builder
+	registered.write(&page)
+	for _, want := range []string{
+		`http_server_requests_total{method="GET",route="/things/{id}",status="418"} 1`,
+		`http_server_requests_total{method="_OTHER",route="",status="405"} 1`,
+		`http_server_request_duration_seconds_bucket{method="GET",route="/things/{id}",le="+Inf"} 1`,
+		"# TYPE go_goroutines gauge",
+	} {
+		if !strings.Contains(page.String(), want) {
+			t.Errorf("metrics lack %s:\n%s", want, page.String())
+		}
+	}
+	ctx, span := StartSpan(context.Background(), "after shutdown", SpanKindInternal, SpanContext{})
+	if span != nil || ctx != context.Background() {
+		t.Fatal("spans are still created after Shutdown")
+	}
+}
+
+func TestMetricsEscapesLabels(t *testing.T) {
+	if got := labels("route", "a\"b\\c\nd"); got != `route="a\"b\\c\nd"` {
+		t.Fatalf("labels = %s", got)
+	}
+	start := time.Now()
+	ObserveRPC("/x.v1.S/Get", "OK", time.Since(start))
+	var page strings.Builder
+	registered.write(&page)
+	if !strings.Contains(page.String(), `grpc_server_handled_total{method="/x.v1.S/Get",code="OK"} 1`) {
+		t.Fatalf("metrics:\n%s", page.String())
+	}
+}

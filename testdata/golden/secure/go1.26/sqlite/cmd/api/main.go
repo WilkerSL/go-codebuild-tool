@@ -17,6 +17,7 @@ import (
 	"example.com/secure/internal/platform/config"
 	"example.com/secure/internal/platform/database"
 	"example.com/secure/internal/platform/httpx"
+	"example.com/secure/internal/platform/telemetry"
 )
 
 func main() {
@@ -32,6 +33,18 @@ func run() error {
 		return err
 	}
 	logger := slog.New(httpx.NewLogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})))
+	telemetryConfig, err := telemetry.LoadConfig(os.Getenv, "api")
+	if err != nil {
+		return err
+	}
+	cors, err := httpx.LoadCORS(os.Getenv)
+	if err != nil {
+		return err
+	}
+	tel, err := telemetry.Start(telemetryConfig, logger)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -46,6 +59,7 @@ func run() error {
 		return err
 	}
 	defer db.Close()
+	telemetry.ObserveDB(db)
 
 	mux := http.NewServeMux()
 	health := httpx.NewHealth(db, logger)
@@ -54,9 +68,15 @@ func run() error {
 		return err
 	}
 
+	var handler http.Handler = httpx.CORS(cors, mux)
+	handler = httpx.AccessLog(logger, handler)
+	handler = httpx.Recover(logger, handler)
+	handler = telemetry.HTTP(mux, handler, httpx.LivenessPath, httpx.ReadinessPath)
+	handler = httpx.RequestID(handler)
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpx.RequestID(httpx.Recover(logger, httpx.AccessLog(logger, mux))),
+		Handler:           handler,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
@@ -87,5 +107,5 @@ func run() error {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
-	return nil
+	return tel.Shutdown(shutdownCtx)
 }

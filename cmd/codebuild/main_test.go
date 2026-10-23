@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -173,10 +175,14 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 		t.Logf("skipping the HTTP smoke test: set %s to run it", e2eDSNEnv[dialect])
 		return
 	}
-	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret, "AUTH_REFRESH_REUSE_GRACE=1ms"}
+	spans := newCollector(t)
+	metricsAddr := freeAddr(t)
+	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret, "AUTH_REFRESH_REUSE_GRACE=1ms",
+		"METRICS_ADDR=" + metricsAddr, "OTEL_EXPORTER_OTLP_ENDPOINT=" + spans.url, "CORS_ALLOWED_ORIGINS=https://app.example.com"}
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
 	c, stop := startAPI(t, dir, env)
 	project.smoke(t, c, dir, env, project.method)
+	telemetryCheck(t, c, metricsAddr, spans)
 	stop()
 	if out := command(t, dir, env, "go", "run", "./cmd/migrate", "down", "1"); !strings.Contains(out, "reverted 1") {
 		t.Fatalf("migrate down: %s", out)
@@ -550,4 +556,88 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	}
 	asBob.expect("GET", "/auth/me", nil, http.StatusOK)
 	asAnn.expect("DELETE", "/notes/"+noteID+"/labels/"+labelID, nil, http.StatusNoContent)
+}
+
+// collector stands in for an OpenTelemetry collector and keeps the names of
+// the spans it receives over OTLP/HTTP JSON.
+type collector struct {
+	url   string
+	mu    sync.Mutex
+	names []string
+}
+
+func newCollector(t *testing.T) *collector {
+	c := &collector{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ResourceSpans []struct {
+				ScopeSpans []struct {
+					Spans []struct {
+						Name string `json:"name"`
+					} `json:"spans"`
+				} `json:"scopeSpans"`
+			} `json:"resourceSpans"`
+		}
+		if r.URL.Path != "/v1/traces" || json.NewDecoder(r.Body).Decode(&req) != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		for _, rs := range req.ResourceSpans {
+			for _, ss := range rs.ScopeSpans {
+				for _, s := range ss.Spans {
+					c.names = append(c.names, s.Name)
+				}
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c.url = srv.URL
+	return c
+}
+
+func (c *collector) received() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.names)
+}
+
+func telemetryCheck(t *testing.T, c client, metricsAddr string, spans *collector) {
+	t.Helper()
+	preflight := http.Header{"Origin": {"https://app.example.com"}, "Access-Control-Request-Method": {"POST"}}
+	if resp, _ := c.send("OPTIONS", "/anything", nil, preflight); resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Fatalf("CORS preflight = %d %v", resp.StatusCode, resp.Header)
+	}
+	req, _ := http.NewRequest("OPTIONS", c.base+"/anything", nil)
+	req.Header = http.Header{"Origin": {"https://evil.example"}, "Access-Control-Request-Method": {"POST"}}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("CORS allowed an unknown origin: %v", resp.Header)
+	}
+	resp, err = http.Get("http://" + metricsAddr + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, want := range []string{`http_server_requests_total{method="GET",route="/readyz",status="200"}`, "db_client_connections_open", "go_goroutines"} {
+		if !strings.Contains(string(page), want) {
+			t.Fatalf("metrics lack %s:\n%s", want, page)
+		}
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for len(spans.received()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no span reached the OTLP collector")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if names := spans.received(); !slices.ContainsFunc(names, func(n string) bool { return strings.HasPrefix(n, "POST /") }) {
+		t.Fatalf("spans = %v", names)
+	}
 }

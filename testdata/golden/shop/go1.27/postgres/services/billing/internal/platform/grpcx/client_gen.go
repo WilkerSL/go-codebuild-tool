@@ -6,13 +6,17 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"example.com/shop/services/billing/internal/platform/httpx"
+	"example.com/shop/services/billing/internal/platform/telemetry"
 )
 
 const (
@@ -57,6 +61,7 @@ func propagate(ctx context.Context, method string, req, reply any, cc *grpc.Clie
 		ctx, cancel = context.WithTimeout(ctx, CallTimeout)
 		defer cancel()
 	}
+	ctx, span := telemetry.StartSpan(ctx, strings.TrimPrefix(method, "/"), telemetry.SpanKindClient, telemetry.SpanContext{})
 	var pairs []string
 	if token := TokenFrom(ctx); token != "" {
 		pairs = append(pairs, TokenHeader, token)
@@ -64,8 +69,32 @@ func propagate(ctx context.Context, method string, req, reply any, cc *grpc.Clie
 	if id := httpx.RequestIDFrom(ctx); id != "" {
 		pairs = append(pairs, RequestIDHeader, id)
 	}
+	if sc, ok := telemetry.SpanContextFrom(ctx); ok {
+		pairs = append(pairs, telemetry.TraceparentHeader, sc.Traceparent())
+		if sc.State != "" {
+			pairs = append(pairs, telemetry.TracestateHeader, sc.State)
+		}
+	}
 	if len(pairs) > 0 {
 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
-	return invoker(ctx, method, req, reply, cc, opts...)
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	endRPCSpan(span, method, status.Code(err))
+	return err
+}
+
+func endRPCSpan(span *telemetry.Span, method string, code codes.Code) {
+	if span == nil {
+		return
+	}
+	service, name, _ := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+	span.SetString("rpc.system", "grpc")
+	span.SetString("rpc.service", service)
+	span.SetString("rpc.method", name)
+	span.SetInt("rpc.grpc.status_code", int64(code))
+	switch code {
+	case codes.Unknown, codes.DeadlineExceeded, codes.Unimplemented, codes.Internal, codes.Unavailable, codes.DataLoss:
+		span.Fail(code.String())
+	}
+	span.End()
 }

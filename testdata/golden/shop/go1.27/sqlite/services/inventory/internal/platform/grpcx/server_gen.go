@@ -20,6 +20,7 @@ import (
 
 	"example.com/shop/services/inventory/internal/platform/auth"
 	"example.com/shop/services/inventory/internal/platform/httpx"
+	"example.com/shop/services/inventory/internal/platform/telemetry"
 )
 
 const healthPrefix = "/grpc.health.v1.Health/"
@@ -31,7 +32,7 @@ func NewServer(cfg TLSConfig, verifier *auth.Verifier, logger *slog.Logger) (*gr
 	}
 	s := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.ChainUnaryInterceptor(recoverer(logger), requestID, logCalls(logger), authenticate(verifier)),
+		grpc.ChainUnaryInterceptor(observeCalls, recoverer(logger), requestID, logCalls(logger), authenticate(verifier)),
 	)
 	healthpb.RegisterHealthServer(s, health.NewServer())
 	return s, nil
@@ -46,6 +47,25 @@ func Authorize(ctx context.Context, roles ...string) (auth.Principal, error) {
 		return auth.Principal{}, status.Error(codes.PermissionDenied, "the caller is not allowed to perform this operation")
 	}
 	return p, nil
+}
+
+func observeCalls(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	if strings.HasPrefix(info.FullMethod, healthPrefix) {
+		return handler(ctx, req)
+	}
+	md, _ := metadata.FromIncomingContext(ctx)
+	var remote telemetry.SpanContext
+	if values := md.Get(telemetry.TraceparentHeader); len(values) == 1 {
+		remote, _ = telemetry.ParseTraceparent(values[0])
+		remote.State = telemetry.Tracestate(md.Get(telemetry.TracestateHeader))
+	}
+	ctx, span := telemetry.StartSpan(ctx, strings.TrimPrefix(info.FullMethod, "/"), telemetry.SpanKindServer, remote)
+	start := time.Now()
+	resp, err := handler(ctx, req)
+	code := status.Code(err)
+	telemetry.ObserveRPC(info.FullMethod, code.String(), time.Since(start))
+	endRPCSpan(span, info.FullMethod, code)
+	return resp, err
 }
 
 func recoverer(logger *slog.Logger) grpc.UnaryServerInterceptor {

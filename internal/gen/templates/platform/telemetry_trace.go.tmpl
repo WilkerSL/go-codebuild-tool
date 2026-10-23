@@ -1,0 +1,411 @@
+{{.Header}}
+
+package telemetry
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
+{{- if .Caps.JSONv2}}
+	"encoding/json/v2"
+{{- else}}
+	"encoding/json"
+{{- end}}
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	TraceparentHeader = "traceparent"
+	TracestateHeader  = "tracestate"
+	maxTracestate     = 512
+	batchSize         = 512
+	queueSize         = 2048
+	exportInterval    = 5 * time.Second
+	exportTimeout     = 10 * time.Second
+)
+
+type SpanKind int
+
+const (
+	SpanKindInternal SpanKind = 1
+	SpanKindServer   SpanKind = 2
+	SpanKindClient   SpanKind = 3
+)
+
+type SpanContext struct {
+	TraceID [16]byte
+	SpanID  [8]byte
+	Sampled bool
+	State   string
+}
+
+func (sc SpanContext) Valid() bool {
+	return sc.TraceID != [16]byte{} && sc.SpanID != [8]byte{}
+}
+
+func (sc SpanContext) Traceparent() string {
+	flags := "00"
+	if sc.Sampled {
+		flags = "01"
+	}
+	return "00-" + hex.EncodeToString(sc.TraceID[:]) + "-" + hex.EncodeToString(sc.SpanID[:]) + "-" + flags
+}
+
+func ParseTraceparent(header string) (SpanContext, bool) {
+	parts := strings.Split(strings.TrimSpace(header), "-")
+	if len(parts) < 4 || len(parts[0]) != 2 || parts[0] == "ff" || (parts[0] == "00" && len(parts) != 4) {
+		return SpanContext{}, false
+	}
+	if len(parts[1]) != 32 || len(parts[2]) != 16 || len(parts[3]) != 2 || !lowerHex(parts[0]+parts[1]+parts[2]+parts[3]) {
+		return SpanContext{}, false
+	}
+	var sc SpanContext
+	hex.Decode(sc.TraceID[:], []byte(parts[1]))
+	hex.Decode(sc.SpanID[:], []byte(parts[2]))
+	flags, _ := hex.DecodeString(parts[3])
+	sc.Sampled = flags[0]&1 == 1
+	return sc, sc.Valid()
+}
+
+func Tracestate(values []string) string {
+	state := strings.Join(values, ",")
+	if len(state) > maxTracestate {
+		return ""
+	}
+	return state
+}
+
+func lowerHex(s string) bool {
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+type Sampler struct {
+	ParentBased bool
+	Ratio       float64
+}
+
+func parseSampler(name, arg string) (Sampler, error) {
+	ratio := 1.0
+	if arg != "" {
+		r, err := strconv.ParseFloat(arg, 64)
+		if err != nil || r < 0 || r > 1 {
+			return Sampler{ParentBased: true, Ratio: 1}, fmt.Errorf("OTEL_TRACES_SAMPLER_ARG must be a number between 0 and 1, got %q", arg)
+		}
+		ratio = r
+	}
+	switch name {
+	case "", "parentbased_always_on":
+		return Sampler{ParentBased: true, Ratio: 1}, nil
+	case "parentbased_always_off":
+		return Sampler{ParentBased: true, Ratio: 0}, nil
+	case "parentbased_traceidratio":
+		return Sampler{ParentBased: true, Ratio: ratio}, nil
+	case "always_on":
+		return Sampler{Ratio: 1}, nil
+	case "always_off":
+		return Sampler{Ratio: 0}, nil
+	case "traceidratio":
+		return Sampler{Ratio: ratio}, nil
+	}
+	return Sampler{ParentBased: true, Ratio: 1}, fmt.Errorf("OTEL_TRACES_SAMPLER must be always_on, always_off, traceidratio or their parentbased_ forms, got %q", name)
+}
+
+func (s Sampler) sample(parent SpanContext, hasParent bool, traceID [16]byte) bool {
+	switch {
+	case s.ParentBased && hasParent:
+		return parent.Sampled
+	case s.Ratio >= 1:
+		return true
+	case s.Ratio <= 0:
+		return false
+	}
+	return binary.BigEndian.Uint64(traceID[8:])>>1 < uint64(s.Ratio*(1<<63))
+}
+
+type spanKey struct{}
+
+func SpanContextFrom(ctx context.Context) (SpanContext, bool) {
+	sc, ok := ctx.Value(spanKey{}).(SpanContext)
+	return sc, ok
+}
+
+type attribute struct {
+	key    string
+	text   string
+	number int64
+	isInt  bool
+}
+
+type Span struct {
+	exporter *exporter
+	sc       SpanContext
+	parent   [8]byte
+	name     string
+	kind     SpanKind
+	start    time.Time
+	end      time.Time
+	attrs    []attribute
+	failed   bool
+	message  string
+}
+
+func StartSpan(ctx context.Context, name string, kind SpanKind, remote SpanContext) (context.Context, *Span) {
+	t := current.Load()
+	if t == nil || t.exporter == nil {
+		return ctx, nil
+	}
+	parent, hasParent := remote, remote.Valid()
+	if !hasParent {
+		parent, hasParent = SpanContextFrom(ctx)
+	}
+	sc := SpanContext{State: parent.State}
+	if hasParent {
+		sc.TraceID = parent.TraceID
+	} else {
+		rand.Read(sc.TraceID[:])
+	}
+	rand.Read(sc.SpanID[:])
+	sc.Sampled = t.cfg.Sampler.sample(parent, hasParent, sc.TraceID)
+	s := &Span{exporter: t.exporter, sc: sc, name: name, kind: kind, start: time.Now()}
+	if hasParent {
+		s.parent = parent.SpanID
+	}
+	return context.WithValue(ctx, spanKey{}, sc), s
+}
+
+func (s *Span) SetString(key, value string) {
+	if s != nil {
+		s.attrs = append(s.attrs, attribute{key: key, text: value})
+	}
+}
+
+func (s *Span) SetInt(key string, value int64) {
+	if s != nil {
+		s.attrs = append(s.attrs, attribute{key: key, number: value, isInt: true})
+	}
+}
+
+func (s *Span) Fail(message string) {
+	if s != nil {
+		s.failed, s.message = true, message
+	}
+}
+
+func (s *Span) End() {
+	if s == nil || !s.sc.Sampled {
+		return
+	}
+	s.end = time.Now()
+	s.exporter.enqueue(s)
+}
+
+type exporter struct {
+	endpoint string
+	headers  http.Header
+	service  string
+	client   *http.Client
+	logger   *slog.Logger
+	spans    chan *Span
+	done     chan struct{}
+	stopped  chan struct{}
+	closing  sync.Once
+}
+
+func newExporter(cfg Config, logger *slog.Logger) *exporter {
+	return &exporter{
+		endpoint: cfg.TracesEndpoint,
+		headers:  cfg.TracesHeaders,
+		service:  cfg.ServiceName,
+		client:   &http.Client{Timeout: exportTimeout},
+		logger:   logger,
+		spans:    make(chan *Span, queueSize),
+		done:     make(chan struct{}),
+		stopped:  make(chan struct{}),
+	}
+}
+
+func (e *exporter) enqueue(s *Span) {
+	select {
+	case e.spans <- s:
+	default:
+		registered.dropped.Add(1)
+	}
+}
+
+func (e *exporter) run() {
+	defer close(e.stopped)
+	ticker := time.NewTicker(exportInterval)
+	defer ticker.Stop()
+	batch := make([]*Span, 0, batchSize)
+	flush := func() {
+		if len(batch) > 0 {
+			e.send(batch)
+			clear(batch)
+			batch = batch[:0]
+		}
+	}
+	for {
+		select {
+		case s := <-e.spans:
+			batch = append(batch, s)
+			if len(batch) == batchSize {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
+		case <-e.done:
+			for {
+				select {
+				case s := <-e.spans:
+					batch = append(batch, s)
+					if len(batch) == batchSize {
+						flush()
+					}
+				default:
+					flush()
+					return
+				}
+			}
+		}
+	}
+}
+
+func (e *exporter) shutdown(ctx context.Context) error {
+	e.closing.Do(func() { close(e.done) })
+	select {
+	case <-e.stopped:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("telemetry: flush traces: %w", ctx.Err())
+	}
+}
+
+func (e *exporter) send(batch []*Span) {
+	body, err := json.Marshal(e.request(batch))
+	if err != nil {
+		e.logger.Warn("encode traces", slog.Any("error", err))
+		return
+	}
+	req, err := http.NewRequest(http.MethodPost, e.endpoint, bytes.NewReader(body))
+	if err != nil {
+		e.logger.Warn("export traces", slog.Any("error", err))
+		return
+	}
+	for name, values := range e.headers {
+		req.Header[name] = values
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := e.client.Do(req)
+	if err != nil {
+		e.logger.Warn("export traces", slog.Any("error", err))
+		return
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode/100 != 2 {
+		e.logger.Warn("export traces", slog.Any("error", errors.New(resp.Status)), slog.Int("spans", len(batch)))
+	}
+}
+
+type otlpValue struct {
+	StringValue *string `json:"stringValue,omitempty"`
+	IntValue    *string `json:"intValue,omitempty"`
+}
+
+type otlpAttribute struct {
+	Key   string    `json:"key"`
+	Value otlpValue `json:"value"`
+}
+
+type otlpStatus struct {
+	Code    int    `json:"code,omitzero"`
+	Message string `json:"message,omitempty"`
+}
+
+type otlpSpan struct {
+	TraceID      string          `json:"traceId"`
+	SpanID       string          `json:"spanId"`
+	ParentSpanID string          `json:"parentSpanId,omitempty"`
+	TraceState   string          `json:"traceState,omitempty"`
+	Name         string          `json:"name"`
+	Kind         int             `json:"kind"`
+	Start        string          `json:"startTimeUnixNano"`
+	End          string          `json:"endTimeUnixNano"`
+	Attributes   []otlpAttribute `json:"attributes,omitempty"`
+	Status       otlpStatus      `json:"status"`
+}
+
+type otlpScope struct {
+	Name string `json:"name"`
+}
+
+type otlpScopeSpans struct {
+	Scope otlpScope  `json:"scope"`
+	Spans []otlpSpan `json:"spans"`
+}
+
+type otlpResource struct {
+	Attributes []otlpAttribute `json:"attributes"`
+}
+
+type otlpResourceSpans struct {
+	Resource   otlpResource     `json:"resource"`
+	ScopeSpans []otlpScopeSpans `json:"scopeSpans"`
+}
+
+type otlpRequest struct {
+	ResourceSpans []otlpResourceSpans `json:"resourceSpans"`
+}
+
+func text(v string) otlpValue {
+	return otlpValue{StringValue: &v}
+}
+
+func (e *exporter) request(batch []*Span) otlpRequest {
+	spans := make([]otlpSpan, len(batch))
+	for i, s := range batch {
+		out := otlpSpan{
+			TraceID:    hex.EncodeToString(s.sc.TraceID[:]),
+			SpanID:     hex.EncodeToString(s.sc.SpanID[:]),
+			TraceState: s.sc.State,
+			Name:       s.name,
+			Kind:       int(s.kind),
+			Start:      strconv.FormatInt(s.start.UnixNano(), 10),
+			End:        strconv.FormatInt(s.end.UnixNano(), 10),
+		}
+		if s.parent != [8]byte{} {
+			out.ParentSpanID = hex.EncodeToString(s.parent[:])
+		}
+		for _, a := range s.attrs {
+			value := text(a.text)
+			if a.isInt {
+				n := strconv.FormatInt(a.number, 10)
+				value = otlpValue{IntValue: &n}
+			}
+			out.Attributes = append(out.Attributes, otlpAttribute{Key: a.key, Value: value})
+		}
+		if s.failed {
+			out.Status = otlpStatus{Code: 2, Message: s.message}
+		}
+		spans[i] = out
+	}
+	return otlpRequest{ResourceSpans: []otlpResourceSpans{ {
+		Resource:   otlpResource{Attributes: []otlpAttribute{ {Key: "service.name", Value: text(e.service)} }},
+		ScopeSpans: []otlpScopeSpans{ {Scope: otlpScope{Name: "codebuild"}, Spans: spans} },
+	} }}
+}

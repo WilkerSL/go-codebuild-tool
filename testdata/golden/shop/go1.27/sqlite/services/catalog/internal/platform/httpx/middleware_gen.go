@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"example.com/shop/services/catalog/internal/platform/telemetry"
 )
 
 const RequestIDHeader = "X-Request-ID"
@@ -70,6 +72,9 @@ func NewLogHandler(h slog.Handler) slog.Handler {
 func (h contextLogHandler) Handle(ctx context.Context, record slog.Record) error {
 	if id := RequestIDFrom(ctx); id != "" {
 		record.AddAttrs(slog.String("request_id", id))
+	}
+	if sc, ok := telemetry.SpanContextFrom(ctx); ok {
+		record.AddAttrs(slog.String("trace_id", hex.EncodeToString(sc.TraceID[:])), slog.String("span_id", hex.EncodeToString(sc.SpanID[:])))
 	}
 	return h.Handler.Handle(ctx, record)
 }

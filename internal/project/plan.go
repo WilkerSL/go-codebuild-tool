@@ -853,6 +853,7 @@ func (p *planner) nextSteps() {
 		p.plan.Warnings = append(p.plan.Warnings, "cmd/api/main.go ignores the error returned by app.RegisterRoutes, which reports invalid AUTH_* settings; "+
 			"call it as: if err := app.RegisterRoutes(mux, db, logger); err != nil { return err }")
 	}
+	p.telemetryWarning("cmd/api/main.go")
 	if p.opts.Starter {
 		if len(p.plan.Domains) == 0 {
 			steps = append(steps, "write a spec in specs/<domain>.go and run codebuild build")
@@ -902,4 +903,21 @@ func (p *planner) inWorkspace(work *goversion.WorkFile, workPath string) bool {
 		}
 	}
 	return false
+}
+
+// telemetryWarning flags main.go files written before metrics, tracing and
+// CORS existed. They belong to the user, so codebuild only points at the gap.
+func (p *planner) telemetryWarning(paths ...string) {
+	var stale []string
+	for _, rel := range paths {
+		data, err := os.ReadFile(filepath.Join(p.root, filepath.FromSlash(rel)))
+		if err == nil && !bytes.Contains(data, []byte("telemetry.Start(")) {
+			stale = append(stale, rel)
+		}
+	}
+	if len(stale) > 0 {
+		p.plan.Warnings = append(p.plan.Warnings, strings.Join(stale, ", ")+": written before metrics, tracing and CORS existed, so they stay off until main.go calls "+
+			"telemetry.LoadConfig and telemetry.Start (plus telemetry.HTTP and httpx.CORS around the HTTP handler) like a newly generated main.go; "+
+			"see docs/observability.md in the codebuild repository")
+	}
 }

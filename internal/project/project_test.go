@@ -542,6 +542,17 @@ func TestAuthServiceScaffolds(t *testing.T) {
 	if !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "ignores the error returned by app.RegisterRoutes") }) {
 		t.Fatalf("warnings = %v", plan.Warnings)
 	}
+	if slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "written before metrics") }) {
+		t.Fatalf("a generated main.go was reported as unwired: %v", plan.Warnings)
+	}
+	writeTestFile(t, mainGo, strings.Replace(readTestFile(t, mainGo), "telemetry.Start(", "telemetry.Begin(", 1))
+	plan, err = BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(plan.Warnings, func(w string) bool { return strings.Contains(w, "cmd/api/main.go: written before metrics") }) {
+		t.Fatalf("warnings = %v", plan.Warnings)
+	}
 }
 
 func addPhone(t *testing.T, dir, column string) {

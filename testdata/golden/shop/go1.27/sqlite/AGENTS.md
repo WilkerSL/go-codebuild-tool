@@ -71,4 +71,6 @@ docker compose exec identity /app/accounts set-role <email> <role>
 
 Without containers, `go run ./gateway/cmd/devcerts` writes a development CA, one certificate per module and the internal token key pair into `./certs`. Then run each service with `DATABASE_URL`, `GRPC_ADDR`, `HEALTH_ADDR`, `TLS_CA_FILE`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `INTERNAL_TOKEN_PUBLIC_KEY_FILE` and the `<SERVICE>_GRPC_ADDR` of the services it calls, and the gateway with `HTTP_ADDR`, the TLS variables, `INTERNAL_TOKEN_PRIVATE_KEY_FILE` and one `<SERVICE>_GRPC_ADDR` per service. `docker-compose.yml` lists every variable.
 
+Optional, all off by default: `METRICS_ADDR` serves Prometheus metrics on `GET /metrics` in each module; `OTEL_EXPORTER_OTLP_ENDPOINT` exports traces over OTLP/HTTP JSON, and the gateway and services propagate the W3C trace context through gRPC so a request is one trace; `CORS_ALLOWED_ORIGINS` on the gateway lets browsers on other origins call it.
+
 Repository tests run against a real database: set `TEST_DATABASE_URL` to a disposable database (SQLite projects use a temporary file when it is unset). Each module has its own workflow in `.github/workflows/` that only runs when the module or one of its dependencies changes; `workspace.yml` checks formatting, the whole build and that the generated code is current.

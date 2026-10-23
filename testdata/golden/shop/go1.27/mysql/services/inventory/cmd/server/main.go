@@ -18,6 +18,7 @@ import (
 	"example.com/shop/services/inventory/internal/platform/database"
 	"example.com/shop/services/inventory/internal/platform/grpcx"
 	"example.com/shop/services/inventory/internal/platform/httpx"
+	"example.com/shop/services/inventory/internal/platform/telemetry"
 )
 
 func main() {
@@ -48,6 +49,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	telemetryConfig, err := telemetry.LoadConfig(os.Getenv, "inventory")
+	if err != nil {
+		return err
+	}
+	tel, err := telemetry.Start(telemetryConfig, logger)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,6 +71,7 @@ func run() error {
 		return err
 	}
 	defer db.Close()
+	telemetry.ObserveDB(db)
 
 	peers, err := app.DialPeers(os.Getenv, tlsConfig)
 	if err != nil {
@@ -119,5 +129,8 @@ func run() error {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
-	return healthServer.Shutdown(shutdownCtx)
+	if err := healthServer.Shutdown(shutdownCtx); err != nil {
+		return err
+	}
+	return tel.Shutdown(shutdownCtx)
 }

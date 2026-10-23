@@ -8,9 +8,11 @@ All notable changes to this project are documented in this file. The format foll
 
 - `SECURITY.md` with the supported versions and private vulnerability reporting, issue forms and a pull request template.
 - A weekly workflow that fails when a newer version exists of a module written into generated projects (database drivers, gRPC, protobuf, `github.com/google/uuid`), and Dependabot updates for the modules of the tool and the GitHub Actions.
-
 - Release archives come with an SPDX SBOM each, `checksums.txt` is signed keyless with cosign (Sigstore bundle `checksums.txt.sigstore.json`), and every archive gets a GitHub build provenance attestation. `SECURITY.md` explains how to verify them; CI builds a snapshot release with SBOMs on every push.
 - Fuzz tests for the spec parser, struct tags, schema snapshots, the contract registry, `codebuild.json`, `go.mod` and `go.work`, naming and the text diff. Generated projects fuzz password hash verification, JWT parsing and, in workspaces, internal token verification. A weekly workflow runs each fuzz target of the tool for three minutes.
+- Optional observability in generated projects, with the standard library only: Prometheus metrics on `METRICS_ADDR` (HTTP requests by route and status, latency histograms, gRPC calls, database pool and Go runtime), OpenTelemetry traces exported over OTLP/HTTP JSON when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, W3C `traceparent` propagation through HTTP and gRPC, and `trace_id` and `span_id` in log lines. See `docs/observability.md`.
+- Configurable CORS through `CORS_ALLOWED_ORIGINS`, `CORS_ALLOW_CREDENTIALS` and `CORS_MAX_AGE`, answered before routing and authentication.
+- `codebuild plan` warns when a user-owned `main.go` does not start telemetry yet, since codebuild never rewrites it.
 
 ### Changed
 

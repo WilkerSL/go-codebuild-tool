@@ -324,6 +324,11 @@ func (p *planner) workspaceSteps(changed map[string]Action) []string {
 	for _, mi := range p.plan.Migrations {
 		steps = append(steps, fmt.Sprintf("go run ./%s/cmd/migrate up (with DATABASE_URL of the %s database)", migrateDir(mi.Database), mi.Database))
 	}
+	mains := []string{"gateway/cmd/gateway/main.go"}
+	for _, m := range p.modules {
+		mains = append(mains, m.Dir+"/cmd/server/main.go")
+	}
+	p.telemetryWarning(mains...)
 	if p.opts.Starter {
 		if !exists(filepath.Join(p.root, "certs")) {
 			steps = append(steps, "go run ./gateway/cmd/devcerts (development certificates for running the services without docker compose)")
