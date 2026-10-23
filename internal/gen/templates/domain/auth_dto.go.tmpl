@@ -28,6 +28,8 @@ func (req loginRequest) input() (LoginInput, error) {
 	var errs validation.Errors
 	if req.Identity == nil || *req.Identity == "" {
 		errs.Add("{{.Auth.Identity.InputJSON}}", "is required")
+	} else if utf8.RuneCountInString(*req.Identity) > {{.Auth.IdentityMax}} {
+		errs.Add("{{.Auth.Identity.InputJSON}}", "must be at most {{.Auth.IdentityMax}} characters")
 	} else {
 		in.Identity = *req.Identity
 	}

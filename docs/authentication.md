@@ -35,7 +35,7 @@ With these specs, anyone can list labels, only admins can change them, every use
 | Method | Credential | Stored as | Revocation |
 |---|---|---|---|
 | `session` | Opaque token `ses_…` with 130 random bits | SHA-256 hash in `auth_sessions` with an expiry | Immediate: logout deletes the row; a password change deletes every other session. |
-| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use inside a transaction. Presenting a used token again within `AUTH_REFRESH_REUSE_GRACE` (two tabs refreshing at once) issues new tokens in the same family; after that window it revokes the whole family (theft detection). Access tokens stay valid until they expire, and so does the role inside them. |
+| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use inside a transaction. A client that presents the same token again within `AUTH_REFRESH_REUSE_GRACE`, because it lost the response or two tabs refreshed at once, receives the same successor; once that successor has been used, or the window has passed, presenting the old token revokes the whole family (theft detection). Access tokens stay valid until they expire on ordinary routes. Routes restricted by `roles=` or `writeroles=`, and API key creation, check the token against the database first, so logout, `accounts revoke`, deleting the account and role changes take effect there immediately. |
 | `apikey` | Key `key_…` created by a logged-in user | SHA-256 hash in `auth_api_keys`, optional expiry | `DELETE /auth/api-keys/{id}`. Keys cannot create, list or delete keys, change passwords or log out. |
 
 Passwords are hashed with PBKDF2-SHA256, 600,000 iterations and a 16-byte random salt (`crypto/pbkdf2`). The iteration count is stored with the hash, so raising it later rehashes old passwords on the next successful login. Comparisons are constant time, and a login for an unknown account spends the same hashing time as a real one, so response timing does not reveal which accounts exist.
@@ -54,7 +54,7 @@ Passwords are hashed with PBKDF2-SHA256, 600,000 iterations and a 16-byte random
 | `writeroles=a\|b` | any entity | Roles for create, update, delete, link and unlink; overrides `roles` for them. |
 | `owner` | `rel=belongs_to:<account entity>` field | Scopes every query of the entity to the caller. |
 
-Relation routes combine both sides: listing `GET /sources/{id}/targets` needs read access to both entities, and linking needs update access to the source and read access to the target. If the role sets of the two sides have nothing in common, `codebuild check` reports it.
+Relation routes combine both sides: listing `GET /sources/{id}/targets` needs read access to both entities. Linking and unlinking write the join table both entities share, so they need read and update access to both entities, whichever side the route starts from: `writeroles=admin` on `Label` makes linking labels to notes admin-only through `/notes/{id}/labels/{labelId}` and `/labels/{id}/notes/{noteId}` alike. If the role sets of the two sides have nothing in common, `codebuild check` reports it.
 
 ## Ownership
 
@@ -75,18 +75,18 @@ The service is yours. To let admins see every row, read the caller with `auth.Fr
 | Route | Access | Notes |
 |---|---|---|
 | `POST /auth/register` | public, rate limited per IP | With `register`. Body: the create fields plus `password`, without the role. |
-| `POST /auth/login` | public, rate limited | Body: the identity member (for example `email`) and `password`. Returns `accessToken`, `tokenType`, `expiresAt` and, for JWT, `refreshToken` and `refreshExpiresAt`. |
+| `POST /auth/login` | public, rate limited | Body: the identity member (for example `email`, at most its `max=` length) and `password`. Returns `accessToken`, `tokenType`, `expiresAt` and, for JWT, `refreshToken` and `refreshExpiresAt`. |
 | `POST /auth/refresh` | public | JWT only. Body `{"refreshToken": …}` or the `refresh_token` cookie. |
 | `POST /auth/logout` | logged in | Revokes the current session or refresh token family and clears the cookies. |
 | `GET /auth/me` | logged in | The account of the caller. |
-| `PUT /auth/password` | logged in | `currentPassword` and `newPassword`; revokes every other session or refresh family. |
+| `PUT /auth/password` | logged in, rate limited | `currentPassword` and `newPassword`; revokes every other session or refresh family. API keys stay valid; delete them, or run `accounts revoke`, when an account may be compromised. |
 | `POST`, `GET /auth/api-keys`, `DELETE /auth/api-keys/{id}` | logged in | With `apikey`. The key is returned once, on creation; at most 100 keys per account. |
 
-Unauthenticated requests get 401 with `WWW-Authenticate: Bearer`, missing roles get 403, and rate-limited requests get 429 with `Retry-After`. All errors are RFC 9457 problem details.
+Unauthenticated requests get 401 with `WWW-Authenticate: Bearer`, missing roles get 403, and rate-limited requests get 429 with `Retry-After`. Request bodies must be sent with `Content-Type: application/json` (or another `+json` type); anything else gets 415. All errors are RFC 9457 problem details.
 
 ## Transport and CSRF
 
-Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `SameSite=Strict` cookie (`session` or `access_token`, plus `refresh_token` limited to `/auth` for JWT) for browser front ends. Requests authenticated by cookie that change data must pass `net/http`'s `CrossOriginProtection`: cross-site requests are rejected unless their origin is listed in `AUTH_TRUSTED_ORIGINS`. Bearer requests are not affected.
+Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `SameSite=Strict` cookie (`session` or `access_token`, plus `refresh_token` limited to `/auth` for JWT) for browser front ends. Requests authenticated by cookie that change data must pass `net/http`'s `CrossOriginProtection`: cross-site requests are rejected unless their origin is listed in `AUTH_TRUSTED_ORIGINS`. Bearer requests are not affected. Login and refresh only accept JSON bodies, so a cross-site HTML form cannot log a browser into another account: a JSON request from another origin needs a CORS preflight, which only the origins in `CORS_ALLOWED_ORIGINS` pass.
 
 ## Configuration
 
@@ -102,11 +102,11 @@ Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `Sa
 | `AUTH_JWT_PREVIOUS_SECRET` | empty | Still accepted for verification while you rotate the secret. |
 | `AUTH_COOKIE_SECURE` | `true` | Set `false` only for plain HTTP during local development. |
 | `AUTH_TRUSTED_ORIGINS` | empty | Comma-separated origins allowed to use the cookie cross-site. |
-| `AUTH_LOGIN_LIMIT` | `10` | Attempts per IP and identity per window (the IP alone gets ten times more); `0` disables the limit. |
+| `AUTH_LOGIN_LIMIT` | `10` | Attempts per client and identity per window (the client alone gets ten times more across login, registration and password changes); password changes are also limited per session. `0` disables the limit. |
 | `AUTH_LOGIN_WINDOW` | `15m` | Rate limit window. |
-| `AUTH_TRUST_FORWARDED_FOR` | `false` | Use the last `X-Forwarded-For` hop as the client IP; enable only behind a proxy you control. |
+| `AUTH_TRUST_FORWARDED_FOR` | `false` | Use the last hop of the last `X-Forwarded-For` header as the client IP; enable only behind a proxy you control. |
 
-The limiter keeps its counters in memory, so each replica limits on its own.
+The limiter keeps its counters in memory, so each replica limits on its own. It stores a hash of each key and at most 100,000 keys, dropping the oldest window first, so floods of distinct identities cannot exhaust memory. IPv6 clients are counted per /64 network, the block a single host usually controls.
 
 ## Administration
 

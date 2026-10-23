@@ -62,7 +62,7 @@ func TestParseSecureExample(t *testing.T) {
 	if p := label.Policy(schema.OpCreate); p.Public || !slices.Equal(p.Roles, []string{"admin"}) {
 		t.Fatalf("label create policy = %+v", p)
 	}
-	list, link, ok := schema.RelationPolicies(label, note)
+	list, link, ok := schema.RelationPolicies(label, note, schema.RelationManyToMany)
 	if !ok || list.Public || len(list.Roles) != 0 || !slices.Equal(link.Roles, []string{"admin"}) {
 		t.Fatalf("Label.Notes policies = %+v %+v %v", list, link, ok)
 	}

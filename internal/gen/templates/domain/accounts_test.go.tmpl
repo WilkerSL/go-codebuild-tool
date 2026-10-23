@@ -71,6 +71,11 @@ func TestAccountsLogin(t *testing.T) {
 			t.Fatalf("authenticate(%q) = %v", bad, err)
 		}
 	}
+{{- if .Auth.JWT}}
+	if confirmed, err := accounts.Authenticate(auth.WithConfirmation(ctx), tokens.AccessToken); err != nil || confirmed != caller {
+		t.Fatalf("confirmed authenticate = %+v %v", confirmed, err)
+	}
+{{- end}}
 	if err := accounts.Revoke(ctx, caller); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
@@ -81,6 +86,9 @@ func TestAccountsLogin(t *testing.T) {
 {{- else}}
 	if _, err := accounts.Refresh(ctx, tokens.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("revoked refresh token still works: %v", err)
+	}
+	if _, err := accounts.Authenticate(auth.WithConfirmation(ctx), tokens.AccessToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("a confirmed access token outlived its revoked session: %v", err)
 	}
 {{- end}}
 }
@@ -118,11 +126,19 @@ func TestAccountsRefreshRotation(t *testing.T) {
 	if _, err := accounts.Authenticate(ctx, second.AccessToken); err != nil {
 		t.Fatalf("refreshed access token: %v", err)
 	}
-	if _, err := accounts.Refresh(ctx, first.RefreshToken); err != nil {
-		t.Fatalf("a second tab refreshing within the grace period was logged out: %v", err)
+	retry, err := accounts.Refresh(ctx, first.RefreshToken)
+	if err != nil || retry.RefreshToken != second.RefreshToken {
+		t.Fatalf("a retry within the grace period must receive the same refresh token: %v", err)
 	}
-	if _, err := accounts.Refresh(ctx, second.RefreshToken); err != nil {
-		t.Fatalf("the family was revoked by a concurrent refresh: %v", err)
+	third, err := accounts.Refresh(ctx, second.RefreshToken)
+	if err != nil {
+		t.Fatalf("the family was revoked by a retry: %v", err)
+	}
+	if _, err := accounts.Refresh(ctx, first.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("a token whose successor was already used still refreshed: %v", err)
+	}
+	if _, err := accounts.Refresh(ctx, third.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("the family survived a replayed refresh token: %v", err)
 	}
 	for _, bad := range []string{"garbage", auth.RefreshPrefix + "unknown"} {
 		if _, err := accounts.Refresh(ctx, bad); !errors.Is(err, auth.ErrInvalidToken) {
@@ -292,5 +308,13 @@ func TestAccountsAPIKeys(t *testing.T) {
 	if _, err := accounts.Authenticate(ctx, created.Key); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("a deleted API key still authenticates: %v", err)
 	}
+{{- if .Auth.JWT}}
+	if err := accounts.Revoke(ctx, caller); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if _, err := accounts.CreateAPIKey(ctx, caller, {{.Package}}.APIKeyInput{Name: "late"}); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("a revoked access token created an API key: %v", err)
+	}
+{{- end}}
 }
 {{- end}}

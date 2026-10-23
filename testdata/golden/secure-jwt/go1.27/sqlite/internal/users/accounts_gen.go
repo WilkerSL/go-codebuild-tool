@@ -147,15 +147,18 @@ func (a *Accounts) Issue(ctx context.Context, user User) (auth.Tokens, error) {
 	if _, err := a.db.ExecContext(ctx, deleteExpiredRefreshQuery, database.UUIDArg(user.ID), database.TimeArg(issued)); err != nil {
 		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
 	}
-	return a.issueTokens(ctx, a.db, user.ID, user.Role, auth.NewID(), issued)
+	return a.issueTokens(ctx, a.db, user.ID, user.Role, auth.NewID(), auth.NewToken(auth.RefreshPrefix), issued)
 }
 
-func (a *Accounts) issueTokens(ctx context.Context, db database.DBTX, id uuid.UUID, role string, family string, issued time.Time) (auth.Tokens, error) {
-	refresh := auth.NewToken(auth.RefreshPrefix)
+func (a *Accounts) issueTokens(ctx context.Context, db database.DBTX, id uuid.UUID, role string, family, refresh string, issued time.Time) (auth.Tokens, error) {
 	refreshExpires := issued.Add(a.cfg.RefreshTTL)
 	if _, err := db.ExecContext(ctx, insertRefreshQuery, auth.HashToken(refresh), family, database.UUIDArg(id), database.TimeArg(issued), database.TimeArg(refreshExpires)); err != nil {
 		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
 	}
+	return a.signTokens(id, role, family, refresh, refreshExpires, issued)
+}
+
+func (a *Accounts) signTokens(id uuid.UUID, role string, family, refresh string, refreshExpires, issued time.Time) (auth.Tokens, error) {
 	expires := issued.Add(a.cfg.AccessTTL).Truncate(time.Second)
 	access, err := auth.SignJWT(a.cfg.Secret, auth.Claims{
 		Subject:   formatAccountID(id),
@@ -190,24 +193,54 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 	if err != nil {
 		return auth.Tokens{}, fmt.Errorf("refresh tokens: %w", err)
 	}
-	if used != nil && issued.Sub(*used) > a.cfg.RefreshReuseGrace {
+	next := auth.NextRefreshToken(a.cfg.Secret, token)
+	reused := used != nil && issued.Sub(*used) > a.cfg.RefreshReuseGrace
+	var tokens auth.Tokens
+	if !reused {
+		err = database.InTx(ctx, a.db, func(tx *sql.Tx) error {
+			res, err := tx.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash)
+			if err != nil {
+				return fmt.Errorf("refresh tokens: %w", err)
+			}
+			n, err := res.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("refresh tokens: %w", err)
+			}
+			if n == 1 {
+				tokens, err = a.issueTokens(ctx, tx, id, role, family, next, issued)
+				return err
+			}
+			var (
+				nextUsed    *time.Time
+				nextExpires time.Time
+			)
+			err = tx.QueryRowContext(ctx, refreshSuccessorQuery, auth.HashToken(next), family).Scan(database.ScanNullTime(&nextUsed), database.ScanTime(&nextExpires))
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && nextUsed != nil) {
+				reused = true
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("refresh tokens: %w", err)
+			}
+			tokens, err = a.signTokens(id, role, family, next, nextExpires.UTC(), issued)
+			return err
+		})
+		if err != nil {
+			return auth.Tokens{}, err
+		}
+	}
+	if reused {
 		if _, err := a.db.ExecContext(ctx, deleteFamilyQuery, family); err != nil {
 			return auth.Tokens{}, fmt.Errorf("revoke reused refresh token: %w", err)
 		}
 		return auth.Tokens{}, auth.ErrInvalidToken
 	}
-	var tokens auth.Tokens
-	err = database.InTx(ctx, a.db, func(tx *sql.Tx) error {
-		if used == nil {
-			if _, err := tx.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash); err != nil {
-				return fmt.Errorf("refresh tokens: %w", err)
-			}
-		}
-		var err error
-		tokens, err = a.issueTokens(ctx, tx, id, role, family, issued)
-		return err
-	})
-	return tokens, err
+	return tokens, nil
+}
+
+func (a *Accounts) confirm(ctx context.Context, p auth.Principal) (auth.Principal, error) {
+	err := a.db.QueryRowContext(ctx, jwtPrincipalQuery, database.UUIDArg(p.ID), p.CredentialID, database.TimeArg(authNow())).Scan(database.ScanUUID(&p.ID), &p.Role)
+	return foundPrincipal(p, err)
 }
 
 func (a *Accounts) Authenticate(ctx context.Context, token string) (auth.Principal, error) {
@@ -225,7 +258,11 @@ func (a *Accounts) Authenticate(ctx context.Context, token string) (auth.Princip
 		if err != nil {
 			return auth.Principal{}, auth.ErrInvalidToken
 		}
-		return auth.Principal{ID: id, Role: claims.Role, Method: auth.MethodJWT, CredentialID: claims.Session}, nil
+		p := auth.Principal{ID: id, Role: claims.Role, Method: auth.MethodJWT, CredentialID: claims.Session}
+		if auth.ConfirmationRequired(ctx) {
+			return a.confirm(ctx, p)
+		}
+		return p, nil
 	}
 	return auth.Principal{}, auth.ErrInvalidToken
 }
@@ -332,6 +369,11 @@ func (a *Accounts) revokeAll(ctx context.Context, id uuid.UUID) error {
 func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in APIKeyInput) (CreatedAPIKey, error) {
 	if caller.Method == auth.MethodAPIKey {
 		return CreatedAPIKey{}, auth.ErrForbidden
+	}
+	if caller.Method == auth.MethodJWT {
+		if _, err := a.confirm(ctx, caller); err != nil {
+			return CreatedAPIKey{}, err
+		}
 	}
 	created := authNow()
 	if in.ExpiresAt != nil && !in.ExpiresAt.After(created) {

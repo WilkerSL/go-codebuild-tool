@@ -43,6 +43,19 @@ UPDATE "auth_refresh_tokens"
 SET "used_at" = ?
 WHERE "id" = ? AND "used_at" IS NULL`
 
+const refreshSuccessorQuery = `
+SELECT "used_at", "expires_at"
+FROM "auth_refresh_tokens"
+WHERE "id" = ? AND "family_id" = ?`
+
+const jwtPrincipalQuery = `
+SELECT "users"."id", "users"."role"
+FROM "users"
+WHERE "users"."id" = ? AND "users"."deleted_at" IS NULL AND EXISTS (
+    SELECT 1
+    FROM "auth_refresh_tokens"
+    WHERE "auth_refresh_tokens"."family_id" = ? AND "auth_refresh_tokens"."user_id" = "users"."id" AND "auth_refresh_tokens"."expires_at" > ?)`
+
 const deleteFamilyQuery = `
 DELETE FROM "auth_refresh_tokens"
 WHERE "family_id" = ?`

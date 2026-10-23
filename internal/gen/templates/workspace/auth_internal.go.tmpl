@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,12 +53,12 @@ func SignInternal(key ed25519.PrivateKey, c InternalClaims) (string, error) {
 }
 
 type Verifier struct {
-	key ed25519.PublicKey
-	now func() time.Time
+	keys []ed25519.PublicKey
+	now  func() time.Time
 }
 
-func NewVerifier(key ed25519.PublicKey) *Verifier {
-	return &Verifier{key: key, now: time.Now}
+func NewVerifier(keys ...ed25519.PublicKey) *Verifier {
+	return &Verifier{keys: keys, now: time.Now}
 }
 
 func (v *Verifier) Claims(token string) (InternalClaims, error) {
@@ -70,7 +71,7 @@ func (v *Verifier) Claims(token string) (InternalClaims, error) {
 		return InternalClaims{}, errInternalToken
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(signature)
-	if err != nil || !ed25519.Verify(v.key, []byte(header+"."+payload), sig) {
+	if err != nil || !slices.ContainsFunc(v.keys, func(key ed25519.PublicKey) bool { return ed25519.Verify(key, []byte(header+"."+payload), sig) }) {
 		return InternalClaims{}, errInternalToken
 	}
 	data, err := base64.RawURLEncoding.DecodeString(payload)
@@ -128,28 +129,45 @@ func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
 }
 
 func LoadPublicKey(path string) (ed25519.PublicKey, error) {
-	block, err := readPEM(path)
+	keys, err := LoadPublicKeys(path)
 	if err != nil {
 		return nil, err
 	}
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	return keys[0], nil
+}
+
+func LoadPublicKeys(path string) ([]ed25519.PublicKey, error) {
+	data, err := readKeyFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("auth: parse %s: %w", path, err)
+		return nil, err
 	}
-	public, ok := key.(ed25519.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("auth: %s does not hold an Ed25519 public key", path)
+	var keys []ed25519.PublicKey
+	for {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("auth: parse %s: %w", path, err)
+		}
+		public, ok := key.(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("auth: %s does not hold Ed25519 public keys", path)
+		}
+		keys = append(keys, public)
 	}
-	return public, nil
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("auth: %s is not PEM encoded", path)
+	}
+	return keys, nil
 }
 
 func readPEM(path string) (*pem.Block, error) {
-	if path == "" {
-		return nil, errors.New("auth: the internal token key file is not configured; generate one with go run ./gateway/cmd/devcerts")
-	}
-	data, err := os.ReadFile(path)
+	data, err := readKeyFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("auth: read %s: %w", path, err)
+		return nil, err
 	}
 	block, _ := pem.Decode(data)
 	if block == nil {
@@ -158,3 +176,13 @@ func readPEM(path string) (*pem.Block, error) {
 	return block, nil
 }
 
+func readKeyFile(path string) ([]byte, error) {
+	if path == "" {
+		return nil, errors.New("auth: the internal token key file is not configured; generate one with go run ./gateway/cmd/devcerts")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("auth: read %s: %w", path, err)
+	}
+	return data, nil
+}

@@ -102,7 +102,7 @@ func (p *parser) checkAuthModel(m *schema.Model) {
 			if target == nil || target.NoRoutes {
 				continue
 			}
-			if _, _, ok := schema.RelationPolicies(source, target); !ok {
+			if _, _, ok := schema.RelationPolicies(source, target, r.Kind); !ok {
 				p.errorf(p.relationPos(r, "rel"), CodeInvalidCombination, "",
 					"no role can use the routes of %s.%s: %s and %s require roles with nothing in common", source.Name, r.Name, source.Name, target.Name)
 			}

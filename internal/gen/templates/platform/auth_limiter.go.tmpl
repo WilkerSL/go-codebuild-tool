@@ -3,8 +3,11 @@
 package auth
 
 import (
+	"container/list"
+	"crypto/sha256"
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"sync"
 	"time"
@@ -12,44 +15,59 @@ import (
 	"{{.Module}}/internal/platform/httpx"
 )
 
+const maxLimiterKeys = 100_000
+
 type window struct {
+	key   [sha256.Size]byte
 	count int
 	reset time.Time
 }
 
 type Limiter struct {
-	mu     sync.Mutex
-	limit  int
-	period time.Duration
-	now    func() time.Time
-	hits   map[string]*window
-	calls  int
+	mu      sync.Mutex
+	limit   int
+	period  time.Duration
+	maxKeys int
+	now     func() time.Time
+	hits    map[[sha256.Size]byte]*list.Element
+	order   *list.List
 }
 
 func NewLimiter(limit int, period time.Duration) *Limiter {
-	return &Limiter{limit: limit, period: period, now: time.Now, hits: map[string]*window{}}
+	return &Limiter{
+		limit:   limit,
+		period:  period,
+		maxKeys: maxLimiterKeys,
+		now:     time.Now,
+		hits:    map[[sha256.Size]byte]*list.Element{},
+		order:   list.New(),
+	}
 }
 
 func (l *Limiter) Allow(key string) error {
 	if l.limit <= 0 {
 		return nil
 	}
+	id := sha256.Sum256([]byte(key))
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
-	l.calls++
-	if l.calls%1024 == 0 {
-		for k, w := range l.hits {
-			if !now.Before(w.reset) {
-				delete(l.hits, k)
-			}
+	for e := l.order.Front(); e != nil && !now.Before(e.Value.(*window).reset); e = l.order.Front() {
+		l.drop(e)
+	}
+	e, ok := l.hits[id]
+	if ok && !now.Before(e.Value.(*window).reset) {
+		l.drop(e)
+		ok = false
+	}
+	if !ok {
+		if l.order.Len() >= l.maxKeys {
+			l.drop(l.order.Front())
 		}
+		e = l.order.PushBack(&window{key: id, reset: now.Add(l.period)})
+		l.hits[id] = e
 	}
-	w, ok := l.hits[key]
-	if !ok || !now.Before(w.reset) {
-		w = &window{reset: now.Add(l.period)}
-		l.hits[key] = w
-	}
+	w := e.Value.(*window)
 	if w.count >= l.limit {
 		wait := strconv.Itoa(int(math.Ceil(w.reset.Sub(now).Seconds())))
 		return &httpx.Error{
@@ -63,7 +81,31 @@ func (l *Limiter) Allow(key string) error {
 }
 
 func (l *Limiter) Reset(key string) {
+	id := sha256.Sum256([]byte(key))
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.hits, key)
+	if e, ok := l.hits[id]; ok {
+		l.drop(e)
+	}
+}
+
+func (l *Limiter) drop(e *list.Element) {
+	delete(l.hits, e.Value.(*window).key)
+	l.order.Remove(e)
+}
+
+func ClientKey(r *http.Request, trustForwardedFor bool) string {
+	ip := ClientIP(r, trustForwardedFor)
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	if addr = addr.Unmap(); addr.Is4() {
+		return addr.String()
+	}
+	network, err := addr.Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return network.String()
 }

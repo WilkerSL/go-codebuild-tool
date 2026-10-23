@@ -20,6 +20,8 @@ func (req loginRequest) input() (LoginInput, error) {
 	var errs validation.Errors
 	if req.Identity == nil || *req.Identity == "" {
 		errs.Add("email", "is required")
+	} else if utf8.RuneCountInString(*req.Identity) > 254 {
+		errs.Add("email", "must be at most 254 characters")
 	} else {
 		in.Identity = *req.Identity
 	}

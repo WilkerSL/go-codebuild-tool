@@ -133,7 +133,7 @@ var markerDefs = []markerDef{
 		doc: MarkerDoc{
 			Syntax:      "writeroles=<role>|<role>",
 			AppliesTo:   "entities of a project whose account entity has a `role` field",
-			Description: "Roles required for create, update, delete, link and unlink. Overrides `roles` for those operations, so `roles=admin|member,writeroles=admin` lets members read and only admins write.",
+			Description: "Roles required for create, update, delete, link and unlink. Overrides `roles` for those operations, so `roles=admin|member,writeroles=admin` lets members read and only admins write. A link writes the join table of both entities, so the write roles of either side apply to the link routes of both.",
 			Example:     "_ struct{} `gen:\"public=read,writeroles=admin\"`",
 			CommonError: "`writeroles` on a readonly entity fails with invalid_combination: it has no write operations.",
 		},

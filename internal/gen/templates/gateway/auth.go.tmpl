@@ -82,8 +82,8 @@ func Credential(r *http.Request) (string, bool) {
 
 func ClientIP(r *http.Request, trustForwardedFor bool) string {
 	if trustForwardedFor {
-		if header := r.Header.Get("X-Forwarded-For"); header != "" {
-			hops := strings.Split(header, ",")
+		if lines := r.Header.Values("X-Forwarded-For"); len(lines) > 0 {
+			hops := strings.Split(lines[len(lines)-1], ",")
 			if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
 				return ip
 			}

@@ -3,6 +3,7 @@
 package grpcx
 
 import (
+	"cmp"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,10 +15,11 @@ type TLSConfig struct {
 	CAFile   string
 	CertFile string
 	KeyFile  string
+	Gateway  string
 }
 
 func LoadTLSConfig(getenv func(string) string) (TLSConfig, error) {
-	cfg := TLSConfig{CAFile: getenv("TLS_CA_FILE"), CertFile: getenv("TLS_CERT_FILE"), KeyFile: getenv("TLS_KEY_FILE")}
+	cfg := TLSConfig{CAFile: getenv("TLS_CA_FILE"), CertFile: getenv("TLS_CERT_FILE"), KeyFile: getenv("TLS_KEY_FILE"), Gateway: cmp.Or(getenv("TLS_GATEWAY_NAME"), "gateway")}
 	var errs []error
 	for _, v := range []struct{ key, value string }{{"TLS_CA_FILE", cfg.CAFile}, {"TLS_CERT_FILE", cfg.CertFile}, {"TLS_KEY_FILE", cfg.KeyFile}} {
 		if v.value == "" {

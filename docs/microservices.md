@@ -75,7 +75,9 @@ On top of TLS, every call carries an internal token in the `x-internal-token` me
 
 Inside a service, `grpcx.Authorize(ctx, roles...)` and `auth.Current(ctx)` behave as in a monolith, so the `owner`, `roles` and `public` markers keep their meaning.
 
-`go run ./gateway/cmd/devcerts` writes a development CA, a certificate per module (valid for the module name, `localhost`, `127.0.0.1` and `::1`) and the internal token key pair into `./certs`. Use your own PKI and key management in production; rotating the internal key means deploying the new public key to the services before the new private key to the gateway.
+Because services forward the tokens they receive, a compromised service could replay a user's token against another service while it is valid. The account service limits what such a replay can reach: it answers `AuthService` calls and creates, updates or deletes accounts only when the TLS client certificate belongs to the gateway, whose name (common name or DNS name) it reads from `TLS_GATEWAY_NAME` (`gateway` by default). It also checks every JWT against its database when the gateway authenticates a request, so logout, revocation, deleted accounts and role changes apply to the next request.
+
+`go run ./gateway/cmd/devcerts` writes a development CA, a certificate per module (valid for the module name, `localhost`, `127.0.0.1` and `::1`) and the internal token key pair into `./certs`. Use your own PKI and key management in production. `INTERNAL_TOKEN_PUBLIC_KEY_FILE` may hold several PEM public keys, and services accept a token signed by any of them. To rotate the internal key, append the new public key to that file and deploy the services, switch the gateway to the new private key, then remove the old public key.
 
 ## References across services
 
@@ -122,8 +124,9 @@ Compose generates development certificates in a volume, starts one database serv
 | `<SERVICE>_GRPC_ADDR` | gateway, service | `host:port` of a service: the gateway needs every service, a service needs the services it calls for `Exists`. |
 | `HTTP_ADDR` | gateway | REST listen address, default `:8080`; `gateway healthcheck` probes it. |
 | `TLS_CA_FILE`, `TLS_CERT_FILE`, `TLS_KEY_FILE` | all | Mutual TLS. |
+| `TLS_GATEWAY_NAME` | account service | Certificate name of the gateway, the only client allowed to call `AuthService` and account writes; default `gateway`. |
 | `INTERNAL_TOKEN_PRIVATE_KEY_FILE` | gateway | Ed25519 key that signs internal tokens. |
-| `INTERNAL_TOKEN_PUBLIC_KEY_FILE` | service | Key that verifies them. |
+| `INTERNAL_TOKEN_PUBLIC_KEY_FILE` | service | One or more PEM public keys that verify them. |
 | `AUTH_*` | gateway, account service | The gateway reads the cookie, origin and login limit settings; the account service reads the session and JWT settings. See [authentication.md](authentication.md). |
 
 Every outgoing gRPC call without a deadline gets 10 seconds. A service that is down answers 503 at the gateway, a timeout 504.

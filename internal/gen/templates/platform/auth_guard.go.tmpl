@@ -32,6 +32,11 @@ func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Gua
 
 func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+{{- if and .Auth.JWT .Auth.Role}}
+		if len(roles) > 0 {
+			r = r.WithContext(WithConfirmation(r.Context()))
+		}
+{{- end}}
 		p, err := g.Authenticate(r)
 		if err != nil {
 			httpx.WriteError(w, r, g.logger, err)

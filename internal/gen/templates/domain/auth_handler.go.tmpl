@@ -53,7 +53,7 @@ func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
 {{- if .Auth.Register}}
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
-	if err := h.clients.Allow(auth.ClientIP(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -91,9 +91,9 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	ip := auth.ClientIP(r, h.cfg.TrustForwardedFor)
-	key := ip + "|" + normalizeIdentity(in.Identity)
-	if err := h.clients.Allow(ip); err != nil {
+	client := auth.ClientKey(r, h.cfg.TrustForwardedFor)
+	key := client + "|" + normalizeIdentity(in.Identity)
+	if err := h.clients.Allow(client); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -191,10 +191,20 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	key := "password|" + caller.CredentialID
+	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.logins.Allow(key); err != nil {
+		h.fail(w, r, err)
+		return
+	}
 	if err := h.svc.ChangePassword(r.Context(), caller, in); err != nil {
 		h.fail(w, r, err)
 		return
 	}
+	h.logins.Reset(key)
 	w.WriteHeader(http.StatusNoContent)
 }
 {{- if .Auth.APIKey}}

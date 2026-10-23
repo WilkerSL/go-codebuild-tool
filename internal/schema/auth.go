@@ -88,10 +88,18 @@ func Combine(a, b Policy) (Policy, bool) {
 	return Policy{Roles: both}, len(both) > 0
 }
 
-func RelationPolicies(source, target *Entity) (list Policy, link Policy, ok bool) {
-	list, listOK := Combine(target.Policy(OpRead), source.Policy(OpRead))
-	link, linkOK := Combine(source.Policy(OpUpdate), target.Policy(OpRead))
-	return list, link, listOK && linkOK
+// RelationPolicies returns the policies of the list and link routes of a relation.
+// Linking writes a row of the join table both entities share, so every route that
+// links the pair, from either side, needs read and update access to both.
+func RelationPolicies(source, target *Entity, kind RelationKind) (list Policy, link Policy, ok bool) {
+	list, ok = Combine(target.Policy(OpRead), source.Policy(OpRead))
+	if kind != RelationManyToMany {
+		return list, Policy{}, ok
+	}
+	forward, forwardOK := Combine(source.Policy(OpUpdate), target.Policy(OpRead))
+	backward, backwardOK := Combine(target.Policy(OpUpdate), source.Policy(OpRead))
+	link, linkOK := Combine(forward, backward)
+	return list, link, ok && forwardOK && backwardOK && linkOK
 }
 
 const (

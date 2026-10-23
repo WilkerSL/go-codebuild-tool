@@ -31,6 +31,7 @@ type authView struct {
 	Path             string
 	PKLocation       string
 	Identity         *fieldView
+	IdentityMax      string
 	Password         *fieldView
 	Role             *fieldView
 	RoleConsts       string
@@ -72,6 +73,10 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 		ScanTime:    pv.Dialect.ScanTime,
 	}
 	av.EmailIdentity = av.Identity.F.Email
+	av.IdentityMax = "1024"
+	if size := schema.ColumnSize(e.Identity()); size > 0 {
+		av.IdentityMax = strconv.Itoa(size)
+	}
 	for i, m := range e.Auth {
 		if i > 0 {
 			av.Methods += ", "
@@ -125,6 +130,8 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 	add("insertRefreshQuery", q.InsertRefresh)
 	add("refreshTokenQuery", q.RefreshToken)
 	add("useRefreshQuery", q.UseRefresh)
+	add("refreshSuccessorQuery", q.RefreshSuccessor)
+	add("jwtPrincipalQuery", q.JWTPrincipal)
 	add("deleteFamilyQuery", q.DeleteFamily)
 	add("deleteOtherFamiliesQuery", q.DeleteOtherFamilies)
 	add("deleteUserRefreshQuery", q.DeleteUserRefresh)

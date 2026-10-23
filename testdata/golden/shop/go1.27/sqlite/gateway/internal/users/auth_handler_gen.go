@@ -40,6 +40,8 @@ func (req loginRequest) message() (*identityv1.LoginRequest, error) {
 	m := &identityv1.LoginRequest{}
 	if req.Identity == nil || *req.Identity == "" {
 		errs.Add("email", "is required")
+	} else if utf8.RuneCountInString(*req.Identity) > 254 {
+		errs.Add("email", "must be at most 254 characters")
 	} else {
 		m.Identity = *req.Identity
 	}
@@ -178,7 +180,7 @@ func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
 }
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
-	if err := h.clients.Allow(auth.ClientIP(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -213,9 +215,9 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	ip := auth.ClientIP(r, h.cfg.TrustForwardedFor)
-	key := ip + "|" + normalizeIdentity(msg.GetIdentity())
-	if err := h.clients.Allow(ip); err != nil {
+	client := auth.ClientKey(r, h.cfg.TrustForwardedFor)
+	key := client + "|" + normalizeIdentity(msg.GetIdentity())
+	if err := h.clients.Allow(client); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -251,6 +253,11 @@ func (h *AuthHandler) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
+	caller, err := auth.Current(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
 	var req passwordRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
 		h.fail(w, r, err)
@@ -261,10 +268,20 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	key := "password|" + caller.CredentialID
+	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := h.logins.Allow(key); err != nil {
+		h.fail(w, r, err)
+		return
+	}
 	if _, err := h.client.ChangePassword(r.Context(), msg); err != nil {
 		h.fail(w, r, err)
 		return
 	}
+	h.logins.Reset(key)
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,31 @@ func TestPassword(t *testing.T) {
 	if ok, rehash := VerifyPassword(weak, "secret-password"); !ok || !rehash {
 		t.Fatalf("hash with fewer iterations = %v %v, want a match that needs rehashing", ok, rehash)
 	}
+}
+
+func FuzzVerifyPassword(f *testing.F) {
+	salt := []byte("0123456789abcdef")
+	key, _ := pbkdf2.Key(sha256.New, "secret-password", salt, 1000, keyBytes)
+	enc := base64.RawStdEncoding
+	f.Add(passwordScheme+"$1000$"+enc.EncodeToString(salt)+"$"+enc.EncodeToString(key), "secret-password")
+	f.Add(passwordScheme+"$1000$"+enc.EncodeToString(salt)+"$"+enc.EncodeToString(key), "wrong")
+	f.Add("plain", "")
+	f.Add(passwordScheme+"$-1$$", "x")
+	f.Add(passwordScheme+"$99999999999999999999$c2FsdA$a2V5", "x")
+	f.Fuzz(func(t *testing.T, encoded, password string) {
+		if parts := strings.Split(encoded, "$"); len(parts) == 4 {
+			if n, err := strconv.Atoi(parts[1]); err == nil && n > 10000 {
+				t.Skip("costly hashes are not worth fuzzing")
+			}
+		}
+		match, rehash := VerifyPassword(encoded, password)
+		if rehash && !match {
+			t.Fatal("a mismatch asked for a rehash")
+		}
+		if match && !strings.HasPrefix(encoded, passwordScheme+"$") {
+			t.Fatalf("hash %q without the scheme matched", encoded)
+		}
+	})
 }
 
 func TestTokens(t *testing.T) {
@@ -85,6 +111,36 @@ func TestLimiter(t *testing.T) {
 	if NewLimiter(0, time.Minute).Allow("k") != nil {
 		t.Fatal("a zero limit must disable the limiter")
 	}
+	small := NewLimiter(1, time.Minute)
+	small.now = func() time.Time { return now }
+	small.maxKeys = 2
+	for _, key := range []string{"a", "b", "c"} {
+		if small.Allow(key) != nil {
+			t.Fatalf("first attempt for %s was rejected", key)
+		}
+	}
+	if small.order.Len() != 2 || small.Allow("a") != nil || small.Allow("c") == nil {
+		t.Fatalf("the limiter kept %d keys and did not evict the oldest", small.order.Len())
+	}
+	if small.Allow(strings.Repeat("x", 1<<20)) != nil || small.order.Len() != 2 {
+		t.Fatal("long keys must not grow the limiter")
+	}
+}
+
+func TestClientKey(t *testing.T) {
+	for remote, want := range map[string]string{
+		"10.0.0.1:1234":             "10.0.0.1",
+		"[::ffff:10.0.0.1]:1234":    "10.0.0.1",
+		"[2001:db8:1:2:3:4:5:6]:80": "2001:db8:1:2::/64",
+		"[2001:db8:1:2:ff::1]:80":   "2001:db8:1:2::/64",
+		"not an address":            "not an address",
+	} {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = remote
+		if got := ClientKey(r, false); got != want {
+			t.Errorf("ClientKey(%s) = %s, want %s", remote, got, want)
+		}
+	}
 }
 
 func TestLoadConfig(t *testing.T) {
@@ -118,6 +174,10 @@ func TestClientIP(t *testing.T) {
 	}
 	if ip := ClientIP(r, true); ip != "198.51.100.7" {
 		t.Fatalf("ClientIP behind a proxy = %s", ip)
+	}
+	r.Header.Add("X-Forwarded-For", "192.0.2.4")
+	if ip := ClientIP(r, true); ip != "192.0.2.4" {
+		t.Fatalf("ClientIP with two header lines = %s, want the line the proxy added last", ip)
 	}
 }
 

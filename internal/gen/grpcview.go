@@ -294,7 +294,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 		if !dv.Routes {
 			break
 		}
-		list, link, _ := schema.RelationPolicies(rv.Source, e)
+		list, link, _ := schema.RelationPolicies(rv.Source, e, schema.RelationKind(rv.Kind))
 		relOwned := owned || rv.Source.Owner() != nil
 		relOwner := ""
 		if rv.Owned {

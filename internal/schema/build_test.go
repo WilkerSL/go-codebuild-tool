@@ -321,9 +321,15 @@ func TestPolicies(t *testing.T) {
 	if p := user.Policy(schema.OpDelete); !slices.Equal(p.Roles, []string{"admin"}) {
 		t.Errorf("user delete = %+v", p)
 	}
-	list, link, ok := schema.RelationPolicies(note, tag)
-	if !ok || list.Public || len(list.Roles) != 0 || len(link.Roles) != 0 {
+	list, link, ok := schema.RelationPolicies(note, tag, schema.RelationManyToMany)
+	if !ok || list.Public || len(list.Roles) != 0 || !slices.Equal(link.Roles, []string{"admin"}) {
 		t.Errorf("RelationPolicies(note, tag) = %+v %+v %v", list, link, ok)
+	}
+	if _, back, _ := schema.RelationPolicies(tag, note, schema.RelationManyToMany); !slices.Equal(back.Roles, link.Roles) {
+		t.Errorf("the two directions of a link disagree: %+v and %+v", link, back)
+	}
+	if _, hasMany, ok := schema.RelationPolicies(user, note, schema.RelationHasMany); !ok || hasMany.Public || len(hasMany.Roles) != 0 {
+		t.Errorf("has-many relations have no link policy, got %+v %v", hasMany, ok)
 	}
 	var ops schema.Operations
 	if ops.Any() {

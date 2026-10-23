@@ -149,7 +149,7 @@ Rules:
 
 - Syntax: `writeroles=<role>|<role>`
 - Applies to: entities of a project whose account entity has a `role` field
-- Effect: Roles required for create, update, delete, link and unlink. Overrides `roles` for those operations, so `roles=admin|member,writeroles=admin` lets members read and only admins write.
+- Effect: Roles required for create, update, delete, link and unlink. Overrides `roles` for those operations, so `roles=admin|member,writeroles=admin` lets members read and only admins write. A link writes the join table of both entities, so the write roles of either side apply to the link routes of both.
 - Example: `_ struct{} `gen:"public=read,writeroles=admin"``
 - Common error: `writeroles` on a readonly entity fails with invalid_combination: it has no write operations.
 
@@ -349,6 +349,7 @@ type BillingService struct {
 
 ## Request semantics
 
+- Request bodies must be sent with `Content-Type: application/json` (or another `+json` media type); other content types answer HTTP 415.
 - Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.
 - On create, an absent member takes the `default=` value, or the zero value (an empty value for `[]byte`). Pointer fields treat `null` like an absent member.
 - `PUT` replaces the whole resource, so every non-pointer member is required: leaving one out answers 422 instead of resetting it to its default. Pointer members left out become `null`.

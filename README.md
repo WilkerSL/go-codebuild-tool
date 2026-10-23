@@ -117,13 +117,13 @@ go run ./cmd/api
 Call the API:
 
 ```bash
-curl -s -X POST localhost:8080/orgs -d '{"name":"Acme"}'
-curl -s -X POST localhost:8080/users -d '{"name":"Ann","email":"ann@example.com","orgId":"<org id>"}'
+curl -s --json '{"name":"Acme"}' localhost:8080/orgs
+curl -s --json '{"name":"Ann","email":"ann@example.com","orgId":"<org id>"}' localhost:8080/users
 curl -s 'localhost:8080/users?email=ann@example.com'
-curl -s -X POST localhost:8080/users -d '{"name":"","email":"nope"}'
+curl -s --json '{"name":"","email":"nope"}' localhost:8080/users
 ```
 
-The last request answers `422` with a problem document listing every invalid field. Change a spec and run `codebuild build` again: generated files are refreshed, your files are left alone and a new migration describes the schema change.
+`--json` (curl 7.82 or newer) sends `Content-Type: application/json`, which every generated endpoint requires; with older curl use `-H 'Content-Type: application/json' -d '...'`. The last request answers `422` with a problem document listing every invalid field. Change a spec and run `codebuild build` again: generated files are refreshed, your files are left alone and a new migration describes the schema change.
 
 ## Commands
 

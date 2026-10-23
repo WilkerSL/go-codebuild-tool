@@ -44,7 +44,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	key, err := auth.LoadPublicKey(cfg.InternalTokenKeyFile)
+	keys, err := auth.LoadPublicKeys(cfg.InternalTokenKeyFile)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func run() error {
 	}
 	defer peers.Close()
 
-	server, err := grpcx.NewServer(tlsConfig, auth.NewVerifier(key), logger)
+	server, err := grpcx.NewServer(tlsConfig, auth.NewVerifier(keys...), logger)
 	if err != nil {
 		return err
 	}

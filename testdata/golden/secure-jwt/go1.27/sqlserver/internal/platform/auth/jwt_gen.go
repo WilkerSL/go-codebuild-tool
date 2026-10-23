@@ -5,6 +5,7 @@ package auth
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json/v2"
 	"fmt"
@@ -29,6 +30,12 @@ func jwtSignature(secret []byte, signed string) []byte {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(signed))
 	return mac.Sum(nil)
+}
+
+func NextRefreshToken(secret []byte, token string) string {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte("refresh:" + token))
+	return RefreshPrefix + base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(mac.Sum(nil)[:20])
 }
 
 func SignJWT(secret []byte, c Claims) (string, error) {

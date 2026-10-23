@@ -16,6 +16,9 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+{{- if .Auth}}
+	"google.golang.org/grpc/peer"
+{{- end}}
 	"google.golang.org/grpc/status"
 
 	"{{.Module}}/internal/platform/auth"
@@ -31,7 +34,7 @@ func NewServer(cfg TLSConfig, verifier *auth.Verifier, logger *slog.Logger) (*gr
 	}
 	s := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.ChainUnaryInterceptor(recoverer(logger), requestID, logCalls(logger), authenticate(verifier)),
+		grpc.ChainUnaryInterceptor(recoverer(logger), requestID, logCalls(logger), authenticate(verifier){{if .Auth}}, gatewayOnly(cfg.Gateway){{end}}),
 	)
 	healthpb.RegisterHealthServer(s, health.NewServer())
 	return s, nil
@@ -112,3 +115,38 @@ func authenticate(verifier *auth.Verifier) grpc.UnaryServerInterceptor {
 		return handler(ctx, req)
 	}
 }
+{{- if .Auth}}
+
+func gatewayOnly(gateway string) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if gatewayMethod(info.FullMethod) && !fromPeer(ctx, gateway) {
+			return nil, status.Error(codes.PermissionDenied, "only the gateway may call "+info.FullMethod)
+		}
+		return handler(ctx, req)
+	}
+}
+
+func gatewayMethod(method string) bool {
+	service, name, _ := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+	switch {
+	case strings.HasSuffix(service, ".AuthService"):
+		return true
+	case strings.HasSuffix(service, ".{{.Auth.Name}}Service"):
+		return name == "Create" || name == "Update" || name == "Delete"
+	}
+	return false
+}
+
+func fromPeer(ctx context.Context, name string) bool {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	info, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(info.State.PeerCertificates) == 0 {
+		return false
+	}
+	cert := info.State.PeerCertificates[0]
+	return cert.Subject.CommonName == name || slices.Contains(cert.DNSNames, name)
+}
+{{- end}}

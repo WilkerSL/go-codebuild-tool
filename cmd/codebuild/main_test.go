@@ -298,6 +298,9 @@ func (c client) send(method, path string, body any, header http.Header) (reply, 
 	if err != nil {
 		c.t.Fatal(err)
 	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
@@ -480,8 +483,12 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	labelID := fmt.Sprint(int64(label["id"].(float64)))
 	asAnn.expect("GET", "/users", nil, http.StatusOK)
 	asBob.expect("GET", "/users", nil, http.StatusForbidden)
+	command(t, dir, env, "go", "run", "./cmd/accounts", "set-role", annEmail, "member")
+	asAnn.expect("GET", "/users", nil, http.StatusForbidden)
+	command(t, dir, env, "go", "run", "./cmd/accounts", "set-role", annEmail, "admin")
 	asAnn.expect("PUT", "/notes/"+noteID+"/labels/"+labelID, nil, http.StatusNoContent)
-	asBob.expect("PUT", "/notes/"+noteID+"/labels/"+labelID, nil, http.StatusNotFound)
+	asBob.expect("PUT", "/notes/"+noteID+"/labels/"+labelID, nil, http.StatusForbidden)
+	asBob.expect("PUT", "/labels/"+labelID+"/notes/"+noteID, nil, http.StatusForbidden)
 	if page := asAnn.expect("GET", "/notes/"+noteID+"/labels", nil, http.StatusOK); page["total"].(float64) != 1 {
 		t.Fatalf("note labels = %v", page)
 	}
@@ -510,6 +517,9 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	crossSite := http.Header{"Cookie": cookie["Cookie"], "Sec-Fetch-Site": {"cross-site"}}
 	if resp, _ := c.send("POST", "/notes", map[string]any{"title": "csrf"}, crossSite); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("cross-site cookie request = %d", resp.StatusCode)
+	}
+	if resp, _ := c.send("POST", "/auth/login", map[string]any{"email": annEmail, "password": "ann password 1"}, http.Header{"Content-Type": {"text/plain"}}); resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Fatalf("login with a text/plain body = %d", resp.StatusCode)
 	}
 
 	asAnn.expect("PUT", "/auth/password", map[string]any{"currentPassword": "wrong", "newPassword": "ann password 2"}, http.StatusUnprocessableEntity)

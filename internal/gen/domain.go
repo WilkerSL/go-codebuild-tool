@@ -218,7 +218,7 @@ func buildRoutes(dv *domainView) {
 		add("DELETE", dv.ItemPath, "delete", e.Policy(schema.OpDelete))
 	}
 	for _, rv := range dv.Relations {
-		list, link, _ := schema.RelationPolicies(rv.Source, e)
+		list, link, _ := schema.RelationPolicies(rv.Source, e, schema.RelationKind(rv.Kind))
 		add("GET", rv.Path, rv.Handler, list)
 		if rv.Writable {
 			add("PUT", rv.ItemPath, rv.LinkHandler, link)

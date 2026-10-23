@@ -198,7 +198,10 @@ func writeKey(path string, key *ecdsa.PrivateKey) error {
 }
 
 func writePEM(path, kind string, der []byte, mode os.FileMode) error {
-	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: kind, Bytes: der}), mode)
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: kind, Bytes: der}), mode); err != nil {
+		return err
+	}
+	return os.Chmod(path, mode)
 }
 
 func readPEM(path string) (*pem.Block, error) {

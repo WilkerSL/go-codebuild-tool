@@ -43,7 +43,11 @@ func tokensMessage(t auth.Tokens) *{{$a}}.Tokens {
 }
 
 func (s *AuthGRPCServer) Authenticate(ctx context.Context, req *{{$a}}.AuthenticateRequest) (*{{$a}}.Principal, error) {
+{{- if .Auth.JWT}}
+	p, err := s.accounts.Authenticate(auth.WithConfirmation(ctx), req.GetToken())
+{{- else}}
 	p, err := s.accounts.Authenticate(ctx, req.GetToken())
+{{- end}}
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}

@@ -19,6 +19,8 @@ type AuthQueries struct {
 	InsertRefresh         string
 	RefreshToken          string
 	UseRefresh            string
+	RefreshSuccessor      string
+	JWTPrincipal          string
 	DeleteFamily          string
 	DeleteOtherFamilies   string
 	DeleteUserRefresh     string
@@ -125,6 +127,15 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 			" AND " + columnRef(d, schema.RefreshTokensTable, "expires_at", true) + " > " + p.next("now") + live(true)
 		p = newParams(d)
 		q.UseRefresh = "UPDATE " + tokens + "\nSET " + d.Quote("used_at") + " = " + p.next("now") + "\nWHERE " + d.Quote("id") + " = " + p.next("id") + " AND " + d.Quote("used_at") + " IS NULL"
+		p = newParams(d)
+		q.RefreshSuccessor = "SELECT " + strings.Join(quoteAll(d, []string{"used_at", "expires_at"}), ", ") + "\nFROM " + tokens +
+			"\nWHERE " + d.Quote("id") + " = " + p.next("id") + " AND " + d.Quote("family_id") + " = " + p.next("family")
+		p = newParams(d)
+		q.JWTPrincipal = "SELECT " + principalCols() + "\nFROM " + users +
+			"\nWHERE " + columnRef(d, e.Table, pk.Column, true) + " = " + p.next("id") + live(true) + " AND EXISTS (\n    SELECT 1\n    FROM " + tokens +
+			"\n    WHERE " + columnRef(d, schema.RefreshTokensTable, "family_id", true) + " = " + p.next("family") +
+			" AND " + columnRef(d, schema.RefreshTokensTable, schema.AuthUserColumn(e), true) + " = " + columnRef(d, e.Table, pk.Column, true) +
+			" AND " + columnRef(d, schema.RefreshTokensTable, "expires_at", true) + " > " + p.next("now") + ")"
 		p = newParams(d)
 		q.DeleteFamily = "DELETE FROM " + tokens + "\nWHERE " + d.Quote("family_id") + " = " + p.next("family")
 		p = newParams(d)

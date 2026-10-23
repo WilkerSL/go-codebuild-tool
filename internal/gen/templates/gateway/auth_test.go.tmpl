@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net/http"
@@ -51,7 +52,39 @@ func TestSignerRoundTrip(t *testing.T) {
 	if _, err := verifier.Claims(expired); err == nil {
 		t.Fatal("an expired token was accepted")
 	}
+	rotated := NewVerifier(other.key.Public().(ed25519.PublicKey), verifier.keys[0])
+	if _, err := rotated.Claims(token); err != nil {
+		t.Fatalf("a verifier holding the old and the new key rejected the old one: %v", err)
+	}
 }
+
+func FuzzVerifierClaims(f *testing.F) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		f.Fatal(err)
+	}
+	now := time.Unix(1700000000, 0)
+	verifier := NewVerifier(public)
+	verifier.now = func() time.Time { return now }
+	f.Add([]byte(`{"sub":"42","mth":"jwt","iat":1700000000,"exp":1700000060}`), "a.b.c")
+	f.Add([]byte(`{"iat":1700000000,"exp":1699999000}`), internalHeader+"..")
+	f.Add([]byte(`{"iat":1800000000,"exp":1800000060}`), "")
+	f.Add([]byte(`[]`), internalHeader+".e30.")
+	f.Fuzz(func(t *testing.T, payload []byte, raw string) {
+		signed := internalHeader + "." + base64.RawURLEncoding.EncodeToString(payload)
+		signed += "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(private, []byte(signed)))
+		for _, token := range []string{signed, raw} {
+			c, err := verifier.Claims(token)
+			if err != nil {
+				continue
+			}
+			if now.Unix() > c.ExpiresAt+int64(internalSkew.Seconds()) || c.IssuedAt > now.Add(internalSkew).Unix() {
+				t.Fatalf("Claims accepted a token outside its lifetime: %+v", c)
+			}
+		}
+	})
+}
+
 
 func TestAnonymousAttachesToken(t *testing.T) {
 	signer, verifier := testSigner(t)

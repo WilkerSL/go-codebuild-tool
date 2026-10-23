@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -17,6 +18,14 @@ const MaxBodyBytes = 1 << 20
 
 func WriteJSON(w http.ResponseWriter, status int, v any) {
 	writeEncoded(w, status, "application/json", v)
+}
+
+func requireJSON(r *http.Request) error {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || (mediaType != "application/json" && !strings.HasSuffix(mediaType, "+json")) {
+		return NewError(http.StatusUnsupportedMediaType, "the request body must be sent with Content-Type: application/json")
+	}
+	return nil
 }
 
 func writeEncoded(w http.ResponseWriter, status int, contentType string, v any) {
@@ -31,6 +40,9 @@ func writeEncoded(w http.ResponseWriter, status int, contentType string, v any) 
 }
 
 func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	if err := requireJSON(r); err != nil {
+		return err
+	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxBodyBytes))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {

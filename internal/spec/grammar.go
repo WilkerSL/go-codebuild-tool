@@ -112,6 +112,7 @@ func Reference() string {
 		}
 	}
 	w("## Request semantics\n\n")
+	w("- Request bodies must be sent with `Content-Type: application/json` (or another `+json` media type); other content types answer HTTP 415.\n")
 	w("- Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.\n")
 	w("- On create, an absent member takes the `default=` value, or the zero value (an empty value for `[]byte`). Pointer fields treat `null` like an absent member.\n")
 	w("- `PUT` replaces the whole resource, so every non-pointer member is required: leaving one out answers 422 instead of resetting it to its default. Pointer members left out become `null`.\n")

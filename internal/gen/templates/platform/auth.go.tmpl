@@ -89,6 +89,19 @@ func Current(ctx context.Context) (Principal, error) {
 	}
 	return p, nil
 }
+{{- if .Auth.JWT}}
+
+type confirmKey struct{}
+
+func WithConfirmation(ctx context.Context) context.Context {
+	return context.WithValue(ctx, confirmKey{}, true)
+}
+
+func ConfirmationRequired(ctx context.Context) bool {
+	confirm, _ := ctx.Value(confirmKey{}).(bool)
+	return confirm
+}
+{{- end}}
 
 func Credential(r *http.Request) (string, bool) {
 	if header := r.Header.Get("Authorization"); header != "" {
@@ -106,8 +119,8 @@ func Credential(r *http.Request) (string, bool) {
 
 func ClientIP(r *http.Request, trustForwardedFor bool) string {
 	if trustForwardedFor {
-		if header := r.Header.Get("X-Forwarded-For"); header != "" {
-			hops := strings.Split(header, ",")
+		if lines := r.Header.Values("X-Forwarded-For"); len(lines) > 0 {
+			hops := strings.Split(lines[len(lines)-1], ",")
 			if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
 				return ip
 			}

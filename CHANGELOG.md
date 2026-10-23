@@ -9,9 +9,27 @@ All notable changes to this project are documented in this file. The format foll
 - `SECURITY.md` with the supported versions and private vulnerability reporting, issue forms and a pull request template.
 - A weekly workflow that fails when a newer version exists of a module written into generated projects (database drivers, gRPC, protobuf, `github.com/google/uuid`), and Dependabot updates for the modules of the tool and the GitHub Actions.
 
+- Fuzz tests for the spec parser, struct tags, schema snapshots, the contract registry, `codebuild.json`, `go.mod` and `go.work`, naming and the text diff. Generated projects fuzz password hash verification, JWT parsing and, in workspaces, internal token verification.
+
 ### Changed
 
 - Microservice workspaces are documented as experimental: their layout and generated code may change between minor releases.
+- Generated endpoints require `Content-Type: application/json` (or another `+json` type) on request bodies and answer 415 otherwise. Clients that post JSON without that header, such as `curl -d` or `fetch` with a string body, must set it.
+- Linking and unlinking a many-to-many pair needs read and update access to both entities from either route, so `writeroles=` on one side now also restricts the link routes that start from the other side.
+- `auth.NewVerifier` takes any number of public keys and `auth.LoadPublicKeys` reads every key of a PEM file; new service `main.go` files use them so the internal token key can rotate without downtime. Existing `main.go` files keep compiling with `LoadPublicKey`.
+
+### Security
+
+These fixes come from an internal review of the generated authentication code; it was not an independent audit.
+
+- JWT: routes restricted by `roles=` or `writeroles=`, and API key creation, check the access token against the database, so a token whose session was revoked, whose account was deleted or whose role changed can no longer use them or mint a lasting API key. In workspaces the account service checks every JWT this way.
+- JWT: a refresh token presented again within `AUTH_REFRESH_REUSE_GRACE` now receives the successor it already produced instead of starting a second token chain, and concurrent rotations of one token can no longer both create successors, so reuse detection catches a stolen token.
+- The login rate limiter hashes its keys and keeps at most 100,000 of them, and over-long identities are rejected before it, so distinct identities cannot exhaust memory. IPv6 clients are limited per /64 network.
+- `PUT /auth/password` is rate limited per client and per session, so it cannot be used to guess the current password or to burn CPU on password hashing.
+- `AUTH_TRUST_FORWARDED_FOR` reads the last `X-Forwarded-For` header line, so a client cannot choose its address behind proxies that add a separate line.
+- Requiring JSON bodies blocks login CSRF through `text/plain` HTML forms.
+- In workspaces the account service accepts `AuthService` calls and account writes only from the gateway's client certificate (`TLS_GATEWAY_NAME`), so a compromised service cannot replay forwarded user tokens to create API keys or accounts.
+- `devcerts -force` resets the permissions of the key files it rewrites.
 
 ## [0.2.0] - 2026-10-19
 

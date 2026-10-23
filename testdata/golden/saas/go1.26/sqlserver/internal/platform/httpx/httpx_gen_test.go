@@ -25,6 +25,7 @@ type decodeTarget struct {
 func decode(body string) (decodeTarget, error) {
 	var dst decodeTarget
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
 	err := DecodeJSON(httptest.NewRecorder(), r, &dst)
 	return dst, err
 }
@@ -60,6 +61,21 @@ func TestDecodeJSON(t *testing.T) {
 				t.Fatalf("decode(%.40q) errors = %+v, want field %s", tt.body, httpErr.Errors, tt.field)
 			}
 		})
+	}
+	for contentType, ok := range map[string]bool{
+		"application/json; charset=utf-8":   true,
+		"application/merge-patch+json":      true,
+		"":                                  false,
+		"text/plain":                        false,
+		"application/x-www-form-urlencoded": false,
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"ann"}`))
+		r.Header.Set("Content-Type", contentType)
+		var dst decodeTarget
+		err := DecodeJSON(httptest.NewRecorder(), r, &dst)
+		if httpErr, rejected := errors.AsType[*Error](err); ok == rejected || (rejected && httpErr.Status != http.StatusUnsupportedMediaType) {
+			t.Errorf("Content-Type %q: %v", contentType, err)
+		}
 	}
 }
 
