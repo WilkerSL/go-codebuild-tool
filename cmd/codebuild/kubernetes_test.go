@@ -176,6 +176,25 @@ func useLocalImages(t *testing.T, overlay, namespace string) {
 	}
 }
 
+// limitLogins sets the limit of five failed logins that shopSmoke expects, as
+// the Compose test does with an override, through the user-owned overlay.
+func limitLogins(t *testing.T, overlay string) {
+	t.Helper()
+	path := filepath.Join(overlay, "kustomization.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const merge = "  - name: gateway-config\n    behavior: merge\n    literals:\n"
+	if !strings.Contains(string(data), merge) {
+		t.Fatalf("overlay does not merge gateway-config:\n%s", data)
+	}
+	text := strings.Replace(string(data), merge, merge+"      - AUTH_LOGIN_LIMIT=5\n", 1)
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func kubernetesMonolith(t *testing.T, bin string) {
 	dir := t.TempDir()
 	copyDir(t, filepath.Join(repoRoot(t), "testdata", "specs", "secure"), filepath.Join(dir, "specs"))
@@ -241,6 +260,7 @@ func kubernetesWorkspace(t *testing.T, bin string) {
 	c.secret("shop-internal-token", map[string]string{"private.pem": "file:" + filepath.Join(first, "internal-token.pem"), "public.pem": "file:" + filepath.Join(first, "internal-token.pub.pem")})
 	overlay := filepath.Join(dir, "deploy", "kubernetes", "overlays", "production")
 	useLocalImages(t, overlay, c.namespace)
+	limitLogins(t, overlay)
 	c.deploy(dir, overlay)
 	gateway, _ := c.forward("svc/gateway", 8080)
 	shopSmoke(t, gateway, func(email string) {
