@@ -26,4 +26,8 @@ CREATE UNIQUE INDEX "ux_categories_name" ON "categories" ("name");
 
 CREATE INDEX "ix_products_category_id" ON "products" ("category_id");
 
+CREATE INDEX "lx_products_category_id" ON "products" ("category_id", "id");
+
+CREATE INDEX "lx_stocks_product_id" ON "stocks" ("product_id", "id");
+
 CREATE UNIQUE INDEX "ux_stocks_product_id" ON "stocks" ("product_id");

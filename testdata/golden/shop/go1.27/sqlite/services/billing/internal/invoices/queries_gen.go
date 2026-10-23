@@ -47,7 +47,7 @@ WHERE "owner_id" = ?
     AND "deleted_at" IS NULL
     AND (? IS NULL OR "number" = ?)
     AND (? IS NULL OR "status" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 

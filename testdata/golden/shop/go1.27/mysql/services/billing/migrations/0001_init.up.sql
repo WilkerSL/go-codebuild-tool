@@ -9,6 +9,8 @@ CREATE TABLE `invoices` (
     CONSTRAINT `pk_invoices` PRIMARY KEY (`id`),
     INDEX `ix_invoices_owner_id` (`owner_id`),
     INDEX `ix_invoices_status` (`status`),
+    INDEX `lx_invoices` (`created_at`, `id`),
+    INDEX `lx_invoices_owner_id` (`owner_id`, `created_at`, `id`),
     UNIQUE INDEX `ux_invoices_number` (`number`),
     CONSTRAINT `ck_invoices_status` CHECK (`status` IN ('draft', 'issued', 'paid'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -22,5 +24,7 @@ CREATE TABLE `invoice_items` (
     CONSTRAINT `pk_invoice_items` PRIMARY KEY (`id`),
     INDEX `ix_invoice_items_invoice_id` (`invoice_id`),
     INDEX `ix_invoice_items_product_id` (`product_id`),
+    INDEX `lx_invoice_items_invoice_id` (`invoice_id`, `id`),
+    INDEX `lx_invoice_items_product_id` (`product_id`, `id`),
     CONSTRAINT `fk_invoice_items_invoice_id` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

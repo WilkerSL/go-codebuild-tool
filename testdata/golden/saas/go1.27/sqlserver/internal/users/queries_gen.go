@@ -52,7 +52,7 @@ FROM [users]
 WHERE [deleted_at] IS NULL
     AND (@p1 IS NULL OR [email] = @p1)
     AND (@p2 IS NULL OR [org_id] = @p2)
-    AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
+    AND [created_at] <= @p3 AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
@@ -205,7 +205,7 @@ FROM [users]
 WHERE [org_id] = @p1
     AND [deleted_at] IS NULL
     AND (@p2 IS NULL OR [email] = @p2)
-    AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
+    AND [created_at] <= @p3 AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
@@ -259,7 +259,7 @@ WHERE [user_tags].[tag_id] = @p1
     AND [users].[deleted_at] IS NULL
     AND (@p2 IS NULL OR [users].[email] = @p2)
     AND (@p3 IS NULL OR [users].[org_id] = @p3)
-    AND ([users].[created_at] < @p4 OR ([users].[created_at] = @p4 AND [users].[id] < @p5))
+    AND [users].[created_at] <= @p4 AND ([users].[created_at] < @p4 OR ([users].[created_at] = @p4 AND [users].[id] < @p5))
 ORDER BY [users].[created_at] DESC, [users].[id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`

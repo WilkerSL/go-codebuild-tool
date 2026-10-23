@@ -80,6 +80,8 @@ CREATE INDEX "ix_auth_rate_limits_reset_at" ON "auth_rate_limits" ("reset_at");
 
 CREATE UNIQUE INDEX "ux_labels_name" ON "labels" ("name");
 
+CREATE INDEX "lx_users" ON "users" ("created_at", "id");
+
 CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email") WHERE "deleted_at" IS NULL;
 
 CREATE INDEX "ix_auth_api_keys_user_id" ON "auth_api_keys" ("user_id");
@@ -92,10 +94,18 @@ CREATE INDEX "ix_auth_refresh_tokens_user_id" ON "auth_refresh_tokens" ("user_id
 
 CREATE INDEX "ix_folders_owner_id" ON "folders" ("owner_id");
 
+CREATE INDEX "lx_folders_owner_id" ON "folders" ("owner_id", "id");
+
 CREATE INDEX "ix_notes_folder_id" ON "notes" ("folder_id");
 
 CREATE INDEX "ix_notes_owner_id" ON "notes" ("owner_id");
 
 CREATE INDEX "ix_notes_pinned" ON "notes" ("pinned");
+
+CREATE INDEX "lx_notes" ON "notes" ("created_at", "id");
+
+CREATE INDEX "lx_notes_folder_id" ON "notes" ("folder_id", "created_at", "id");
+
+CREATE INDEX "lx_notes_owner_id" ON "notes" ("owner_id", "created_at", "id");
 
 CREATE INDEX "ix_note_labels_note_id" ON "note_labels" ("note_id");

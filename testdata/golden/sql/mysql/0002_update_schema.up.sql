@@ -13,6 +13,8 @@ CREATE TABLE `comments` (
     `created_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     CONSTRAINT `pk_comments` PRIMARY KEY (`id`),
     INDEX `ix_comments_project_id` (`project_id`),
+    INDEX `lx_comments` (`created_at`, `id`),
+    INDEX `lx_comments_project_id` (`project_id`, `created_at`, `id`),
     CONSTRAINT `fk_comments_project_id` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

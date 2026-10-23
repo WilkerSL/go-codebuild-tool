@@ -61,7 +61,7 @@ func (r *Repository) Exists(ctx context.Context, ownerID uuid.UUID, id uuid.UUID
 
 func (r *Repository) List(ctx context.Context, ownerID uuid.UUID, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listQuery, []any{database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, p.Limit, p.Offset}, countQuery, []any{database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned})
 }
@@ -144,7 +144,7 @@ func (r *Repository) ListFolderNotes(ctx context.Context, ownerID uuid.UUID, fol
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listFolderNotesAfterQuery, []any{folderID, database.UUIDArg(ownerID), p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listFolderNotesAfterQuery, []any{folderID, database.UUIDArg(ownerID), p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listFolderNotesQuery, []any{folderID, database.UUIDArg(ownerID), p.Pinned, p.Pinned, p.Limit, p.Offset}, countFolderNotesQuery, []any{folderID, database.UUIDArg(ownerID), p.Pinned, p.Pinned})
 }
@@ -154,7 +154,7 @@ func (r *Repository) ListLabelNotes(ctx context.Context, ownerID uuid.UUID, labe
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listLabelNotesAfterQuery, []any{labelID, database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listLabelNotesAfterQuery, []any{labelID, database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listLabelNotesQuery, []any{labelID, database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned, p.Limit, p.Offset}, countLabelNotesQuery, []any{labelID, database.UUIDArg(ownerID), p.FolderID, p.FolderID, p.Pinned, p.Pinned})
 }

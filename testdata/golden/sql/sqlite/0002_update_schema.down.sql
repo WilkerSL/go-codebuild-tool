@@ -23,6 +23,10 @@ ALTER TABLE "users__new" RENAME TO "users";
 
 CREATE INDEX "ix_users_org_id" ON "users" ("org_id");
 
+CREATE INDEX "lx_users" ON "users" ("created_at", "id");
+
+CREATE INDEX "lx_users_org_id" ON "users" ("org_id", "created_at", "id");
+
 CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email") WHERE "deleted_at" IS NULL;
 
 DROP INDEX "ux_tags_name";

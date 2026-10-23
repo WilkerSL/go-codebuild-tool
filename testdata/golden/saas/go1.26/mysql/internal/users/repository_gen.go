@@ -62,7 +62,7 @@ func (r *Repository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
 
 func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listQuery, []any{p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), p.Limit, p.Offset}, countQuery, []any{p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID)})
 }
@@ -157,7 +157,7 @@ func (r *Repository) ListOrgUsers(ctx context.Context, orgID uuid.UUID, p ListPa
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listOrgUsersAfterQuery, []any{database.UUIDArg(orgID), p.Email, p.Email, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listOrgUsersAfterQuery, []any{database.UUIDArg(orgID), p.Email, p.Email, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listOrgUsersQuery, []any{database.UUIDArg(orgID), p.Email, p.Email, p.Limit, p.Offset}, countOrgUsersQuery, []any{database.UUIDArg(orgID), p.Email, p.Email})
 }
@@ -167,7 +167,7 @@ func (r *Repository) ListTagUsers(ctx context.Context, tagID int64, p ListParams
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listTagUsersAfterQuery, []any{tagID, p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listTagUsersAfterQuery, []any{tagID, p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listTagUsersQuery, []any{tagID, p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), p.Limit, p.Offset}, countTagUsersQuery, []any{tagID, p.Email, p.Email, database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID)})
 }

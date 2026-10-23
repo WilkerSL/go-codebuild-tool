@@ -131,6 +131,7 @@ Every dialect maps driver errors to `database.ConstraintError`, which the genera
 - SQL Server and MySQL cannot index unbounded text: indexed, unique, primary key and reference strings need `max=` (at most 850 characters on SQL Server, 450 for a primary key, and 768 on MySQL).
 - SQL Server rejects several cascading paths to the same table and cascading cycles (`dialect_cascade`).
 - MySQL has no partial indexes, so a warning explains that soft-deleted rows still hold their unique values.
+- List indexes (`lx_<table>` and `lx_<table>_<column>`, on the creation time and the primary key) are skipped when a string key in them is unbounded or longer than 255 characters, which could exceed the index key limits of SQL Server and MySQL; such lists are sorted by the database instead.
 
 ## Changing the dialect
 

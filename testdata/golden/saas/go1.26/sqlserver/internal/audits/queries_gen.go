@@ -36,7 +36,7 @@ SELECT
     [created_at]
 FROM [audit_log]
 WHERE (@p1 IS NULL OR [action] = @p1)
-    AND ([created_at] < @p2 OR ([created_at] = @p2 AND [id] < @p3))
+    AND [created_at] <= @p2 AND ([created_at] < @p2 OR ([created_at] = @p2 AND [id] < @p3))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`

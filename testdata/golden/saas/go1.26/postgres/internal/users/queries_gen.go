@@ -51,7 +51,7 @@ FROM "users"
 WHERE "deleted_at" IS NULL
     AND ($1::text IS NULL OR "email" = $1)
     AND ($2::uuid IS NULL OR "org_id" = $2)
-    AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
+    AND "created_at" <= $3 AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $5 OFFSET 0`
 
@@ -158,7 +158,7 @@ FROM "users"
 WHERE "org_id" = $1
     AND "deleted_at" IS NULL
     AND ($2::text IS NULL OR "email" = $2)
-    AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
+    AND "created_at" <= $3 AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $5 OFFSET 0`
 
@@ -209,7 +209,7 @@ WHERE "user_tags"."tag_id" = $1
     AND "users"."deleted_at" IS NULL
     AND ($2::text IS NULL OR "users"."email" = $2)
     AND ($3::uuid IS NULL OR "users"."org_id" = $3)
-    AND ("users"."created_at" < $4 OR ("users"."created_at" = $4 AND "users"."id" < $5))
+    AND "users"."created_at" <= $4 AND ("users"."created_at" < $4 OR ("users"."created_at" = $4 AND "users"."id" < $5))
 ORDER BY "users"."created_at" DESC, "users"."id" DESC
 LIMIT $6 OFFSET 0`
 

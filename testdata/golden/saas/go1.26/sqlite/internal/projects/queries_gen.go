@@ -59,7 +59,7 @@ WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "
     AND (? IS NULL OR "org_id" = ?)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 
@@ -182,7 +182,7 @@ WHERE "org_id" = ?
     AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND (? IS NULL OR "owner_id" = ?)
     AND (? IS NULL OR "archived" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 

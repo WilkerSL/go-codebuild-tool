@@ -16,6 +16,7 @@ CREATE TABLE `users` (
     `updated_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `deleted_at` DATETIME(6),
     CONSTRAINT `pk_users` PRIMARY KEY (`id`),
+    INDEX `lx_users` (`created_at`, `id`),
     UNIQUE INDEX `ux_users_email` (`email`),
     CONSTRAINT `ck_users_role` CHECK (`role` IN ('admin', 'member'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

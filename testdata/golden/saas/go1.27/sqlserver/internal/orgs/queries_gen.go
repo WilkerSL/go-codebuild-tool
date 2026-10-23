@@ -52,7 +52,7 @@ FROM [orgs]
 WHERE [deleted_at] IS NULL
     AND (@p1 IS NULL OR [slug] = @p1)
     AND (@p2 IS NULL OR [plan] = @p2)
-    AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
+    AND [created_at] <= @p3 AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`

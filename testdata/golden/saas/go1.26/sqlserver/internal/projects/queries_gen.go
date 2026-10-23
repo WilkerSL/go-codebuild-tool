@@ -60,7 +60,7 @@ WHERE EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [
     AND (@p1 IS NULL OR [org_id] = @p1)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
-    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+    AND [created_at] <= @p4 AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`
@@ -237,7 +237,7 @@ WHERE [org_id] = @p1
     AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [owner_id] = @p2)
     AND (@p3 IS NULL OR [archived] = @p3)
-    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+    AND [created_at] <= @p4 AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`

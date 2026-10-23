@@ -56,7 +56,7 @@ WHERE [owner_id] = @p1
     AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p2 IS NULL OR [folder_id] = @p2)
     AND (@p3 IS NULL OR [pinned] = @p3)
-    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+    AND [created_at] <= @p4 AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`
@@ -209,7 +209,7 @@ WHERE [folder_id] = @p1
     AND [deleted_at] IS NULL
     AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [pinned] = @p3)
-    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+    AND [created_at] <= @p4 AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`
@@ -269,7 +269,7 @@ WHERE [note_labels].[label_id] = @p1
     AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
     AND (@p3 IS NULL OR [notes].[folder_id] = @p3)
     AND (@p4 IS NULL OR [notes].[pinned] = @p4)
-    AND ([notes].[created_at] < @p5 OR ([notes].[created_at] = @p5 AND [notes].[id] < @p6))
+    AND [notes].[created_at] <= @p5 AND ([notes].[created_at] < @p5 OR ([notes].[created_at] = @p5 AND [notes].[id] < @p6))
 ORDER BY [notes].[created_at] DESC, [notes].[id] DESC
 OFFSET 0 ROWS FETCH NEXT @p7 ROWS ONLY
 OPTION (RECOMPILE)`

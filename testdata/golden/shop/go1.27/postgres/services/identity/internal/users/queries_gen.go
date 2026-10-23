@@ -46,7 +46,7 @@ SELECT
 FROM "users"
 WHERE "deleted_at" IS NULL
     AND ($1::text IS NULL OR "email" = $1)
-    AND ("created_at" < $2 OR ("created_at" = $2 AND "id" < $3))
+    AND "created_at" <= $2 AND ("created_at" < $2 OR ("created_at" = $2 AND "id" < $3))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $4 OFFSET 0`
 

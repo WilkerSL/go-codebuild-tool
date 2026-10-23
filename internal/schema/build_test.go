@@ -437,3 +437,28 @@ func TestDiagnosticsError(t *testing.T) {
 		t.Error("IsValid")
 	}
 }
+
+func TestListIndexes(t *testing.T) {
+	db := schema.Build(parse(t, notesSpecs))
+	users := db.Table("users")
+	if ix := users.Index("lx_users"); ix == nil || !slices.Equal(ix.Columns, []string{"created_at", "id"}) {
+		t.Errorf("users list index = %+v", ix)
+	}
+	notes := db.Table("notes")
+	if ix := notes.Index("lx_notes_owner_id"); ix == nil || !slices.Equal(ix.Columns, []string{"owner_id", "id"}) {
+		t.Errorf("notes owner list index = %+v", ix)
+	}
+	if notes.Index("lx_notes") != nil {
+		t.Error("a table without a creation time got a list index")
+	}
+	if ix := notes.Index("ix_notes_owner_id"); ix == nil || len(ix.Columns) != 1 {
+		t.Errorf("the foreign key index must stay a single column: %+v", ix)
+	}
+	wide := parse(t, map[string]string{"specs/docs.go": header + "type Doc struct {\n" +
+		"\tKey       string    `gen:\"pk,max=500\"`\n" +
+		"\tCreatedAt time.Time `gen:\"auto=create\"`\n" +
+		"}\n"})
+	if schema.Build(wide).Table("docs").Index("lx_docs") != nil {
+		t.Error("a list index on a wide string key could exceed the index size limits")
+	}
+}

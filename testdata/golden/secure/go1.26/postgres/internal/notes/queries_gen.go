@@ -55,7 +55,7 @@ WHERE "owner_id" = $1
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($2::bigint IS NULL OR "folder_id" = $2)
     AND ($3::boolean IS NULL OR "pinned" = $3)
-    AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
+    AND "created_at" <= $4 AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $6 OFFSET 0`
 
@@ -162,7 +162,7 @@ WHERE "folder_id" = $1
     AND "deleted_at" IS NULL
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::boolean IS NULL OR "pinned" = $3)
-    AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
+    AND "created_at" <= $4 AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $6 OFFSET 0`
 
@@ -219,7 +219,7 @@ WHERE "note_labels"."label_id" = $1
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND ($3::bigint IS NULL OR "notes"."folder_id" = $3)
     AND ($4::boolean IS NULL OR "notes"."pinned" = $4)
-    AND ("notes"."created_at" < $5 OR ("notes"."created_at" = $5 AND "notes"."id" < $6))
+    AND "notes"."created_at" <= $5 AND ("notes"."created_at" < $5 OR ("notes"."created_at" = $5 AND "notes"."id" < $6))
 ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
 LIMIT $7 OFFSET 0`
 

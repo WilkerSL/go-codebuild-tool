@@ -64,7 +64,7 @@ func (r *Repository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
 
 func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listQuery, []any{database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, p.Limit, p.Offset}, countQuery, []any{database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OrgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived})
 }
@@ -131,7 +131,7 @@ func (r *Repository) ListOrgProjects(ctx context.Context, orgID uuid.UUID, p Lis
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listOrgProjectsAfterQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listOrgProjectsAfterQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listOrgProjectsQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived, p.Limit, p.Offset}, countOrgProjectsQuery, []any{database.UUIDArg(orgID), database.NullUUIDArg(p.OwnerID), database.NullUUIDArg(p.OwnerID), p.Archived, p.Archived})
 }

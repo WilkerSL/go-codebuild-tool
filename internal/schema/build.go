@@ -139,6 +139,13 @@ func buildTable(m *Model, e *Entity) *Table {
 		case f.Index || f.Ref != nil:
 			t.Indexes = append(t.Indexes, &Index{Name: ConstraintName("ix", t.Name, f.Column), Columns: []string{f.Column}})
 		}
+		// A reference also gets an index in list order, so the lists of one
+		// parent or one owner read a page in order. The single-column index
+		// stays: MySQL refuses to drop the index a foreign key uses, so
+		// replacing it would break the migration of existing projects.
+		if f.Ref != nil && !f.PK && listIndexable(e, f) {
+			t.Indexes = append(t.Indexes, &Index{Name: ConstraintName("lx", t.Name, f.Column), Columns: append([]string{f.Column}, listOrder(e)...)})
+		}
 		if f.Ref != nil && !f.External(e) {
 			if target := m.Entity(f.Ref.Entity); target != nil && target.PK() != nil {
 				t.ForeignKeys = append(t.ForeignKeys, &ForeignKey{
@@ -156,6 +163,9 @@ func buildTable(m *Model, e *Entity) *Table {
 	}
 	if e.SoftDelete {
 		t.Columns = append(t.Columns, &Column{Name: DeletedAtColumn, Kind: ColumnTime, Nullable: true})
+	}
+	if created := e.AutoCreateField(); created != nil && listIndexable(e) {
+		t.Indexes = append(t.Indexes, &Index{Name: ConstraintName("lx", t.Name), Columns: listOrder(e)})
 	}
 	sortTable(t)
 	return t
@@ -197,4 +207,36 @@ func sortTable(t *Table) {
 	slices.SortFunc(t.Indexes, func(a, b *Index) int { return cmp.Compare(a.Name, b.Name) })
 	slices.SortFunc(t.ForeignKeys, func(a, b *ForeignKey) int { return cmp.Compare(a.Name, b.Name) })
 	slices.SortFunc(t.Checks, func(a, b *Check) int { return cmp.Compare(a.Name, b.Name) })
+}
+
+// listOrder returns the columns lists are sorted by, newest first: the
+// creation time and the primary key, or the primary key alone. Indexes that
+// start with them let the database read a page in order instead of sorting
+// every matching row.
+func listOrder(e *Entity) []string {
+	pk := e.PK()
+	if pk == nil {
+		return nil
+	}
+	if created := e.AutoCreateField(); created != nil {
+		return []string{created.Column, pk.Column}
+	}
+	return []string{pk.Column}
+}
+
+// maxListKeyChars keeps list indexes under the key size limits of SQL Server
+// (1,700 bytes) and MySQL (3,072 bytes) whatever the other columns are.
+const maxListKeyChars = 255
+
+func listIndexable(e *Entity, extra ...*Field) bool {
+	pk := e.PK()
+	if pk == nil {
+		return false
+	}
+	for _, f := range append(extra, pk) {
+		if f.Kind == KindString && (ColumnSize(f) == 0 || ColumnSize(f) > maxListKeyChars) {
+			return false
+		}
+	}
+	return true
 }

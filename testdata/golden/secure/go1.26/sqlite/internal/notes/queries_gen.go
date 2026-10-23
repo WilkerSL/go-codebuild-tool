@@ -55,7 +55,7 @@ WHERE "owner_id" = ?
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "folder_id" = ?)
     AND (? IS NULL OR "pinned" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 
@@ -162,7 +162,7 @@ WHERE "folder_id" = ?
     AND "deleted_at" IS NULL
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "pinned" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 
@@ -219,7 +219,7 @@ WHERE "note_labels"."label_id" = ?
     AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
     AND (? IS NULL OR "notes"."folder_id" = ?)
     AND (? IS NULL OR "notes"."pinned" = ?)
-    AND ("notes"."created_at" < ? OR ("notes"."created_at" = ? AND "notes"."id" < ?))
+    AND "notes"."created_at" <= ? AND ("notes"."created_at" < ? OR ("notes"."created_at" = ? AND "notes"."id" < ?))
 ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
 LIMIT ? OFFSET 0`
 

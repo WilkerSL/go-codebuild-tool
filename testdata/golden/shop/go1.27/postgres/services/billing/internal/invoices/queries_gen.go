@@ -47,7 +47,7 @@ WHERE "owner_id" = $1
     AND "deleted_at" IS NULL
     AND ($2::text IS NULL OR "number" = $2)
     AND ($3::text IS NULL OR "status" = $3)
-    AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
+    AND "created_at" <= $4 AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $6 OFFSET 0`
 

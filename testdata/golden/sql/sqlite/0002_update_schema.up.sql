@@ -25,6 +25,10 @@ CREATE INDEX "ix_users_org_id" ON "users" ("org_id");
 
 CREATE INDEX "ix_users_phone" ON "users" ("phone");
 
+CREATE INDEX "lx_users" ON "users" ("created_at", "id");
+
+CREATE INDEX "lx_users_org_id" ON "users" ("org_id", "created_at", "id");
+
 CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email") WHERE "deleted_at" IS NULL;
 
 DROP INDEX "ux_tags_name";
@@ -45,3 +49,7 @@ ALTER TABLE "tags" ADD COLUMN "deleted_at" DATETIME;
 CREATE UNIQUE INDEX "ux_tags_name" ON "tags" ("name") WHERE "deleted_at" IS NULL;
 
 CREATE INDEX "ix_comments_project_id" ON "comments" ("project_id");
+
+CREATE INDEX "lx_comments" ON "comments" ("created_at", "id");
+
+CREATE INDEX "lx_comments_project_id" ON "comments" ("project_id", "created_at", "id");

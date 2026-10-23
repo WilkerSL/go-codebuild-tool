@@ -55,7 +55,7 @@ const listAfterQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `org_id` = ?)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 
@@ -148,7 +148,7 @@ const listOrgProjectsAfterQuery = "SELECT\n" +
 	"    AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `owner_id` = ?)\n" +
 	"    AND (? IS NULL OR `archived` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 

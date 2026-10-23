@@ -48,7 +48,7 @@ WHERE [owner_id] = @p1
     AND [deleted_at] IS NULL
     AND (@p2 IS NULL OR [number] = @p2)
     AND (@p3 IS NULL OR [status] = @p3)
-    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+    AND [created_at] <= @p4 AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`

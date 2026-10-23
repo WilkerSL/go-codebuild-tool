@@ -49,6 +49,13 @@
           "columns": [
             "created_at"
           ]
+        },
+        {
+          "name": "lx_audit_log",
+          "columns": [
+            "created_at",
+            "id"
+          ]
         }
       ]
     },
@@ -146,6 +153,13 @@
           "name": "ix_orgs_plan",
           "columns": [
             "plan"
+          ]
+        },
+        {
+          "name": "lx_orgs",
+          "columns": [
+            "created_at",
+            "id"
           ]
         },
         {
@@ -247,6 +261,29 @@
           "name": "ix_projects_owner_id",
           "columns": [
             "owner_id"
+          ]
+        },
+        {
+          "name": "lx_projects",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_projects_org_id",
+          "columns": [
+            "org_id",
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_projects_owner_id",
+          "columns": [
+            "owner_id",
+            "created_at",
+            "id"
           ]
         }
       ],
@@ -430,6 +467,21 @@
           "name": "ix_users_org_id",
           "columns": [
             "org_id"
+          ]
+        },
+        {
+          "name": "lx_users",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_users_org_id",
+          "columns": [
+            "org_id",
+            "created_at",
+            "id"
           ]
         },
         {

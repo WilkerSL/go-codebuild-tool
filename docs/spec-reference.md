@@ -167,7 +167,7 @@ Rules:
 
 - Syntax: `auto | auto=create | auto=update`
 - Applies to: `auto`: pk of type `uuid.UUID` or integer; `auto=create` and `auto=update`: `time.Time`
-- Effect: `auto` on a UUID pk generates a version 7 UUID in Go; on an integer pk it uses the dialect identity column. `auto=create` is filled by the database clock on insert, `auto=update` on insert and on every update. Auto fields never appear in request bodies.
+- Effect: `auto` on a UUID pk generates a version 7 UUID in Go; on an integer pk it uses the dialect identity column. `auto=create` is filled by the database clock on insert and orders lists newest first, backed by the index `lx_<table>` on the creation time and the primary key; `auto=update` is filled on insert and on every update. Auto fields never appear in request bodies.
 - Example: `CreatedAt time.Time `gen:"auto=create"``
 - Common error: `auto` on a non-pk field fails with invalid_combination and suggests `auto=create`.
 
@@ -263,7 +263,7 @@ Rules:
 
 - Syntax: `rel=belongs_to:<Entity> | rel=has_many:<Entity> | rel=many_to_many:<Entity>`
 - Applies to: `belongs_to`: field with the type of the target primary key (pointer for an optional reference); `has_many` and `many_to_many`: `[]<Entity>`
-- Effect: `belongs_to` creates the foreign key `fk_<table>_<column>`, an index and a list filter. `has_many` generates `GET /<parents>/{parentId}/<field>` in the child domain. `many_to_many` requires `via=` and generates list, link and unlink routes in the target domain.
+- Effect: `belongs_to` creates the foreign key `fk_<table>_<column>`, the index `ix_<table>_<column>`, the index `lx_<table>_<column>` in list order (the column, then the creation time and the primary key) so the lists of one parent or owner read a page in order, and a list filter. `has_many` generates `GET /<parents>/{parentId}/<field>` in the child domain. `many_to_many` requires `via=` and generates list, link and unlink routes in the target domain.
 - Example: `OrgID uuid.UUID `gen:"rel=belongs_to:Org"``
 - Common error: `rel=belongs_to:Orgs` fails with unknown_entity and suggests `Org`.
 

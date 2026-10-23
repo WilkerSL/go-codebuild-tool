@@ -28,4 +28,8 @@ CREATE INDEX "ix_users_phone" ON "users" ("phone");
 
 CREATE INDEX "ix_comments_project_id" ON "comments" ("project_id");
 
+CREATE INDEX "lx_comments" ON "comments" ("created_at", "id");
+
+CREATE INDEX "lx_comments_project_id" ON "comments" ("project_id", "created_at", "id");
+
 ALTER TABLE "users" ADD CONSTRAINT "ck_users_role" CHECK ("role" IN ('owner', 'admin', 'operator', 'viewer'));

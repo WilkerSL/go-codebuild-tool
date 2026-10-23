@@ -47,7 +47,7 @@ const listAfterQuery = "SELECT\n" +
 	"WHERE `deleted_at` IS NULL\n" +
 	"    AND (? IS NULL OR `email` = ?)\n" +
 	"    AND (? IS NULL OR `org_id` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 
@@ -128,7 +128,7 @@ const listOrgUsersAfterQuery = "SELECT\n" +
 	"WHERE `org_id` = ?\n" +
 	"    AND `deleted_at` IS NULL\n" +
 	"    AND (? IS NULL OR `email` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 
@@ -175,7 +175,7 @@ const listTagUsersAfterQuery = "SELECT\n" +
 	"    AND `users`.`deleted_at` IS NULL\n" +
 	"    AND (? IS NULL OR `users`.`email` = ?)\n" +
 	"    AND (? IS NULL OR `users`.`org_id` = ?)\n" +
-	"    AND (`users`.`created_at` < ? OR (`users`.`created_at` = ? AND `users`.`id` < ?))\n" +
+	"    AND `users`.`created_at` <= ? AND (`users`.`created_at` < ? OR (`users`.`created_at` = ? AND `users`.`id` < ?))\n" +
 	"ORDER BY `users`.`created_at` DESC, `users`.`id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 

@@ -51,7 +51,7 @@ const listAfterQuery = "SELECT\n" +
 	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 
@@ -133,7 +133,7 @@ const listFolderNotesAfterQuery = "SELECT\n" +
 	"    AND `deleted_at` IS NULL\n" +
 	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `pinned` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 
@@ -186,7 +186,7 @@ const listLabelNotesAfterQuery = "SELECT\n" +
 	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `notes`.`folder_id` = ?)\n" +
 	"    AND (? IS NULL OR `notes`.`pinned` = ?)\n" +
-	"    AND (`notes`.`created_at` < ? OR (`notes`.`created_at` = ? AND `notes`.`id` < ?))\n" +
+	"    AND `notes`.`created_at` <= ? AND (`notes`.`created_at` < ? OR (`notes`.`created_at` = ? AND `notes`.`id` < ?))\n" +
 	"ORDER BY `notes`.`created_at` DESC, `notes`.`id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 

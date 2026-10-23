@@ -52,6 +52,20 @@
           "columns": [
             "product_id"
           ]
+        },
+        {
+          "name": "lx_invoice_items_invoice_id",
+          "columns": [
+            "invoice_id",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_invoice_items_product_id",
+          "columns": [
+            "product_id",
+            "id"
+          ]
         }
       ],
       "foreignKeys": [
@@ -129,6 +143,21 @@
           "name": "ix_invoices_status",
           "columns": [
             "status"
+          ]
+        },
+        {
+          "name": "lx_invoices",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_invoices_owner_id",
+          "columns": [
+            "owner_id",
+            "created_at",
+            "id"
           ]
         },
         {

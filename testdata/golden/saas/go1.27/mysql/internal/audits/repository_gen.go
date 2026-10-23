@@ -56,7 +56,7 @@ func (r *Repository) Exists(ctx context.Context, id int64) (bool, error) {
 
 func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Action, p.Action, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), p.Cursor.ID, p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Action, p.Action, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), p.Cursor.ID, p.Limit + 1})
 	}
 	return r.page(ctx, p, listQuery, []any{p.Action, p.Action, p.Limit, p.Offset}, countQuery, []any{p.Action, p.Action})
 }

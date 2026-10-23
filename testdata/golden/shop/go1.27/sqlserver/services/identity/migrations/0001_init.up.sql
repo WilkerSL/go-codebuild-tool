@@ -41,6 +41,8 @@ CREATE TABLE [auth_sessions] (
 
 CREATE INDEX [ix_auth_rate_limits_reset_at] ON [auth_rate_limits] ([reset_at]);
 
+CREATE INDEX [lx_users] ON [users] ([created_at], [id]);
+
 CREATE UNIQUE INDEX [ux_users_email] ON [users] ([email]) WHERE [deleted_at] IS NULL;
 
 CREATE INDEX [ix_auth_api_keys_user_id] ON [auth_api_keys] ([user_id]);

@@ -46,7 +46,7 @@ SELECT
 FROM "users"
 WHERE "deleted_at" IS NULL
     AND (? IS NULL OR "email" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 

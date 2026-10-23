@@ -23,6 +23,7 @@ CREATE TABLE `users` (
     `updated_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `deleted_at` DATETIME(6),
     CONSTRAINT `pk_users` PRIMARY KEY (`id`),
+    INDEX `lx_users` (`created_at`, `id`),
     UNIQUE INDEX `ux_users_email` (`email`),
     CONSTRAINT `ck_users_role` CHECK (`role` IN ('admin', 'member'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -57,6 +58,7 @@ CREATE TABLE `folders` (
     `name` VARCHAR(80) NOT NULL,
     CONSTRAINT `pk_folders` PRIMARY KEY (`id`),
     INDEX `ix_folders_owner_id` (`owner_id`),
+    INDEX `lx_folders_owner_id` (`owner_id`, `id`),
     CONSTRAINT `fk_folders_owner_id` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -74,6 +76,9 @@ CREATE TABLE `notes` (
     INDEX `ix_notes_folder_id` (`folder_id`),
     INDEX `ix_notes_owner_id` (`owner_id`),
     INDEX `ix_notes_pinned` (`pinned`),
+    INDEX `lx_notes` (`created_at`, `id`),
+    INDEX `lx_notes_folder_id` (`folder_id`, `created_at`, `id`),
+    INDEX `lx_notes_owner_id` (`owner_id`, `created_at`, `id`),
     CONSTRAINT `fk_notes_folder_id` FOREIGN KEY (`folder_id`) REFERENCES `folders` (`id`) ON DELETE RESTRICT,
     CONSTRAINT `fk_notes_owner_id` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

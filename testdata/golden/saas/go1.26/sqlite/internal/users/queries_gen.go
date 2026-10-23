@@ -51,7 +51,7 @@ FROM "users"
 WHERE "deleted_at" IS NULL
     AND (? IS NULL OR "email" = ?)
     AND (? IS NULL OR "org_id" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 
@@ -158,7 +158,7 @@ FROM "users"
 WHERE "org_id" = ?
     AND "deleted_at" IS NULL
     AND (? IS NULL OR "email" = ?)
-    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+    AND "created_at" <= ? AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET 0`
 
@@ -209,7 +209,7 @@ WHERE "user_tags"."tag_id" = ?
     AND "users"."deleted_at" IS NULL
     AND (? IS NULL OR "users"."email" = ?)
     AND (? IS NULL OR "users"."org_id" = ?)
-    AND ("users"."created_at" < ? OR ("users"."created_at" = ? AND "users"."id" < ?))
+    AND "users"."created_at" <= ? AND ("users"."created_at" < ? OR ("users"."created_at" = ? AND "users"."id" < ?))
 ORDER BY "users"."created_at" DESC, "users"."id" DESC
 LIMIT ? OFFSET 0`
 

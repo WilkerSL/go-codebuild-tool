@@ -188,6 +188,13 @@
           "columns": [
             "owner_id"
           ]
+        },
+        {
+          "name": "lx_folders_owner_id",
+          "columns": [
+            "owner_id",
+            "id"
+          ]
         }
       ],
       "foreignKeys": [
@@ -365,6 +372,29 @@
           "columns": [
             "pinned"
           ]
+        },
+        {
+          "name": "lx_notes",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_notes_folder_id",
+          "columns": [
+            "folder_id",
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "name": "lx_notes_owner_id",
+          "columns": [
+            "owner_id",
+            "created_at",
+            "id"
+          ]
         }
       ],
       "foreignKeys": [
@@ -450,6 +480,13 @@
         ]
       },
       "indexes": [
+        {
+          "name": "lx_users",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
         {
           "name": "ux_users_email",
           "columns": [

@@ -5,7 +5,8 @@ CREATE TABLE `audit_log` (
     `created_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     CONSTRAINT `pk_audit_log` PRIMARY KEY (`id`),
     INDEX `ix_audit_log_action` (`action`),
-    INDEX `ix_audit_log_created_at` (`created_at`)
+    INDEX `ix_audit_log_created_at` (`created_at`),
+    INDEX `lx_audit_log` (`created_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `countries` (
@@ -26,6 +27,7 @@ CREATE TABLE `orgs` (
     `deleted_at` DATETIME(6),
     CONSTRAINT `pk_orgs` PRIMARY KEY (`id`),
     INDEX `ix_orgs_plan` (`plan`),
+    INDEX `lx_orgs` (`created_at`, `id`),
     UNIQUE INDEX `ux_orgs_slug` (`slug`),
     CONSTRAINT `ck_orgs_plan` CHECK (`plan` IN ('free', 'pro', 'enterprise'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -50,6 +52,8 @@ CREATE TABLE `users` (
     `deleted_at` DATETIME(6),
     CONSTRAINT `pk_users` PRIMARY KEY (`id`),
     INDEX `ix_users_org_id` (`org_id`),
+    INDEX `lx_users` (`created_at`, `id`),
+    INDEX `lx_users_org_id` (`org_id`, `created_at`, `id`),
     UNIQUE INDEX `ux_users_email` (`email`),
     CONSTRAINT `fk_users_org_id` FOREIGN KEY (`org_id`) REFERENCES `orgs` (`id`) ON DELETE RESTRICT,
     CONSTRAINT `ck_users_role` CHECK (`role` IN ('admin', 'operator', 'viewer'))
@@ -70,6 +74,9 @@ CREATE TABLE `projects` (
     INDEX `ix_projects_archived` (`archived`),
     INDEX `ix_projects_org_id` (`org_id`),
     INDEX `ix_projects_owner_id` (`owner_id`),
+    INDEX `lx_projects` (`created_at`, `id`),
+    INDEX `lx_projects_org_id` (`org_id`, `created_at`, `id`),
+    INDEX `lx_projects_owner_id` (`owner_id`, `created_at`, `id`),
     CONSTRAINT `fk_projects_org_id` FOREIGN KEY (`org_id`) REFERENCES `orgs` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_projects_owner_id` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

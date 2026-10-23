@@ -421,9 +421,12 @@ func afterCondition(b *builder, e *schema.Entity, qualified bool) string {
 	key := columnRef(b.d, e.Table, pk.Column, qualified)
 	if f := e.AutoCreateField(); f != nil {
 		created := columnRef(b.d, e.Table, f.Column, qualified)
+		bound := b.param("cursor.time", Arg{Kind: ArgCursorTime, Field: f})
 		first := b.param("cursor.time", Arg{Kind: ArgCursorTime, Field: f})
 		second := b.param("cursor.time", Arg{Kind: ArgCursorTime, Field: f})
-		return "(" + created + " < " + first + " OR (" + created + " = " + second + " AND " + key + " < " + b.param("cursor.key", Arg{Kind: ArgCursorKey, Field: pk}) + "))"
+		// The redundant bound gives the planner a range on the list index;
+		// the disjunction alone is not sargable on every database.
+		return created + " <= " + bound + " AND (" + created + " < " + first + " OR (" + created + " = " + second + " AND " + key + " < " + b.param("cursor.key", Arg{Kind: ArgCursorKey, Field: pk}) + "))"
 	}
 	return key + " > " + b.param("cursor.key", Arg{Kind: ArgCursorKey, Field: pk})
 }

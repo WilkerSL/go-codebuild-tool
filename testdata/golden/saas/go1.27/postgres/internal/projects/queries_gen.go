@@ -59,7 +59,7 @@ WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "
     AND ($1::uuid IS NULL OR "org_id" = $1)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)
-    AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
+    AND "created_at" <= $4 AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $6 OFFSET 0`
 
@@ -182,7 +182,7 @@ WHERE "org_id" = $1
     AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
     AND ($2::uuid IS NULL OR "owner_id" = $2)
     AND ($3::boolean IS NULL OR "archived" = $3)
-    AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
+    AND "created_at" <= $4 AND ("created_at" < $4 OR ("created_at" = $4 AND "id" < $5))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $6 OFFSET 0`
 

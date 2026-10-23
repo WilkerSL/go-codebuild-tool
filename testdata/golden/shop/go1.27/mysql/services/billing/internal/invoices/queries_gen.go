@@ -43,7 +43,7 @@ const listAfterQuery = "SELECT\n" +
 	"    AND `deleted_at` IS NULL\n" +
 	"    AND (? IS NULL OR `number` = ?)\n" +
 	"    AND (? IS NULL OR `status` = ?)\n" +
-	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"    AND `created_at` <= ? AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET 0"
 

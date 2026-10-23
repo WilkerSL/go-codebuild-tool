@@ -75,6 +75,13 @@
           "columns": [
             "category_id"
           ]
+        },
+        {
+          "name": "lx_products_category_id",
+          "columns": [
+            "category_id",
+            "id"
+          ]
         }
       ],
       "foreignKeys": [
@@ -115,6 +122,13 @@
         ]
       },
       "indexes": [
+        {
+          "name": "lx_stocks_product_id",
+          "columns": [
+            "product_id",
+            "id"
+          ]
+        },
         {
           "name": "ux_stocks_product_id",
           "columns": [

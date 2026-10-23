@@ -61,7 +61,7 @@ func (r *Repository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
 
 func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Slug, p.Slug, p.Plan, p.Plan, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Slug, p.Slug, p.Plan, p.Plan, database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.CursorTimeArg(p.Cursor.CreatedAt), database.UUIDArg(p.Cursor.ID), p.Limit + 1})
 	}
 	return r.page(ctx, p, listQuery, []any{p.Slug, p.Slug, p.Plan, p.Plan, p.Limit, p.Offset}, countQuery, []any{p.Slug, p.Slug, p.Plan, p.Plan})
 }

@@ -51,7 +51,7 @@ FROM "orgs"
 WHERE "deleted_at" IS NULL
     AND ($1::text IS NULL OR "slug" = $1)
     AND ($2::text IS NULL OR "plan" = $2)
-    AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
+    AND "created_at" <= $3 AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $5 OFFSET 0`
 

@@ -217,6 +217,13 @@
       },
       "indexes": [
         {
+          "name": "lx_users",
+          "columns": [
+            "created_at",
+            "id"
+          ]
+        },
+        {
           "name": "ux_users_email",
           "columns": [
             "email"

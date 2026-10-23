@@ -74,13 +74,21 @@ CREATE INDEX "ix_audit_log_action" ON "audit_log" ("action");
 
 CREATE INDEX "ix_audit_log_created_at" ON "audit_log" ("created_at");
 
+CREATE INDEX "lx_audit_log" ON "audit_log" ("created_at", "id");
+
 CREATE INDEX "ix_orgs_plan" ON "orgs" ("plan");
+
+CREATE INDEX "lx_orgs" ON "orgs" ("created_at", "id");
 
 CREATE UNIQUE INDEX "ux_orgs_slug" ON "orgs" ("slug") WHERE "deleted_at" IS NULL;
 
 CREATE UNIQUE INDEX "ux_tags_name" ON "tags" ("name");
 
 CREATE INDEX "ix_users_org_id" ON "users" ("org_id");
+
+CREATE INDEX "lx_users" ON "users" ("created_at", "id");
+
+CREATE INDEX "lx_users_org_id" ON "users" ("org_id", "created_at", "id");
 
 CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email") WHERE "deleted_at" IS NULL;
 
@@ -89,5 +97,11 @@ CREATE INDEX "ix_projects_archived" ON "projects" ("archived");
 CREATE INDEX "ix_projects_org_id" ON "projects" ("org_id");
 
 CREATE INDEX "ix_projects_owner_id" ON "projects" ("owner_id");
+
+CREATE INDEX "lx_projects" ON "projects" ("created_at", "id");
+
+CREATE INDEX "lx_projects_org_id" ON "projects" ("org_id", "created_at", "id");
+
+CREATE INDEX "lx_projects_owner_id" ON "projects" ("owner_id", "created_at", "id");
 
 CREATE INDEX "ix_user_tags_user_id" ON "user_tags" ("user_id");
