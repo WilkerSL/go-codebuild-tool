@@ -1,0 +1,21 @@
+{{.Header}}
+
+package {{.Package}}
+
+import (
+	"context"
+	"database/sql"
+
+	"{{.Module}}/internal/platform/auth"
+)
+
+func (a *Accounts) RefreshInTx(ctx context.Context, tx *sql.Tx, token string) (auth.Tokens, error) {
+	issued := authNow()
+	hash := auth.HashToken(token)
+	row, err := a.refreshRow(ctx, tx, hash, issued)
+	if err != nil {
+		return auth.Tokens{}, err
+	}
+	tokens, _, err := a.rotate(ctx, tx, row, hash, auth.NextRefreshToken(a.cfg.Secret, token), issued)
+	return tokens, err
+}

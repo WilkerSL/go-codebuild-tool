@@ -55,6 +55,8 @@ type APIKeyInput struct {
 	ExpiresAt *time.Time
 }
 
+const maxRevokePasses = 8
+
 type Accounts struct {
 	db   *sql.DB
 	repo *Repository
@@ -254,11 +256,28 @@ func (a *Accounts) RevokeAll(ctx context.Context, identity string) error {
 
 func (a *Accounts) revokeAll(ctx context.Context, id uuid.UUID) error {
 	for _, query := range []string{deleteUserSessionsQuery, deleteUserAPIKeysQuery} {
-		if _, err := a.db.ExecContext(ctx, query, database.UUIDArg(id)); err != nil {
+		if err := a.revokeRows(ctx, query, database.UUIDArg(id)); err != nil {
 			return fmt.Errorf("revoke credentials: %w", err)
 		}
 	}
 	return nil
+}
+
+func (a *Accounts) revokeRows(ctx context.Context, query string, args ...any) error {
+	for range maxRevokePasses {
+		res, err := a.db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return nil
+		}
+	}
+	return fmt.Errorf("rows were still being added after %d passes", maxRevokePasses)
 }
 
 func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in APIKeyInput) (CreatedAPIKey, error) {

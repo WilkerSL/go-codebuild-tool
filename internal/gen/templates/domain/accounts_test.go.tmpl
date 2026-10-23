@@ -168,6 +168,42 @@ func TestAccountsRefreshReuseRevokesFamily(t *testing.T) {
 		t.Fatalf("the family survived a reuse: %v", err)
 	}
 }
+
+func TestAccountsRevokeDuringRefresh(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	accounts := {{.Package}}.NewAccounts(db, accountsConfig())
+	first, err := accounts.Issue(ctx, {{.OwnHelper}}(t, ctx, db))
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	caller, err := accounts.Authenticate(ctx, first.AccessToken)
+	if err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := accounts.RefreshInTx(ctx, tx, first.RefreshToken)
+	if err != nil {
+		tx.Rollback()
+		t.Fatalf("refresh in a transaction: %v", err)
+	}
+	revoked := make(chan error, 1)
+	go func() { revoked <- accounts.Revoke(ctx, caller) }()
+	time.Sleep(200 * time.Millisecond)
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if err := <-revoked; err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if _, err := accounts.Refresh(ctx, second.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("a refresh token issued while its family was being revoked survived: %v", err)
+	}
+}
+
 {{- end}}
 
 func TestAccountsChangePassword(t *testing.T) {

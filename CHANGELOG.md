@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Changed
+
+- Generated SQLite projects use `modernc.org/sqlite` v1.61.0.
+
+### Fixed
+
+- `naming.Snake` and the names derived from it no longer change when applied twice to a name with a capital letter that has no lowercase form, such as `ϒ`. Found by the weekly fuzz run.
+
+### Security
+
+- JWT: logout, `accounts revoke`, a password change or reuse detection that ran while a refresh of the same family was committing could leave the refresh token issued by that refresh alive on PostgreSQL. Revocation now repeats its delete until no row is left, and a generated test reproduces the race.
+
 ## [0.3.0] - 2026-10-22
 
 ### Added
