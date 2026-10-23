@@ -19,6 +19,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Changed
 
+- Microservice workspaces are no longer experimental; `docs/microservices.md` addresses or justifies each of their limits.
+- In workspaces `grpcx.Dial` takes a `CallPolicy` (`grpcx.LoadCallPolicy` reads it from the environment) and `grpcx.TLSConfig` must come from `grpcx.LoadTLSConfig`. The generated `internal/app` code already does both; `main.go` files written by earlier versions keep compiling.
 - Lists are backed by indexes in their order: `lx_<table>` on the creation time and the primary key, and `lx_<table>_<column>` on each reference followed by them, so first pages, cursor pages and the lists of one parent or owner read rows in order instead of sorting the table. Cursor queries add a range bound the planner can use. Existing projects get the indexes through a new migration.
 - `auth.Limiter` takes a scope and a `LimitStore` and its `Allow` and `Reset` take a context; `NewAuthHandler` takes the store. Both live in generated files, so this only matters to code of yours that used the limiter directly.
 - `Page.Total` is an `*int64`, nil on cursor pages, and `Page` has a `NextCursor *string`; `ListParams` has a `Cursor *Cursor`. Code of yours that reads `Total` needs a dereference. In workspace contracts `total` is now `optional`.
