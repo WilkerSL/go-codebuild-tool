@@ -37,8 +37,8 @@ From that file codebuild generates `GET/POST /users` and `GET/PUT/DELETE /users/
 - **Observability**: optional Prometheus metrics on `METRICS_ADDR`, OpenTelemetry traces exported over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, W3C trace context across HTTP and gRPC, trace IDs in every log line, and configurable CORS, still with the standard library only. See [docs/observability.md](docs/observability.md).
 - **API description**: `openapi.json` (OpenAPI 3.1) is generated from the same views as the handlers, with every route, body, filter, error and security requirement, committed next to the code and served at `GET /openapi.json`. Point Swagger UI, Redoc, Scalar or a client generator at it.
 - **Data**: SQL written for one dialect, incremental migrations with an embedded migrator, repository tests against a real database.
-- **Delivery**: a multi-stage `Dockerfile` with a distroless non-root image and a GitHub Actions workflow that runs vet, tests with the race detector against a database service container and the image build.
-- **Microservices (experimental)**: wrap entities in `<Name>Service` structs to get a Go workspace with one gRPC service per struct (its own database or a shared one), generated `.proto` contracts with stable field numbers, a REST gateway that authenticates through the account service, mutual TLS plus a signed internal token between services, Docker Compose and one CI workflow per module. The layout and the generated code may still change between minor releases. See [docs/microservices.md](docs/microservices.md).
+- **Delivery**: a multi-stage `Dockerfile` with a distroless non-root image, a GitHub Actions workflow that runs vet, tests with the race detector against a database service container and the image build, and Kubernetes manifests (a generated kustomize base with probes, resources, a hardened security context and a migration Job, plus an overlay that is yours). See [docs/production.md](docs/production.md).
+- **Microservices**: wrap entities in `<Name>Service` structs to get a Go workspace with one gRPC service per struct (its own database or a shared one), generated `.proto` contracts with stable field numbers, a REST gateway that authenticates through the account service, mutual TLS with certificate reloading plus a signed internal token between services, retries and circuit breakers, Docker Compose, Kubernetes manifests and one CI workflow per module. See [docs/microservices.md](docs/microservices.md).
 
 ## Install
 
@@ -178,7 +178,8 @@ Choose **sqlc** when you want to write every query yourself and keep full contro
 - [Go versions](docs/go-versions.md): capability matrix and upgrade behavior.
 - [Dialects](docs/dialects.md): SQL differences side by side.
 - [Authentication](docs/authentication.md): methods, markers, endpoints, configuration and customization.
-- [Microservices](docs/microservices.md) (experimental): services, gateway, contracts, security between services and Compose.
+- [Microservices](docs/microservices.md): services, gateway, contracts, security between services, retries, Compose and Kubernetes.
+- [Running in production](docs/production.md): TLS, secrets, backups, migrations, Kubernetes, limits and load test results.
 - [Observability and CORS](docs/observability.md): Prometheus metrics, OpenTelemetry traces and cross-origin settings of generated projects.
 - [File ownership](docs/file-ownership.md): what is regenerated and what is never touched.
 - [MCP](docs/mcp.md): client configuration and recommended flow.

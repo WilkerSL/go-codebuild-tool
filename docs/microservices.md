@@ -1,6 +1,6 @@
 # Microservices
 
-> **Experimental.** Microservice workspaces are new in 0.2.0. The layout, the contracts and the generated code may change between minor releases, and no project has run them in production yet. Read the generated code and the limits below before relying on it.
+Microservice workspaces left the experimental stage in 0.4.0. Their end-to-end tests build and test every module with each dialect, run the services and the gateway over mutual TLS with SQLite directly and under Docker Compose, and deploy them with PostgreSQL to a Kubernetes cluster, where they also rotate every certificate without restarting the gateway. No generated workspace is known to run in production yet, so read the generated code, [production.md](production.md) and the limits below before relying on it.
 
 A project whose specs declare `<Name>Service` structs becomes a microservice workspace: one Go module per service exposing gRPC, a generated gateway that is the only REST API, the gRPC contracts, and the files to run everything with Docker Compose.
 
@@ -77,7 +77,19 @@ Inside a service, `grpcx.Authorize(ctx, roles...)` and `auth.Current(ctx)` behav
 
 Because services forward the tokens they receive, a compromised service could replay a user's token against another service while it is valid. The account service limits what such a replay can reach: it answers `AuthService` calls and creates, updates or deletes accounts only when the TLS client certificate belongs to the gateway, whose name (common name or DNS name) it reads from `TLS_GATEWAY_NAME` (`gateway` by default). It also checks every JWT against its database when the gateway authenticates a request, so logout, revocation, deleted accounts and role changes apply to the next request.
 
-`go run ./gateway/cmd/devcerts` writes a development CA, a certificate per module (valid for the module name, `localhost`, `127.0.0.1` and `::1`) and the internal token key pair into `./certs`. Use your own PKI and key management in production. `INTERNAL_TOKEN_PUBLIC_KEY_FILE` may hold several PEM public keys, and services accept a token signed by any of them. To rotate the internal key, append the new public key to that file and deploy the services, switch the gateway to the new private key, then remove the old public key.
+`go run ./gateway/cmd/devcerts` writes a development CA, a certificate per module (valid for the module name, `localhost`, `127.0.0.1` and `::1`) and the internal token key pair into `./certs`. It is for development only.
+
+### Your own PKI
+
+In production, issue the certificates from your own CA, for example with cert-manager. Each module needs:
+
+- a certificate valid for the host name the other modules dial (the Service name in Kubernetes, such as `billing`), with both the server and client authentication usages;
+- for the gateway, a certificate whose common name or DNS name matches `TLS_GATEWAY_NAME` on the account service (`gateway` by default);
+- the CA bundle that signed the certificates of its peers.
+
+Every module rereads `TLS_CA_FILE`, `TLS_CERT_FILE` and `TLS_KEY_FILE` every 30 seconds and uses the new files for the next handshakes, so renewing a certificate needs no restart; connections already open keep working until they are closed. If a file cannot be read or parsed, the module keeps the last working certificate. To move to a new CA, put both CAs in every bundle, renew every certificate from the new CA, then remove the old CA from the bundles. The Kubernetes manifests mount the Secret `<project>-<module>-tls` with the keys `ca.crt`, `tls.crt` and `tls.key`, the layout cert-manager writes.
+
+`INTERNAL_TOKEN_PUBLIC_KEY_FILE` may hold several PEM public keys, and services accept a token signed by any of them. The internal token keys are read at startup: to rotate them, append the new public key to that file and roll out the services, switch the gateway to the new private key and roll it out, then remove the old public key.
 
 ## References across services
 
@@ -127,10 +139,31 @@ Compose generates development certificates in a volume, starts one database serv
 | `TLS_GATEWAY_NAME` | account service | Certificate name of the gateway, the only client allowed to call `AuthService` and account writes; default `gateway`. |
 | `INTERNAL_TOKEN_PRIVATE_KEY_FILE` | gateway | Ed25519 key that signs internal tokens. |
 | `INTERNAL_TOKEN_PUBLIC_KEY_FILE` | service | One or more PEM public keys that verify them. |
-| `AUTH_*` | gateway, account service | The gateway reads the cookie, origin and login limit settings; the account service reads the session and JWT settings. See [authentication.md](authentication.md). |
+| `AUTH_*` | gateway, account service | The gateway reads the cookie, origin and login limit settings (`AUTH_LIMIT_STORE=database` keeps the counters in the account service's database); the account service reads the session and JWT settings. See [authentication.md](authentication.md). |
+| `GRPC_*` | gateway, service | Timeouts, retries and circuit breakers of outgoing calls; see below. |
 | `METRICS_ADDR`, `OTEL_*`, `CORS_*` | gateway, service | Metrics, tracing and, at the gateway, CORS. See [observability.md](observability.md). |
 
-Every outgoing gRPC call without a deadline gets 10 seconds. A service that is down answers 503 at the gateway, a timeout 504.
+## Calls between modules
+
+Every outgoing gRPC call without a deadline gets `GRPC_CALL_TIMEOUT` (10 seconds). Calls that only read (`Get`, `List…`, `Exists`, `Authenticate`, `Me`) are retried when the backend answers `Unavailable`, with exponential backoff starting at `GRPC_RETRY_BACKOFF` (50 ms, doubling up to 1 second) and full jitter, up to `GRPC_RETRY_ATTEMPTS` attempts (3) and never past the deadline. Writes are never retried, because the backend may have applied them.
+
+Each client connection has a circuit breaker: after `GRPC_BREAKER_FAILURES` consecutive calls (5) end with `Unavailable` or `DeadlineExceeded`, calls to that backend fail at once for `GRPC_BREAKER_COOLDOWN` (10 seconds); then one call probes the backend and closes the breaker if it gets an answer. `GRPC_BREAKER_FAILURES=0` disables it. `/metrics` exports `grpc_client_retries_total`, `grpc_client_circuit_open` and `grpc_client_circuit_rejected_total` per backend. A service that is down or behind an open breaker answers 503 at the gateway, a timeout 504.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GRPC_CALL_TIMEOUT` | `10s` | Deadline of calls that have none. |
+| `GRPC_RETRY_ATTEMPTS` | `3` | Attempts of a read call, 1 to 100; `1` disables retries. |
+| `GRPC_RETRY_BACKOFF` | `50ms` | First backoff; it doubles up to 1 second. |
+| `GRPC_BREAKER_FAILURES` | `5` | Consecutive failures that open the breaker; `0` disables it. |
+| `GRPC_BREAKER_COOLDOWN` | `10s` | How long an open breaker rejects calls before a probe. |
+
+## Kubernetes
+
+Every build writes a kustomize base to `deploy/kubernetes/base`: a Deployment, a Service and a PodDisruptionBudget per service and for the gateway, a migration Job per database, and a ConfigMap per module generated by kustomize, so a configuration change rolls the pods. The files are generated and rewritten; customize them in the overlay `deploy/kubernetes/overlays/production`, created once and yours, which sets the images, the namespace, the replicas and any patch. See [production.md](production.md#kubernetes) for the Secrets to create and the order of a deployment.
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/production
+```
 
 ## Changing the layout
 
@@ -140,9 +173,12 @@ Every outgoing gRPC call without a deadline gets 10 seconds. A service that is d
 
 ## Limits
 
-- No distributed transactions: a request that changes rows in two services is two independent calls.
-- Unary calls only; no streaming RPCs.
-- The gateway asks the account service on every authenticated request, so revocations take effect immediately and the account service is on the path of every protected request.
-- The login rate limiter lives in each gateway instance.
-- Internal certificates come from `devcerts`, a development CA: bring your own PKI and certificate rotation in production. Calls have a 10 second deadline but are not retried, and there is no circuit breaker.
-- codebuild writes no Kubernetes manifests; `docker-compose.yml` is for development.
+Each limit below is a design decision or a known gap, with what to do about it.
+
+- No distributed transactions: a request that changes rows in two services is two independent calls. This is deliberate: two-phase commit across databases would couple every service to every other. Keep invariants inside one service, or write a saga or an outbox in your own service code.
+- Unary calls only; no streaming RPCs. The gateway exposes a REST API of bounded pages, which unary calls serve; add streaming methods to your own `.proto` files if you need them.
+- The gateway asks the account service on every authenticated request. That is what makes logout and revocation immediate everywhere, so it stays: scale the account service with the gateway, and the retries and the circuit breaker keep a short outage of one replica from failing requests.
+- Writes are not retried, because a lost answer does not tell whether the backend applied them. Clients of the REST API decide whether to repeat them.
+- `ondelete=` and soft-delete visibility do not cross databases (see above).
+- With SQLite every database is a file on a `ReadWriteOnce` volume, so the Kubernetes manifests run one replica of each service and services sharing the `shared` database must run on the same node. Use PostgreSQL, MySQL or SQL Server for more replicas.
+- The internal token keys are read at startup, so rotating them takes rolling restarts (see above); certificates rotate without one.

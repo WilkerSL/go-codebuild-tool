@@ -41,6 +41,7 @@ Never pass `upgradeGo: true` to the MCP `generate` tool, and never run `codebuil
 |---|---|---|
 | `*_gen.go`, `*_gen_test.go`, `contracts/**/*.proto`, `contracts/**/*.pb.go` | codebuild | Regenerated on every build. Never edit them. |
 | `docker-compose.yml` | codebuild | Regenerated when services change. Put local changes such as extra ports or variables in `docker-compose.override.yml`, which `docker compose` merges automatically. |
+| `deploy/kubernetes/base/*.yaml` | codebuild | Kustomize base, regenerated on every build. Customize the deployment in `deploy/kubernetes/overlays/production`, which is yours. |
 | `contracts/codebuild.contracts.json`, `*/migrations/codebuild.snapshot.json` | codebuild | State files. Commit them, never edit them: they keep protobuf field numbers and the database schema stable across builds. |
 | `services/*/internal/<domain>/service.go`, `service_<method>.go`, `auth_service.go` | you | Created once, never touched again. Business rules live here. |
 | `*/cmd/*/main.go`, `*/internal/platform/config/config.go`, `*/internal/platform/database/database.go` | you | Created once, never touched again. |
@@ -71,6 +72,8 @@ docker compose exec identity /app/accounts set-role <email> <role>
 ```
 
 Without containers, `go run ./gateway/cmd/devcerts` writes a development CA, one certificate per module and the internal token key pair into `./certs`. Then run each service with `DATABASE_URL`, `GRPC_ADDR`, `HEALTH_ADDR`, `TLS_CA_FILE`, `TLS_CERT_FILE`, `TLS_KEY_FILE`, `INTERNAL_TOKEN_PUBLIC_KEY_FILE` and the `<SERVICE>_GRPC_ADDR` of the services it calls, and the gateway with `HTTP_ADDR`, the TLS variables, `INTERNAL_TOKEN_PRIVATE_KEY_FILE` and one `<SERVICE>_GRPC_ADDR` per service. `docker-compose.yml` lists every variable.
+
+`deploy/kubernetes/base` holds generated Kubernetes manifests for every service and the gateway, plus a migration Job per database; they reference Secrets by name (database URLs, one TLS Secret per module with `ca.crt`, `tls.crt` and `tls.key`, the internal token keys). Customize them in `deploy/kubernetes/overlays/production` and apply it with `kubectl apply -k`. Certificates are reloaded every 30 seconds, so they rotate without restarts. Outgoing gRPC calls retry reads and use a circuit breaker per backend; `GRPC_*` variables tune them.
 
 Optional, all off by default: `METRICS_ADDR` serves Prometheus metrics on `GET /metrics` in each module; `OTEL_EXPORTER_OTLP_ENDPOINT` exports traces over OTLP/HTTP JSON, and the gateway and services propagate the W3C trace context through gRPC so a request is one trace; `CORS_ALLOWED_ORIGINS` on the gateway lets browsers on other origins call it.
 
