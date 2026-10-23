@@ -35,7 +35,6 @@ type kubeVolume struct {
 	Items    [][2]string
 	Claim    string
 	ReadOnly bool
-	Empty    bool
 }
 
 type kubeWorkload struct {
@@ -53,7 +52,6 @@ type kubeWorkload struct {
 	Replicas   int
 	Recreate   bool
 	Command    []string
-	Claim      string
 	Metrics    bool
 }
 
