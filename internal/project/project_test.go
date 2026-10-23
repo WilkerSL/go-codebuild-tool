@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/WilkerSL/go-codebuild-tool/internal/dialect"
+	"github.com/WilkerSL/go-codebuild-tool/internal/gen"
 	"github.com/WilkerSL/go-codebuild-tool/internal/goversion"
 )
 
@@ -231,6 +232,33 @@ func TestEditedGeneratedFileIsAConflict(t *testing.T) {
 	}
 	if readTestFile(t, path) != edited {
 		t.Fatal("edited generated file was overwritten")
+	}
+}
+
+func TestEditedOpenAPIDocumentIsAConflict(t *testing.T) {
+	dir := starter(t, "1.27.0", "sqlite")
+	path := filepath.Join(dir, gen.OpenAPIPath)
+	content := readTestFile(t, path)
+
+	// Changing the body but keeping the marker is an ordinary update.
+	writeTestFile(t, path, strings.Replace(content, `"openapi": "3.1.0"`, `"openapi": "3.0.0"`, 1))
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Conflicts()) != 0 {
+		t.Fatalf("conflicts with the marker kept = %+v", plan.Conflicts())
+	}
+
+	marker := `  "x-codebuild": "` + gen.OpenAPIMarker + `",` + "\n"
+	writeTestFile(t, path, strings.Replace(content, marker, "", 1))
+	plan, err = BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflicts := plan.Conflicts()
+	if len(conflicts) != 1 || conflicts[0].Path != gen.OpenAPIPath || !strings.Contains(conflicts[0].Reason, "x-codebuild") {
+		t.Fatalf("conflicts = %+v", conflicts)
 	}
 }
 

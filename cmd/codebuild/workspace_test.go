@@ -139,6 +139,7 @@ func workspaceEndToEnd(t *testing.T, bin, dialect string) {
 	shopSmoke(t, c, func(email string) {
 		command(t, dir, []string{"DATABASE_URL=" + dbs["identity"]}, exe("accounts"), "set-role", email, "admin")
 	})
+	openAPICheck(t, c, dir)
 	running["identity"].stop()
 	if resp, _ := c.as("ses_unknown").send(http.MethodGet, "/auth/me", nil, nil); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("/auth/me with the identity service down = %d, want 503", resp.StatusCode)

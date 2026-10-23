@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- OpenAPI 3.1: every build writes `openapi.json` at the project root, built from the same views as the handlers (routes, request and response bodies with their validation rules, filters, cursor and offset pagination, problem responses, security and roles), and the API, or the gateway in a workspace, serves it at `GET /openapi.json`. A test checks that every served route is documented and the reverse. The file opens with an `x-codebuild` member that marks it as generated.
 - Cursor pagination: every list response carries `nextCursor`, and `?cursor=` returns the rows after it without a `COUNT(*)`, using the list order as the key, so it stays fast on large tables and correct while rows are added. Offset pagination works as before. In workspaces the gateway forwards the cursor and the contracts gain `cursor` and `next_cursor` fields; existing field numbers do not change.
 - Database spans: with tracing enabled, every query of the generated repositories and account code is a child span of its request, following the OpenTelemetry database conventions, without parameter values. `database.Traced` wraps your own `*sql.DB` or `*sql.Tx` the same way.
 

@@ -15,6 +15,7 @@ codebuild decides what it may write by who owns each file. `codebuild plan` show
 | `specs/*.go` | you | Never written by codebuild. |
 | `migrations/NNNN_<name>.up.sql`, `.down.sql` | you after creation | Created once when the schema changes; existing migrations are never modified. |
 | `migrations/codebuild.snapshot.json` | codebuild | The schema produced by all generated migrations. Commit it. |
+| `openapi.json` | codebuild | OpenAPI 3.1 description of the REST API, regenerated on every build and also served at `GET /openapi.json`. JSON has no comments, so its first member, `"x-codebuild"`, plays the role of the generated header: remove it and codebuild treats the file as yours and reports a conflict. Commit it. |
 | `codebuild.json` | you | Created when missing; rewritten only by `--change-dialect`. |
 | `go.mod` | you | See below. |
 

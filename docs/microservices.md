@@ -65,7 +65,7 @@ In a workspace, `./...` stops at nested modules. Use the module path pattern fro
 4. The billing service verifies the token, authorizes the call again, validates the request and checks `ProductID` with `ProductService.Exists` on the catalog service, propagating the same token.
 5. Errors travel as gRPC status codes with a `common.v1.Problem` detail carrying the HTTP status and the field errors, so the gateway answers with the same RFC 9457 problem details, status codes and `WWW-Authenticate` headers as a monolith.
 
-The REST API is the one a monolith with the same entities would expose: same routes, JSON bodies, filters, pagination and `/auth/*` endpoints.
+The REST API is the one a monolith with the same entities would expose: same routes, JSON bodies, filters, pagination and `/auth/*` endpoints. The gateway serves its OpenAPI description at `GET /openapi.json`, and the same document is written to `openapi.json` at the workspace root.
 
 ## Security between services
 

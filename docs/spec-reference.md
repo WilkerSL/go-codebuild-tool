@@ -372,6 +372,8 @@ type BillingService struct {
 | `GET /<parents>/{parentId}/<field>` | has_many | generated in the child domain |
 | `GET /<sources>/{sourceId}/<field>` | many_to_many list | generated in the target domain |
 | `PUT` and `DELETE /<sources>/{sourceId}/<field>/{targetId}` | many_to_many link and unlink | 204, idempotent |
+| `GET /openapi.json` | OpenAPI 3.1 description of every route | the same document as `openapi.json` at the project root, regenerated on every build |
+
 ## Diagnostic codes
 
 Diagnostics are printed as `file:line:column: message (did you mean "x"?) [code]` and as JSON objects with `file`, `line`, `column`, `severity`, `code`, `message` and `suggestion` when `--json` is used.

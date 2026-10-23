@@ -21,6 +21,7 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
+	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
 {{- if .Auth}}
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
+	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
 	countries.RegisterRoutes(mux, countries.NewHandler(countries.NewService(db), logger))
 	orgs.RegisterRoutes(mux, orgs.NewHandler(orgs.NewService(db), logger))
 	projects.RegisterRoutes(mux, projects.NewHandler(projects.NewService(db), logger))

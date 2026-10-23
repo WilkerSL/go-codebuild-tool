@@ -73,6 +73,7 @@ func (b *Backends) Close() error {
 }
 
 func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger *slog.Logger) error {
+	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
 		return err

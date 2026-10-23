@@ -184,6 +184,7 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 	c, stop := startAPI(t, dir, env)
 	project.smoke(t, c, dir, env, project.method)
 	telemetryCheck(t, c, metricsAddr, spans)
+	openAPICheck(t, c, dir)
 	stop()
 	if out := command(t, dir, env, "go", "run", "./cmd/migrate", "down", "1"); !strings.Contains(out, "reverted 1") {
 		t.Fatalf("migrate down: %s", out)
@@ -686,4 +687,30 @@ func walkCursor(t *testing.T, c client, path string) []string {
 		c.expect("GET", path+"?offset=1&cursor="+url.QueryEscape(next), nil, http.StatusBadRequest)
 	}
 	return ids
+}
+
+// openAPICheck makes sure the running API serves, byte for byte, the
+// openapi.json that codebuild wrote at the project root.
+func openAPICheck(t *testing.T, c client, dir string) {
+	t.Helper()
+	want, err := os.ReadFile(filepath.Join(dir, "openapi.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Get(c.base + "/openapi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	got, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "application/json" || !bytes.Equal(got, want) {
+		t.Fatalf("GET /openapi.json = %d %s, %d bytes; the file has %d", resp.StatusCode, resp.Header.Get("Content-Type"), len(got), len(want))
+	}
+	var doc struct {
+		OpenAPI string         `json:"openapi"`
+		Paths   map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(got, &doc); err != nil || doc.OpenAPI != "3.1.0" || len(doc.Paths) == 0 {
+		t.Fatalf("openapi.json = %q with %d paths: %v", doc.OpenAPI, len(doc.Paths), err)
+	}
 }

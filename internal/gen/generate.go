@@ -155,6 +155,7 @@ func Generate(opts Options) ([]File, error) {
 	g.goFile("internal/platform/database/trace_gen_test.go", "platform/trace_test.go.tmpl", pv)
 	g.goFile("internal/platform/database/connect_gen.go", opts.Dialect.Name()+".connect", pv)
 	g.goFile("internal/app/routes_gen.go", "project/app.go.tmpl", pv)
+	g.openAPI(pv)
 	g.goFile("migrations/embed_gen.go", "project/embed.go.tmpl", pv)
 	g.userGoFile("internal/platform/database/database.go", "project/database.go.tmpl", pv)
 	g.userGoFile("internal/platform/config/config.go", "project/config.go.tmpl", pv)

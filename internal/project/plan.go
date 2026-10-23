@@ -713,9 +713,17 @@ func (p *planner) planGoMod(context.Context) error {
 }
 
 func hasHeader(content []byte) bool {
-	line, _, _ := bytes.Cut(content, []byte("\n"))
-	first := string(bytes.TrimRight(line, "\r"))
-	return first == gen.Header || first == gen.YAMLHeader
+	first, rest, _ := bytes.Cut(content, []byte("\n"))
+	switch string(bytes.TrimRight(first, "\r")) {
+	case gen.Header, gen.YAMLHeader:
+		return true
+	case "{":
+		// JSON cannot hold a comment, so a generated JSON document opens with an
+		// x-codebuild member carrying the marker instead.
+		second, _, _ := bytes.Cut(rest, []byte("\n"))
+		return strings.TrimSpace(string(second)) == `"x-codebuild": "`+gen.OpenAPIMarker+`",`
+	}
+	return false
 }
 
 func normalize(content []byte) []byte {
@@ -758,6 +766,9 @@ func (p *planner) classify(context.Context) error {
 				header, move = gen.YAMLHeader, "docker-compose.override.yml, which docker compose merges automatically,"
 			}
 			f.Reason = "the \"" + header + "\" header was removed, so the file may contain manual changes; move them to " + move + " and delete this file, or restore the header"
+			if strings.HasSuffix(f.Path, ".json") {
+				f.Reason = "the x-codebuild member that marks the document as generated was removed, so the file may contain manual changes; describe the API in the specs instead and delete this file, or restore the member"
+			}
 		case bytes.Equal(f.old, f.content):
 			f.Action = ActionUnchanged
 		default:
