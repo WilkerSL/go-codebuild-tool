@@ -164,7 +164,7 @@ Below 1.26 codebuild stops and asks before raising the `go` directive. See [docs
 | Persistence | yes, generated SQL | yes, your SQL | yes, ORM client | no | yes |
 | Migrations | generated, incremental | no (bring your own) | via Atlas | no | no |
 | Runtime library in your binary | none | none | `entgo.io/ent` | `goa.design/goa/v3` | `github.com/zeromicro/go-zero` |
-| OpenAPI | not yet | no | via extension | yes | yes |
+| OpenAPI | yes, 3.1 | no | via extension | yes | yes |
 
 Choose **sqlc** when you want to write every query yourself and keep full control of SQL; codebuild writes CRUD and relation SQL for you and is less flexible for complex reporting queries. Choose **ent** when you need graph traversals, eager loading, hooks and privacy policies and accept a runtime library. Choose **Goa** when the API contract, OpenAPI and gRPC matter more than persistence. Choose **goctl** when you are adopting the go-zero framework. Choose **codebuild** when you want a conventional CRUD service in plain standard-library Go that you can keep evolving by hand.
 
