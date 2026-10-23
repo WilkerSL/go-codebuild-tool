@@ -3,19 +3,25 @@
 package grpcx
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 )
+
+const reloadInterval = 30 * time.Second
 
 type TLSConfig struct {
 	CAFile   string
 	CertFile string
 	KeyFile  string
 	Gateway  string
+	files    *tlsFiles
 }
 
 func LoadTLSConfig(getenv func(string) string) (TLSConfig, error) {
@@ -26,47 +32,129 @@ func LoadTLSConfig(getenv func(string) string) (TLSConfig, error) {
 			errs = append(errs, fmt.Errorf("%s is required: services only talk over mutual TLS; generate development certificates with go run ./gateway/cmd/devcerts", v.key))
 		}
 	}
-	return cfg, errors.Join(errs...)
+	if len(errs) > 0 {
+		return cfg, errors.Join(errs...)
+	}
+	cfg.files = &tlsFiles{ca: cfg.CAFile, cert: cfg.CertFile, key: cfg.KeyFile, now: time.Now}
+	return cfg, nil
 }
 
-func (c TLSConfig) load() (tls.Certificate, *x509.CertPool, error) {
-	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
-	if err != nil {
-		return tls.Certificate{}, nil, fmt.Errorf("grpcx: load the certificate: %w", err)
+type tlsFiles struct {
+	ca, cert, key string
+	now           func() time.Time
+	mu            sync.Mutex
+	checked       time.Time
+	raw           [3][]byte
+	certificate   *tls.Certificate
+	pool          *x509.CertPool
+}
+
+func (f *tlsFiles) current() (*tls.Certificate, *x509.CertPool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	if f.certificate != nil && now.Sub(f.checked) < reloadInterval {
+		return f.certificate, f.pool, nil
 	}
-	data, err := os.ReadFile(c.CAFile)
+	f.checked = now
+	certificate, pool, raw, err := f.read()
 	if err != nil {
-		return tls.Certificate{}, nil, fmt.Errorf("grpcx: read the CA: %w", err)
+		if f.certificate != nil {
+			return f.certificate, f.pool, nil
+		}
+		return nil, nil, err
+	}
+	f.certificate, f.pool, f.raw = certificate, pool, raw
+	return f.certificate, f.pool, nil
+}
+
+func (f *tlsFiles) read() (*tls.Certificate, *x509.CertPool, [3][]byte, error) {
+	var raw [3][]byte
+	for i, path := range []string{f.ca, f.cert, f.key} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, nil, raw, fmt.Errorf("grpcx: read %s: %w", path, err)
+		}
+		raw[i] = data
+	}
+	if f.raw[0] != nil && bytes.Equal(raw[0], f.raw[0]) && bytes.Equal(raw[1], f.raw[1]) && bytes.Equal(raw[2], f.raw[2]) {
+		return f.certificate, f.pool, f.raw, nil
+	}
+	certificate, err := tls.X509KeyPair(raw[1], raw[2])
+	if err != nil {
+		return nil, nil, raw, fmt.Errorf("grpcx: load the certificate: %w", err)
 	}
 	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(data) {
-		return tls.Certificate{}, nil, errors.New("grpcx: TLS_CA_FILE contains no certificate")
+	if !pool.AppendCertsFromPEM(raw[0]) {
+		return nil, nil, raw, errors.New("grpcx: TLS_CA_FILE contains no certificate")
 	}
-	return cert, pool, nil
+	return &certificate, pool, raw, nil
 }
 
 func (c TLSConfig) Server() (*tls.Config, error) {
-	cert, pool, err := c.load()
-	if err != nil {
+	if c.files == nil {
+		return nil, errors.New("grpcx: TLS configuration not loaded")
+	}
+	if _, _, err := c.files.current(); err != nil {
 		return nil, err
 	}
 	return &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    pool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion: tls.VersionTLS13,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
+			certificate, pool, err := c.files.current()
+			if err != nil {
+				return nil, err
+			}
+			return &tls.Config{
+				MinVersion:   tls.VersionTLS13,
+				Certificates: []tls.Certificate{*certificate},
+				ClientCAs:    pool,
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				NextProtos:   []string{"h2"},
+			}, nil
+		},
 	}, nil
 }
 
 func (c TLSConfig) Client(serverName string) (*tls.Config, error) {
-	cert, pool, err := c.load()
-	if err != nil {
+	if c.files == nil {
+		return nil, errors.New("grpcx: TLS configuration not loaded")
+	}
+	if _, _, err := c.files.current(); err != nil {
 		return nil, err
 	}
 	return &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-		ServerName:   serverName,
+		MinVersion: tls.VersionTLS13,
+		ServerName: serverName,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			certificate, _, err := c.files.current()
+			return certificate, err
+		},
+		InsecureSkipVerify: true,
+		VerifyConnection: func(state tls.ConnectionState) error {
+			return c.verifyServer(state, serverName)
+		},
 	}, nil
+}
+
+func (c TLSConfig) verifyServer(state tls.ConnectionState, serverName string) error {
+	if len(state.PeerCertificates) == 0 {
+		return errors.New("grpcx: the server sent no certificate")
+	}
+	_, pool, err := c.files.current()
+	if err != nil {
+		return err
+	}
+	intermediates := x509.NewCertPool()
+	for _, cert := range state.PeerCertificates[1:] {
+		intermediates.AddCert(cert)
+	}
+	_, err = state.PeerCertificates[0].Verify(x509.VerifyOptions{
+		Roots:         pool,
+		Intermediates: intermediates,
+		DNSName:       serverName,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	})
+	return err
 }

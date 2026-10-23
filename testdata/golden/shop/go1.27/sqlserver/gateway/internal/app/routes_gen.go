@@ -34,29 +34,32 @@ type Backends struct {
 }
 
 func Dial(getenv func(string) string, cfg grpcx.TLSConfig) (*Backends, error) {
+	policy, err := grpcx.LoadCallPolicy(getenv)
+	if err != nil {
+		return nil, err
+	}
 	b := &Backends{}
-	var err error
-	if b.Billing, err = b.dial(getenv, "BILLING_GRPC_ADDR", cfg); err != nil {
+	if b.Billing, err = b.dial(getenv, "BILLING_GRPC_ADDR", cfg, policy); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}
-	if b.Catalog, err = b.dial(getenv, "CATALOG_GRPC_ADDR", cfg); err != nil {
+	if b.Catalog, err = b.dial(getenv, "CATALOG_GRPC_ADDR", cfg, policy); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}
-	if b.Identity, err = b.dial(getenv, "IDENTITY_GRPC_ADDR", cfg); err != nil {
+	if b.Identity, err = b.dial(getenv, "IDENTITY_GRPC_ADDR", cfg, policy); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}
-	if b.Inventory, err = b.dial(getenv, "INVENTORY_GRPC_ADDR", cfg); err != nil {
+	if b.Inventory, err = b.dial(getenv, "INVENTORY_GRPC_ADDR", cfg, policy); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}
 	return b, nil
 }
 
-func (b *Backends) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig) (*grpc.ClientConn, error) {
+func (b *Backends) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig, policy grpcx.CallPolicy) (*grpc.ClientConn, error) {
 	addr := getenv(key)
 	if addr == "" {
 		return nil, fmt.Errorf("%s is required: the host:port of the service", key)
 	}
-	conn, err := grpcx.Dial(addr, cfg)
+	conn, err := grpcx.Dial(addr, cfg, policy)
 	if err != nil {
 		return nil, err
 	}

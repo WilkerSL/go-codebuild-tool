@@ -29,22 +29,25 @@ type Backends struct {
 }
 
 func Dial(getenv func(string) string, cfg grpcx.TLSConfig) (*Backends, error) {
+	policy, err := grpcx.LoadCallPolicy(getenv)
+	if err != nil {
+		return nil, err
+	}
 	b := &Backends{}
-	var err error
 {{- range .Workspace.Services}}
-	if b.{{.Field}}, err = b.dial(getenv, "{{.Env}}", cfg); err != nil {
+	if b.{{.Field}}, err = b.dial(getenv, "{{.Env}}", cfg, policy); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}
 {{- end}}
 	return b, nil
 }
 
-func (b *Backends) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig) (*grpc.ClientConn, error) {
+func (b *Backends) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig, policy grpcx.CallPolicy) (*grpc.ClientConn, error) {
 	addr := getenv(key)
 	if addr == "" {
 		return nil, fmt.Errorf("%s is required: the host:port of the service", key)
 	}
-	conn, err := grpcx.Dial(addr, cfg)
+	conn, err := grpcx.Dial(addr, cfg, policy)
 	if err != nil {
 		return nil, err
 	}

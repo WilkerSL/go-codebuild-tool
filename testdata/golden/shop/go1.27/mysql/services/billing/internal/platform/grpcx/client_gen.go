@@ -4,9 +4,13 @@ package grpcx
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -23,6 +27,7 @@ const (
 	TokenHeader     = "x-internal-token"
 	RequestIDHeader = "x-request-id"
 	CallTimeout     = 10 * time.Second
+	maxRetryBackoff = time.Second
 )
 
 type tokenKey struct{}
@@ -36,7 +41,51 @@ func TokenFrom(ctx context.Context) string {
 	return token
 }
 
-func Dial(addr string, cfg TLSConfig) (*grpc.ClientConn, error) {
+type CallPolicy struct {
+	Timeout         time.Duration
+	RetryAttempts   int
+	RetryBackoff    time.Duration
+	BreakerFailures int
+	BreakerCooldown time.Duration
+}
+
+func LoadCallPolicy(getenv func(string) string) (CallPolicy, error) {
+	var errs []error
+	duration := func(key string, fallback time.Duration) time.Duration {
+		v := getenv(key)
+		if v == "" {
+			return fallback
+		}
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			errs = append(errs, fmt.Errorf("%s must be a positive duration such as 100ms, got %q", key, v))
+			return fallback
+		}
+		return d
+	}
+	count := func(key string, fallback, least int) int {
+		v := getenv(key)
+		if v == "" {
+			return fallback
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < least || n > 100 {
+			errs = append(errs, fmt.Errorf("%s must be an integer between %d and 100, got %q", key, least, v))
+			return fallback
+		}
+		return n
+	}
+	p := CallPolicy{
+		Timeout:         duration("GRPC_CALL_TIMEOUT", CallTimeout),
+		RetryAttempts:   count("GRPC_RETRY_ATTEMPTS", 3, 1),
+		RetryBackoff:    duration("GRPC_RETRY_BACKOFF", 50*time.Millisecond),
+		BreakerFailures: count("GRPC_BREAKER_FAILURES", 5, 0),
+		BreakerCooldown: duration("GRPC_BREAKER_COOLDOWN", 10*time.Second),
+	}
+	return p, errors.Join(errs...)
+}
+
+func Dial(addr string, cfg TLSConfig, policy CallPolicy) (*grpc.ClientConn, error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, fmt.Errorf("grpcx: address %q: %w", addr, err)
@@ -45,9 +94,10 @@ func Dial(addr string, cfg TLSConfig) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
+	b := newBreaker(addr, policy.BreakerFailures, policy.BreakerCooldown)
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithChainUnaryInterceptor(propagate),
+		grpc.WithChainUnaryInterceptor(deadline(policy.Timeout), propagate, resilient(addr, policy, b)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("grpcx: dial %s: %w", addr, err)
@@ -55,12 +105,119 @@ func Dial(addr string, cfg TLSConfig) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func propagate(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, CallTimeout)
-		defer cancel()
+func deadline(timeout time.Duration) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if _, ok := ctx.Deadline(); !ok {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
 	}
+}
+
+func safeMethod(method string) bool {
+	name := method[strings.LastIndex(method, "/")+1:]
+	switch name {
+	case "Get", "Exists", "Authenticate", "Me":
+		return true
+	}
+	return strings.HasPrefix(name, "List")
+}
+
+func resilient(target string, p CallPolicy, b *breaker) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		attempts := 1
+		if safeMethod(method) {
+			attempts = p.RetryAttempts
+		}
+		backoff := p.RetryBackoff
+		for attempt := 1; ; attempt++ {
+			if !b.allow() {
+				telemetry.ObserveBreakerRejection(target)
+				return status.Errorf(codes.Unavailable, "grpcx: %s is failing; calls are paused for %s", target, p.BreakerCooldown)
+			}
+			err := invoker(ctx, method, req, reply, cc, opts...)
+			b.record(err)
+			if err == nil || attempt >= attempts || status.Code(err) != codes.Unavailable {
+				return err
+			}
+			wait := rand.N(backoff) + time.Millisecond
+			if until, ok := ctx.Deadline(); ok && time.Until(until) <= wait {
+				return err
+			}
+			timer := time.NewTimer(wait)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return err
+			case <-timer.C:
+			}
+			telemetry.ObserveRetry(target)
+			backoff = min(backoff*2, maxRetryBackoff)
+		}
+	}
+}
+
+type breaker struct {
+	mu        sync.Mutex
+	target    string
+	threshold int
+	cooldown  time.Duration
+	now       func() time.Time
+	failures  int
+	openUntil time.Time
+	probing   bool
+}
+
+func newBreaker(target string, threshold int, cooldown time.Duration) *breaker {
+	return &breaker{target: target, threshold: threshold, cooldown: cooldown, now: time.Now}
+}
+
+func (b *breaker) allow() bool {
+	if b.threshold <= 0 {
+		return true
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.failures < b.threshold {
+		return true
+	}
+	if b.probing || b.now().Before(b.openUntil) {
+		return false
+	}
+	b.probing = true
+	return true
+}
+
+func (b *breaker) record(err error) {
+	if b.threshold <= 0 {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	open := b.failures >= b.threshold
+	b.probing = false
+	switch status.Code(err) {
+	case codes.Canceled:
+		return
+	case codes.Unavailable, codes.DeadlineExceeded:
+		b.failures++
+		if b.failures >= b.threshold {
+			b.openUntil = b.now().Add(b.cooldown)
+			if !open {
+				telemetry.ObserveBreaker(b.target, true)
+			}
+		}
+		return
+	}
+	b.failures = 0
+	if open {
+		telemetry.ObserveBreaker(b.target, false)
+	}
+}
+
+func propagate(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	ctx, span := telemetry.StartSpan(ctx, strings.TrimPrefix(method, "/"), telemetry.SpanKindClient, telemetry.SpanContext{})
 	var pairs []string
 	if token := TokenFrom(ctx); token != "" {

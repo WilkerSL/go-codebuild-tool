@@ -61,6 +61,9 @@ type registry struct {
 	durations map[routeKey]*histogram
 	calls     map[rpcKey]uint64
 	callTimes map[string]*histogram
+	retries   map[string]uint64
+	rejected  map[string]uint64
+	open      map[string]bool
 	inFlight  atomic.Int64
 	dropped   atomic.Uint64
 	db        atomic.Pointer[sql.DB]
@@ -72,6 +75,9 @@ var registered = &registry{
 	durations: map[routeKey]*histogram{},
 	calls:     map[rpcKey]uint64{},
 	callTimes: map[string]*histogram{},
+	retries:   map[string]uint64{},
+	rejected:  map[string]uint64{},
+	open:      map[string]bool{},
 	started:   time.Now(),
 }
 
@@ -99,6 +105,24 @@ func ObserveRPC(method, code string, d time.Duration) {
 		m.callTimes[method] = h
 	}
 	h.observe(d.Seconds())
+}
+
+func ObserveRetry(target string) {
+	registered.mu.Lock()
+	defer registered.mu.Unlock()
+	registered.retries[target]++
+}
+
+func ObserveBreaker(target string, open bool) {
+	registered.mu.Lock()
+	defer registered.mu.Unlock()
+	registered.open[target] = open
+}
+
+func ObserveBreakerRejection(target string) {
+	registered.mu.Lock()
+	defer registered.mu.Unlock()
+	registered.rejected[target]++
 }
 
 func ObserveDB(db *sql.DB) {
@@ -139,6 +163,28 @@ func (m *registry) write(w io.Writer) {
 	family(&b, "grpc_server_handling_seconds", "histogram", "Time to handle gRPC calls.")
 	for _, method := range slices.Sorted(maps.Keys(m.callTimes)) {
 		writeHistogram(&b, "grpc_server_handling_seconds", labels("method", method), m.callTimes[method])
+	}
+	if len(m.retries) > 0 {
+		family(&b, "grpc_client_retries_total", "counter", "gRPC calls retried after an unavailable backend, by target.")
+		for _, target := range slices.Sorted(maps.Keys(m.retries)) {
+			sample(&b, "grpc_client_retries_total", labels("target", target), float64(m.retries[target]))
+		}
+	}
+	if len(m.open) > 0 {
+		family(&b, "grpc_client_circuit_open", "gauge", "1 while the circuit breaker of a target rejects calls.")
+		for _, target := range slices.Sorted(maps.Keys(m.open)) {
+			value := 0.0
+			if m.open[target] {
+				value = 1
+			}
+			sample(&b, "grpc_client_circuit_open", labels("target", target), value)
+		}
+	}
+	if len(m.rejected) > 0 {
+		family(&b, "grpc_client_circuit_rejected_total", "counter", "gRPC calls rejected by an open circuit breaker, by target.")
+		for _, target := range slices.Sorted(maps.Keys(m.rejected)) {
+			sample(&b, "grpc_client_circuit_rejected_total", labels("target", target), float64(m.rejected[target]))
+		}
 	}
 	m.mu.Unlock()
 	family(&b, "http_server_requests_in_flight", "gauge", "HTTP requests being served.")

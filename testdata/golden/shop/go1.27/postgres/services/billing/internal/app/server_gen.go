@@ -24,20 +24,23 @@ type Peers struct {
 
 func DialPeers(getenv func(string) string, cfg grpcx.TLSConfig) (*Peers, error) {
 	p := &Peers{}
-	var err error
-	if p.Catalog, err = p.dial(getenv, "CATALOG_GRPC_ADDR", cfg); err != nil {
+	policy, err := grpcx.LoadCallPolicy(getenv)
+	if err != nil {
+		return nil, err
+	}
+	if p.Catalog, err = p.dial(getenv, "CATALOG_GRPC_ADDR", cfg, policy); err != nil {
 		p.Close()
 		return nil, err
 	}
 	return p, nil
 }
 
-func (p *Peers) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig) (*grpc.ClientConn, error) {
+func (p *Peers) dial(getenv func(string) string, key string, cfg grpcx.TLSConfig, policy grpcx.CallPolicy) (*grpc.ClientConn, error) {
 	addr := getenv(key)
 	if addr == "" {
 		return nil, fmt.Errorf("%s is required: the host:port of the peer service", key)
 	}
-	conn, err := grpcx.Dial(addr, cfg)
+	conn, err := grpcx.Dial(addr, cfg, policy)
 	if err != nil {
 		return nil, err
 	}

@@ -261,6 +261,7 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	g.telemetry(pv)
 	g.goFile("internal/platform/grpcx/tls_gen.go", "workspace/grpcx_tls.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/client_gen.go", "workspace/grpcx_client.go.tmpl", pv)
+	g.goFile("internal/platform/grpcx/client_gen_test.go", "workspace/grpcx_client_test.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/status_gen.go", "gateway/grpcx_status.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/grpcx_gen_test.go", "gateway/grpcx_test.go.tmpl", pv)
 	g.goFile("internal/platform/auth/auth_gen.go", "gateway/auth.go.tmpl", pv)
