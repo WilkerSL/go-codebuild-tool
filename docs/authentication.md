@@ -150,3 +150,11 @@ Password hashing, token issuance, refresh rotation and the guard stay in generat
 | `cmd/accounts/main.go` | you |
 
 Projects created before authentication existed keep their `cmd/api/main.go`. If it calls `app.RegisterRoutes(mux, db, logger)` without checking the returned error, `codebuild plan` warns: invalid `AUTH_*` settings are reported through that error.
+
+## Known limits
+
+- The rate limiter keeps its counters in memory, so each replica limits on its own, and a restart resets them. Put a limiting proxy in front of the API if you need a global limit.
+- A logout, `accounts revoke` or password change that runs at the same instant as a refresh of one of the revoked tokens can leave the token that refresh just issued alive until it expires, because the delete does not see a row committed after it started. Revoking again removes it. The window is a few milliseconds; the access token it comes with is short-lived and, on routes restricted by roles, checked against the database.
+- With `jwt` in a monolith, an access token stays valid until it expires on routes without `roles=` or `writeroles=`: revoking the session does not stop a copy of that token from reading data there. Shorten `AUTH_ACCESS_TTL` if that matters, or restrict the route to a role. In a workspace the gateway checks every JWT against the account service, so revocation is immediate everywhere.
+- API keys keep working after a password change. Delete them or run `accounts revoke` when an account may be compromised.
+- The internal review of this code was not an independent audit; see [SECURITY.md](../SECURITY.md).

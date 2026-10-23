@@ -144,3 +144,5 @@ Every outgoing gRPC call without a deadline gets 10 seconds. A service that is d
 - Unary calls only; no streaming RPCs.
 - The gateway asks the account service on every authenticated request, so revocations take effect immediately and the account service is on the path of every protected request.
 - The login rate limiter lives in each gateway instance.
+- Internal certificates come from `devcerts`, a development CA: bring your own PKI and certificate rotation in production. Calls have a 10 second deadline but are not retried, and there is no circuit breaker.
+- codebuild writes no Kubernetes manifests; `docker-compose.yml` is for development.
