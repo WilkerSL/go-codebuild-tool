@@ -1,0 +1,40 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { package: ./internal/spec, name: FuzzParse }
+          - { package: ./internal/spec, name: FuzzParseStructTag }
+          - { package: ./internal/schema, name: FuzzUnmarshalSnapshot }
+          - { package: ./internal/contract, name: FuzzUnmarshalRegistry }
+          - { package: ./internal/project, name: FuzzParseConfig }
+          - { package: ./internal/goversion, name: FuzzParseModFile }
+          - { package: ./internal/goversion, name: FuzzResolve }
+          - { package: ./internal/naming, name: FuzzNames }
+          - { package: ./internal/textdiff, name: FuzzDiff }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+      - name: Fuzz ${{ matrix.target.name }}
+        run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 3m ${{ matrix.target.package }}
+      - name: Keep the failing input
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: corpus-${{ matrix.target.name }}
+          path: ${{ matrix.target.package }}/testdata/fuzz
+          if-no-files-found: ignore

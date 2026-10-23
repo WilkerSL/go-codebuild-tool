@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file. The format foll
 - A weekly workflow that fails when a newer version exists of a module written into generated projects (database drivers, gRPC, protobuf, `github.com/google/uuid`), and Dependabot updates for the modules of the tool and the GitHub Actions.
 
 - Release archives come with an SPDX SBOM each, `checksums.txt` is signed keyless with cosign (Sigstore bundle `checksums.txt.sigstore.json`), and every archive gets a GitHub build provenance attestation. `SECURITY.md` explains how to verify them; CI builds a snapshot release with SBOMs on every push.
-- Fuzz tests for the spec parser, struct tags, schema snapshots, the contract registry, `codebuild.json`, `go.mod` and `go.work`, naming and the text diff. Generated projects fuzz password hash verification, JWT parsing and, in workspaces, internal token verification.
+- Fuzz tests for the spec parser, struct tags, schema snapshots, the contract registry, `codebuild.json`, `go.mod` and `go.work`, naming and the text diff. Generated projects fuzz password hash verification, JWT parsing and, in workspaces, internal token verification. A weekly workflow runs each fuzz target of the tool for three minutes.
 
 ### Changed
 
