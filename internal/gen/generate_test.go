@@ -52,13 +52,19 @@ func TestGenerateAllCombinations(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, f := range files {
-					isGenerated := strings.HasSuffix(f.Path, "_gen.go") || strings.HasSuffix(f.Path, "_gen_test.go") || f.Path == OpenAPIPath
+					isGenerated := strings.HasSuffix(f.Path, "_gen.go") || strings.HasSuffix(f.Path, "_gen_test.go") || f.Path == OpenAPIPath || strings.HasPrefix(f.Path, KubeBaseDir+"/")
 					if isGenerated != (f.Owner == OwnerGenerated) {
 						t.Errorf("%s has owner %s", f.Path, f.Owner)
 					}
 					if f.Path == OpenAPIPath {
 						if !bytes.HasPrefix(f.Content, []byte("{\n  \"x-codebuild\": \""+OpenAPIMarker+"\",\n")) {
 							t.Errorf("%s does not open with the x-codebuild marker", f.Path)
+						}
+						continue
+					}
+					if strings.HasPrefix(f.Path, KubeBaseDir+"/") {
+						if !bytes.HasPrefix(f.Content, []byte(YAMLHeader+"\n")) {
+							t.Errorf("%s lacks the generated header", f.Path)
 						}
 						continue
 					}

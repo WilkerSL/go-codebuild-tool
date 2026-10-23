@@ -1,0 +1,76 @@
+{{.YAMLHeader}}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Name}}
+    app.kubernetes.io/component: {{.Component}}
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{.Name}}
+        app.kubernetes.io/component: {{.Component}}
+        app.kubernetes.io/part-of: {{.Project}}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{.Image}}
+          imagePullPolicy: IfNotPresent
+          command:
+{{- range .Command}}
+            - {{.}}
+{{- end}}
+{{- if or .Config .Secrets}}
+          env:
+{{- range .Config}}
+            - name: {{index . 0}}
+              value: {{printf "%q" (index . 1)}}
+{{- end}}
+{{- range .Secrets}}
+            - name: {{.Env}}
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Secret}}
+                  key: {{.Key}}
+{{- end}}
+{{- end}}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- if .Volumes}}
+          volumeMounts:
+{{- range .Volumes}}
+            - name: {{.Name}}
+              mountPath: {{.Path}}
+{{- end}}
+      volumes:
+{{- range .Volumes}}
+        - name: {{.Name}}
+          persistentVolumeClaim:
+            claimName: {{.Claim}}
+{{- end}}
+{{- end}}

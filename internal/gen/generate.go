@@ -167,6 +167,7 @@ func Generate(opts Options) ([]File, error) {
 	g.userFile(".dockerignore", "project/dockerignore.tmpl", pv)
 	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
 	g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
+	g.kubernetes(monolithKube(pv, opts.Module))
 	for _, dv := range pv.Domains {
 		dir := "internal/" + dv.Package + "/"
 		g.goFile(dir+"model_gen.go", "domain/model.go.tmpl", dv)

@@ -1,0 +1,23 @@
+{{.YAMLHeader}}
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: codebuild
+resources:
+{{- range .Resources}}
+  - {{.}}
+{{- end}}
+configMapGenerator:
+{{- range .Workloads}}
+  - name: {{.Name}}-config
+    options:
+      labels:
+        app.kubernetes.io/name: {{.Name}}
+        app.kubernetes.io/part-of: {{.Project}}
+    literals:
+{{- range .Config}}
+      - {{printf "%q" (print (index . 0) "=" (index . 1))}}
+{{- end}}
+{{- end}}

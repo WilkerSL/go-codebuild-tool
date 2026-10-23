@@ -1,0 +1,11 @@
+{{- range $i, $w := .Workloads}}
+{{- if $i}}
+---
+{{- end}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{$w.Name}}
+spec:
+  replicas: {{$w.Replicas}}
+{{- end}}

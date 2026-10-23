@@ -154,7 +154,7 @@ func TestRemovedServiceLeavesStaleFiles(t *testing.T) {
 			stale[f.Path] = true
 		}
 	}
-	for _, f := range []string{"contracts/inventory/v1/inventory.proto", "contracts/inventory/v1/inventory.pb.go", "gateway/internal/stocks/handler_gen.go", "services/inventory/internal/stocks/grpc_gen.go"} {
+	for _, f := range []string{"contracts/inventory/v1/inventory.proto", "contracts/inventory/v1/inventory.pb.go", "gateway/internal/stocks/handler_gen.go", "services/inventory/internal/stocks/grpc_gen.go", "deploy/kubernetes/base/inventory.yaml"} {
 		if !stale[f] {
 			t.Errorf("%s is not stale", f)
 		}
@@ -197,5 +197,26 @@ func TestEditedComposeFileIsAConflict(t *testing.T) {
 	conflicts := plan.Conflicts()
 	if len(conflicts) != 1 || conflicts[0].Path != "docker-compose.yml" || !strings.Contains(conflicts[0].Reason, "docker-compose.override.yml") {
 		t.Fatalf("conflicts = %+v", conflicts)
+	}
+}
+
+func TestEditedKubernetesManifestIsAConflict(t *testing.T) {
+	dir := workspaceStarter(t, "1.27.0", "sqlite")
+	manifest := filepath.Join(dir, "deploy", "kubernetes", "base", "gateway.yaml")
+	writeTestFile(t, manifest, strings.TrimPrefix(readTestFile(t, manifest), gen.YAMLHeader+"\n"))
+	overlay := filepath.Join(dir, "deploy", "kubernetes", "overlays", "production", "kustomization.yaml")
+	writeTestFile(t, overlay, readTestFile(t, overlay)+"commonAnnotations:\n  team: shop\n")
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conflicts := plan.Conflicts()
+	if len(conflicts) != 1 || conflicts[0].Path != "deploy/kubernetes/base/gateway.yaml" || !strings.Contains(conflicts[0].Reason, "deploy/kubernetes/overlays/production") {
+		t.Fatalf("conflicts = %+v", conflicts)
+	}
+	for _, f := range plan.Files {
+		if f.Path == "deploy/kubernetes/overlays/production/kustomization.yaml" && f.Action != ActionSkip {
+			t.Fatalf("the user overlay was planned as %s", f.Action)
+		}
 	}
 }

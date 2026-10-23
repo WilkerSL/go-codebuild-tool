@@ -208,7 +208,9 @@ func generateInfra(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	g.userFile(".gitignore", "workspace/gitignore.tmpl", pv)
 	g.userFile(".gitattributes", "project/gitattributes.tmpl", pv)
 	g.userFile(".dockerignore", "workspace/dockerignore.tmpl", pv)
-	g.generatedFile("docker-compose.yml", "workspace/compose.yml.tmpl", newComposeView(pv, opts, wv))
+	cv := newComposeView(pv, opts, wv)
+	g.generatedFile("docker-compose.yml", "workspace/compose.yml.tmpl", cv)
+	g.kubernetes(workspaceKube(cv, wv, pv))
 	g.userFile(".github/workflows/workspace.yml", "workspace/workspace_ci.yml.tmpl", pv)
 	for _, m := range moduleViews(pv, opts, wv) {
 		g.userFile(".github/workflows/"+m.Slug+".yml", "workspace/ci.yml.tmpl", m)

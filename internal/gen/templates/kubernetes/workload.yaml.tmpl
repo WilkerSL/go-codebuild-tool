@@ -1,0 +1,178 @@
+{{.YAMLHeader}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Name}}
+    app.kubernetes.io/component: {{.Component}}
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  replicas: {{.Replicas}}
+  revisionHistoryLimit: 5
+{{- if .Recreate}}
+  strategy:
+    type: Recreate
+{{- else}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+{{- end}}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{.Name}}
+      app.kubernetes.io/part-of: {{.Project}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{.Name}}
+        app.kubernetes.io/component: {{.Component}}
+        app.kubernetes.io/part-of: {{.Project}}
+{{- if .Metrics}}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: /metrics
+{{- end}}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 35
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{.Name}}
+          image: {{.Image}}
+          imagePullPolicy: IfNotPresent
+          ports:
+{{- range .Ports}}
+            - name: {{.Name}}
+              containerPort: {{.Port}}
+              protocol: TCP
+{{- end}}
+          envFrom:
+            - configMapRef:
+                name: {{.Name}}-config
+{{- if .Secrets}}
+          env:
+{{- range .Secrets}}
+            - name: {{.Env}}
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Secret}}
+                  key: {{.Key}}
+{{- if .Optional}}
+                  optional: true
+{{- end}}
+{{- end}}
+{{- end}}
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: {{.Probe}}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: {{.Probe}}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{.Probe}}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+{{- range .Volumes}}
+            - name: {{.Name}}
+              mountPath: {{.Path}}
+{{- if .ReadOnly}}
+              readOnly: true
+{{- end}}
+{{- end}}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- range .Volumes}}
+        - name: {{.Name}}
+{{- if .Claim}}
+          persistentVolumeClaim:
+            claimName: {{.Claim}}
+{{- else}}
+          secret:
+            secretName: {{.Secret}}
+            defaultMode: 0440
+{{- if .Items}}
+            items:
+{{- range .Items}}
+              - key: {{index . 0}}
+                path: {{index . 1}}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- end}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Name}}
+    app.kubernetes.io/component: {{.Component}}
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  selector:
+    app.kubernetes.io/name: {{.Name}}
+    app.kubernetes.io/part-of: {{.Project}}
+  ports:
+{{- range .Service}}
+    - name: {{.Name}}
+      port: {{.Port}}
+      targetPort: {{.Name}}
+      protocol: TCP
+{{- if .Protocol}}
+      appProtocol: {{.Protocol}}
+{{- end}}
+{{- end}}
+{{- if not .Recreate}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{.Name}}
+  labels:
+    app.kubernetes.io/name: {{.Name}}
+    app.kubernetes.io/component: {{.Component}}
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{.Name}}
+      app.kubernetes.io/part-of: {{.Project}}
+{{- end}}

@@ -1,0 +1,18 @@
+{{.YAMLHeader}}
+{{- range $i, $claim := .Claims}}
+{{- if $i}}
+---
+{{- end}}
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{$claim}}
+  labels:
+    app.kubernetes.io/part-of: {{$.Project}}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+{{- end}}

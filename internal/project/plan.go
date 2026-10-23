@@ -762,8 +762,11 @@ func (p *planner) classify(context.Context) error {
 		case f.Owner == OwnerGenerated && !hasHeader(old):
 			f.Action = ActionConflict
 			header, move := gen.Header, "a non-generated file such as service.go"
-			if strings.HasSuffix(f.Path, ".yml") {
+			switch {
+			case strings.HasSuffix(f.Path, ".yml"):
 				header, move = gen.YAMLHeader, "docker-compose.override.yml, which docker compose merges automatically,"
+			case strings.HasPrefix(f.Path, gen.KubeBaseDir+"/"):
+				header, move = gen.YAMLHeader, "the kustomize overlay in "+gen.KubeOverlayDir+","
 			}
 			f.Reason = "the \"" + header + "\" header was removed, so the file may contain manual changes; move them to " + move + " and delete this file, or restore the header"
 			if strings.HasSuffix(f.Path, ".json") {
@@ -778,9 +781,9 @@ func (p *planner) classify(context.Context) error {
 			f.Added, f.Removed = textdiff.Stats(string(f.old), string(f.content))
 		}
 	}
-	scan := []string{"internal", MigrationsDir}
+	scan := []string{"internal", MigrationsDir, gen.KubeBaseDir}
 	if p.model.Workspace() {
-		scan = []string{"services", gen.GatewayDir, "databases", contract.ContractsDir}
+		scan = []string{"services", gen.GatewayDir, "databases", contract.ContractsDir, gen.KubeBaseDir}
 	}
 	for _, dir := range scan {
 		err := filepath.WalkDir(filepath.Join(p.root, dir), func(full string, d fs.DirEntry, err error) error {
@@ -790,7 +793,8 @@ func (p *planner) classify(context.Context) error {
 				}
 				return err
 			}
-			if d.IsDir() || !isGeneratedName(d.Name()) {
+			manifest := dir == gen.KubeBaseDir && strings.HasSuffix(d.Name(), ".yaml")
+			if d.IsDir() || !isGeneratedName(d.Name()) && !manifest {
 				return nil
 			}
 			rel, err := filepath.Rel(p.root, full)

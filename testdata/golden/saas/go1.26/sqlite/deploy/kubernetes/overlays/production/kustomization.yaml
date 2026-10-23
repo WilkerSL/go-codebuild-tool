@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: saas
+resources:
+  - ../../base
+images:
+  - name: saas-api
+    newName: registry.example.com/saas-api
+    newTag: latest
+patches:
+  - path: deployments.yaml
+configMapGenerator:
+  - name: api-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=info
