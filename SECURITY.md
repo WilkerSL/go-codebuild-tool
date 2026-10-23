@@ -6,7 +6,7 @@ codebuild writes security-sensitive code into your projects: password hashing, s
 
 | Version | Supported |
 |---|---|
-| 0.3.x | yes |
+| 0.4.x | yes |
 | older | no |
 
 Before 1.0, fixes ship only in the latest minor release.

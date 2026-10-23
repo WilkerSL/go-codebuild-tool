@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-23
+
 ### Added
 
 - `AUTH_LIMIT_STORE=database` keeps the login, registration and password change rate limiter in a new `auth_rate_limits` table, so every replica shares the counters and they survive restarts. Keys are hashed, IPv6 clients are counted per /64, expired rows are cleaned up every minute and the table is bounded under floods. Existing projects get the table through a new migration. In workspaces the gateway asks the account service through the new `AuthService.HitRateLimit` and `ResetRateLimit` calls. The default stays `memory`.
@@ -126,7 +128,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.4.0
 [0.3.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.3.0
 [0.2.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.2.0
 [0.1.0]: https://github.com/WilkerSL/go-codebuild-tool/tree/8f14877
