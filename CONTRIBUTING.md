@@ -28,6 +28,12 @@ go test ./internal/spec -update
 git diff testdata docs/spec-reference.md
 ```
 
+The parsers have fuzz targets (`Fuzz*` in `internal/spec`, `schema`, `contract`, `project`, `goversion`, `naming` and `textdiff`). `go test` runs their seeds; to fuzz one, pass its name and package, and commit any failing input Go writes under `testdata/fuzz` together with the fix:
+
+```bash
+go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 1m ./internal/spec
+```
+
 ## End-to-end tests
 
 The end-to-end test downloads modules and builds generated projects, so it is skipped with `-short`. Start the databases you want to test against:
@@ -73,7 +79,7 @@ The driver of each dialect, `google.golang.org/grpc`, `google.golang.org/protobu
 
 ## Releases
 
-Maintainers rename the "Unreleased" section of `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD`, update the links at the end of the file, wait for a green CI on `main` and push the tag `vX.Y.Z`. The release workflow runs the tests, takes the release notes from that `CHANGELOG.md` section (it fails without one) and publishes binaries for Linux, macOS and Windows on amd64 and arm64 with GoReleaser.
+Maintainers rename the "Unreleased" section of `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD`, update the links at the end of the file, wait for a green CI on `main` and push the tag `vX.Y.Z`. The release workflow runs the tests, takes the release notes from that `CHANGELOG.md` section (it fails without one) and publishes binaries for Linux, macOS and Windows on amd64 and arm64 with GoReleaser, with an SBOM per archive, keyless cosign signatures of the checksums and build provenance attestations.
 
 ## Security
 
