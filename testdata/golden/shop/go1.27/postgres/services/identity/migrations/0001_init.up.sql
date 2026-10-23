@@ -1,3 +1,10 @@
+CREATE TABLE "auth_rate_limits" (
+    "key_hash" VARCHAR(64) NOT NULL,
+    "hits" INTEGER NOT NULL,
+    "reset_at" TIMESTAMPTZ NOT NULL,
+    CONSTRAINT "pk_auth_rate_limits" PRIMARY KEY ("key_hash")
+);
+
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
     "email" VARCHAR(254) NOT NULL,
@@ -31,6 +38,8 @@ CREATE TABLE "auth_sessions" (
     CONSTRAINT "pk_auth_sessions" PRIMARY KEY ("id"),
     CONSTRAINT "fk_auth_sessions_user_id" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
 );
+
+CREATE INDEX "ix_auth_rate_limits_reset_at" ON "auth_rate_limits" ("reset_at");
 
 CREATE UNIQUE INDEX "ux_users_email" ON "users" ("email") WHERE "deleted_at" IS NULL;
 

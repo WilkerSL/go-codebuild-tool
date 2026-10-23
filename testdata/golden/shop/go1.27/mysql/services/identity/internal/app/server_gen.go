@@ -53,7 +53,7 @@ func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger
 		return err
 	}
 	accounts := users.NewAccounts(db, cfg)
-	identityv1.RegisterAuthServiceServer(server, users.NewAuthGRPCServer(users.NewAuthService(db, accounts), accounts, logger))
+	identityv1.RegisterAuthServiceServer(server, users.NewAuthGRPCServer(users.NewAuthService(db, accounts), accounts, users.NewLimitStore(db), logger))
 	identityv1.RegisterUserServiceServer(server, users.NewGRPCServer(users.NewService(db), logger))
 	return nil
 }

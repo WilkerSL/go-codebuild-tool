@@ -132,7 +132,7 @@ func workspaceEndToEnd(t *testing.T, bin, dialect string) {
 		waitReady(t, "http://"+healthAddrs[name], p.logs.String)
 	}
 	httpAddr := freeAddr(t)
-	gatewayEnv := append(cert("gateway"), "HTTP_ADDR="+httpAddr, "INTERNAL_TOKEN_PRIVATE_KEY_FILE="+filepath.Join(certs, "internal-token.pem"), "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5")
+	gatewayEnv := append(cert("gateway"), "HTTP_ADDR="+httpAddr, "INTERNAL_TOKEN_PRIVATE_KEY_FILE="+filepath.Join(certs, "internal-token.pem"), "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_LIMIT_STORE=database")
 	gateway := start("gateway", "gateway", append(gatewayEnv, peers...))
 	c := client{t: t, base: "http://" + httpAddr}
 	waitReady(t, c.base, gateway.logs.String)
@@ -140,6 +140,15 @@ func workspaceEndToEnd(t *testing.T, bin, dialect string) {
 		command(t, dir, []string{"DATABASE_URL=" + dbs["identity"]}, exe("accounts"), "set-role", email, "admin")
 	})
 	openAPICheck(t, c, dir)
+	// A second gateway shares the login counters kept by the identity service.
+	otherAddr := freeAddr(t)
+	other := start("gateway-2", "gateway", append(append(slices.Clone(gatewayEnv), "HTTP_ADDR="+otherAddr), peers...))
+	second := client{t: t, base: "http://" + otherAddr}
+	waitReady(t, second.base, other.logs.String)
+	if resp, _ := second.send(http.MethodPost, "/auth/login", map[string]any{"email": "bob@example.com", "password": "supersecret2"}, nil); resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("login on a second gateway = %d, want the shared limit", resp.StatusCode)
+	}
+	other.stop()
 	running["identity"].stop()
 	if resp, _ := c.as("ses_unknown").send(http.MethodGet, "/auth/me", nil, nil); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("/auth/me with the identity service down = %d, want 503", resp.StatusCode)

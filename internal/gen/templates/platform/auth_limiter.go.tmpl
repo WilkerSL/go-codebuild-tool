@@ -4,7 +4,9 @@ package auth
 
 import (
 	"container/list"
+	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"math"
 	"net/http"
 	"net/netip"
@@ -15,83 +17,122 @@ import (
 	"{{.Module}}/internal/platform/httpx"
 )
 
+const (
+	LimitStoreMemory   = "memory"
+	LimitStoreDatabase = "database"
+)
+
 const maxLimiterKeys = 100_000
 
+type LimitStore interface {
+	Hit(ctx context.Context, key string, limit int, window time.Duration) (time.Duration, error)
+	Reset(ctx context.Context, key string) error
+}
+
+type Limiter struct {
+	scope  string
+	limit  int
+	period time.Duration
+	store  LimitStore
+}
+
+func NewLimiter(scope string, limit int, period time.Duration, store LimitStore) *Limiter {
+	return &Limiter{scope: scope, limit: limit, period: period, store: store}
+}
+
+func (l *Limiter) key(key string) string {
+	sum := sha256.Sum256([]byte(l.scope + "|" + key))
+	return hex.EncodeToString(sum[:])
+}
+
+func (l *Limiter) Allow(ctx context.Context, key string) error {
+	if l.limit <= 0 {
+		return nil
+	}
+	wait, err := l.store.Hit(ctx, l.key(key), l.limit, l.period)
+	if err != nil {
+		return err
+	}
+	if wait <= 0 {
+		return nil
+	}
+	seconds := strconv.Itoa(max(1, int(math.Ceil(wait.Seconds()))))
+	return &httpx.Error{
+		Status: http.StatusTooManyRequests,
+		Detail: "too many attempts; retry after " + seconds + " seconds",
+		Header: http.Header{"Retry-After": {seconds}},
+	}
+}
+
+func (l *Limiter) Reset(ctx context.Context, key string) error {
+	if l.limit <= 0 {
+		return nil
+	}
+	return l.store.Reset(ctx, l.key(key))
+}
+
 type window struct {
-	key   [sha256.Size]byte
+	key   string
 	count int
 	reset time.Time
 }
 
-type Limiter struct {
+type MemoryStore struct {
 	mu      sync.Mutex
-	limit   int
-	period  time.Duration
 	maxKeys int
 	now     func() time.Time
-	hits    map[[sha256.Size]byte]*list.Element
+	hits    map[string]*list.Element
 	order   *list.List
 }
 
-func NewLimiter(limit int, period time.Duration) *Limiter {
-	return &Limiter{
-		limit:   limit,
-		period:  period,
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{
 		maxKeys: maxLimiterKeys,
 		now:     time.Now,
-		hits:    map[[sha256.Size]byte]*list.Element{},
+		hits:    map[string]*list.Element{},
 		order:   list.New(),
 	}
 }
 
-func (l *Limiter) Allow(key string) error {
-	if l.limit <= 0 {
-		return nil
+func (s *MemoryStore) Hit(_ context.Context, key string, limit int, period time.Duration) (time.Duration, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	for e := s.order.Front(); e != nil && !now.Before(e.Value.(*window).reset); e = s.order.Front() {
+		s.drop(e)
 	}
-	id := sha256.Sum256([]byte(key))
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := l.now()
-	for e := l.order.Front(); e != nil && !now.Before(e.Value.(*window).reset); e = l.order.Front() {
-		l.drop(e)
-	}
-	e, ok := l.hits[id]
+	e, ok := s.hits[key]
 	if ok && !now.Before(e.Value.(*window).reset) {
-		l.drop(e)
+		s.drop(e)
 		ok = false
 	}
 	if !ok {
-		if l.order.Len() >= l.maxKeys {
-			l.drop(l.order.Front())
+		if s.order.Len() >= s.maxKeys {
+			s.drop(s.order.Front())
 		}
-		e = l.order.PushBack(&window{key: id, reset: now.Add(l.period)})
-		l.hits[id] = e
+		e = s.order.PushBack(&window{key: key, reset: now.Add(period)})
+		s.hits[key] = e
 	}
 	w := e.Value.(*window)
-	if w.count >= l.limit {
-		wait := strconv.Itoa(int(math.Ceil(w.reset.Sub(now).Seconds())))
-		return &httpx.Error{
-			Status: http.StatusTooManyRequests,
-			Detail: "too many attempts; retry after " + wait + " seconds",
-			Header: http.Header{"Retry-After": {wait}},
-		}
+	if w.count >= limit {
+		return w.reset.Sub(now), nil
 	}
 	w.count++
+	return 0, nil
+}
+
+func (s *MemoryStore) Reset(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.hits[key]; ok {
+		s.drop(e)
+	}
 	return nil
 }
 
-func (l *Limiter) Reset(key string) {
-	id := sha256.Sum256([]byte(key))
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if e, ok := l.hits[id]; ok {
-		l.drop(e)
-	}
-}
-
-func (l *Limiter) drop(e *list.Element) {
-	delete(l.hits, e.Value.(*window).key)
-	l.order.Remove(e)
+func (s *MemoryStore) drop(e *list.Element) {
+	delete(s.hits, e.Value.(*window).key)
+	s.order.Remove(e)
 }
 
 func ClientKey(r *http.Request, trustForwardedFor bool) string {

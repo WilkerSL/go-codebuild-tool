@@ -142,6 +142,13 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 	add("listAPIKeysQuery", q.ListAPIKeys)
 	add("deleteAPIKeyQuery", q.DeleteAPIKey)
 	add("deleteUserAPIKeysQuery", q.DeleteUserAPIKeys)
+	add("expireRateLimitQuery", q.ExpireRateLimit)
+	add("hitRateLimitQuery", q.HitRateLimit)
+	add("rateLimitResetQuery", q.RateLimitReset)
+	add("insertRateLimitQuery", q.InsertRateLimit)
+	add("deleteRateLimitQuery", q.DeleteRateLimit)
+	add("deleteExpiredLimitsQuery", q.DeleteExpiredLimits)
+	add("countRateLimitsQuery", q.CountRateLimits)
 	return av
 }
 

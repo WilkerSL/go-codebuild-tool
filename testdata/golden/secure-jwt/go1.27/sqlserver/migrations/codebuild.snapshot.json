@@ -78,6 +78,38 @@
       ]
     },
     {
+      "name": "auth_rate_limits",
+      "columns": [
+        {
+          "name": "key_hash",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "hits",
+          "kind": "int32"
+        },
+        {
+          "name": "reset_at",
+          "kind": "time"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_auth_rate_limits",
+        "columns": [
+          "key_hash"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_auth_rate_limits_reset_at",
+          "columns": [
+            "reset_at"
+          ]
+        }
+      ]
+    },
+    {
       "name": "auth_refresh_tokens",
       "columns": [
         {

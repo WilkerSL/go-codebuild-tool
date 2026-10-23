@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -186,6 +188,10 @@ func TestAccountsChangePassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
+	key, err := accounts.CreateAPIKey(ctx, caller, users.APIKeyInput{Name: "ci"})
+	if err != nil {
+		t.Fatalf("create API key: %v", err)
+	}
 	next := "a brand new password"
 	cases := []struct {
 		change users.PasswordChange
@@ -214,6 +220,61 @@ func TestAccountsChangePassword(t *testing.T) {
 	}
 	if _, err := accounts.Refresh(ctx, second.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("other refresh tokens survived a password change: %v", err)
+	}
+	if _, err := accounts.Authenticate(ctx, key.Key); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("an API key survived a password change: %v", err)
+	}
+}
+
+func TestLimitStore(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	store := users.NewLimitStore(db)
+	limiter := auth.NewLimiter("login", 2, time.Minute, store)
+	key := "203.0.113.9|" + t.Name()
+	for i := range 2 {
+		if err := limiter.Allow(ctx, key); err != nil {
+			t.Fatalf("attempt %d was rejected: %v", i+1, err)
+		}
+	}
+	if err := limiter.Allow(ctx, key); err == nil {
+		t.Fatal("the third attempt was allowed")
+	}
+	if err := auth.NewLimiter("login", 2, time.Minute, users.NewLimitStore(db)).Allow(ctx, key); err == nil {
+		t.Fatal("a second store on the same database does not share the counter")
+	}
+	if err := limiter.Allow(ctx, key+"|other"); err != nil {
+		t.Fatalf("keys share a counter: %v", err)
+	}
+	if err := limiter.Reset(ctx, key); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if err := limiter.Allow(ctx, key); err != nil {
+		t.Fatalf("reset did not clear the counter: %v", err)
+	}
+	var (
+		wg      sync.WaitGroup
+		allowed atomic.Int32
+	)
+	burst := auth.NewLimiter("burst", 5, time.Minute, store)
+	for range 20 {
+		wg.Go(func() {
+			if burst.Allow(ctx, key) == nil {
+				allowed.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if n := allowed.Load(); n != 5 {
+		t.Fatalf("%d concurrent attempts were allowed, want 5", n)
+	}
+	short := auth.NewLimiter("short", 1, 50*time.Millisecond, store)
+	if err := short.Allow(ctx, key); err != nil {
+		t.Fatalf("first attempt: %v", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if err := short.Allow(ctx, key); err != nil {
+		t.Fatalf("the window did not expire: %v", err)
 	}
 }
 

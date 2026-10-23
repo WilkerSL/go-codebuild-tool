@@ -6,12 +6,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- `AUTH_LIMIT_STORE=database` keeps the login, registration and password change rate limiter in a new `auth_rate_limits` table, so every replica shares the counters and they survive restarts. Keys are hashed, IPv6 clients are counted per /64, expired rows are cleaned up every minute and the table is bounded under floods. Existing projects get the table through a new migration. In workspaces the gateway asks the account service through the new `AuthService.HitRateLimit` and `ResetRateLimit` calls. The default stays `memory`.
+- `AUTH_JWT_CONFIRM=true` makes a monolith check every JWT access token against the database on every route, so logout and revocation take effect immediately everywhere. The default stays `false`.
 - OpenAPI 3.1: every build writes `openapi.json` at the project root, built from the same views as the handlers (routes, request and response bodies with their validation rules, filters, cursor and offset pagination, problem responses, security and roles), and the API, or the gateway in a workspace, serves it at `GET /openapi.json`. A test checks that every served route is documented and the reverse. The file opens with an `x-codebuild` member that marks it as generated.
 - Cursor pagination: every list response carries `nextCursor`, and `?cursor=` returns the rows after it without a `COUNT(*)`, using the list order as the key, so it stays fast on large tables and correct while rows are added. Offset pagination works as before. In workspaces the gateway forwards the cursor and the contracts gain `cursor` and `next_cursor` fields; existing field numbers do not change.
 - Database spans: with tracing enabled, every query of the generated repositories and account code is a child span of its request, following the OpenTelemetry database conventions, without parameter values. `database.Traced` wraps your own `*sql.DB` or `*sql.Tx` the same way.
 
 ### Changed
 
+- `auth.Limiter` takes a scope and a `LimitStore` and its `Allow` and `Reset` take a context; `NewAuthHandler` takes the store. Both live in generated files, so this only matters to code of yours that used the limiter directly.
 - `Page.Total` is an `*int64`, nil on cursor pages, and `Page` has a `NextCursor *string`; `ListParams` has a `Cursor *Cursor`. Code of yours that reads `Total` needs a dereference. In workspace contracts `total` is now `optional`.
 - Generated SQLite projects use `modernc.org/sqlite` v1.61.0.
 
@@ -21,6 +24,7 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Security
 
+- Changing the password through `PUT /auth/password` also deletes every API key of the account, like `accounts set-password` and `accounts revoke` already did.
 - JWT: logout, `accounts revoke`, a password change or reuse detection that ran while a refresh of the same family was committing could leave the refresh token issued by that refresh alive on PostgreSQL. Revocation now repeats its delete until no row is left, and a generated test reproduces the race.
 
 ## [0.3.0] - 2026-10-22

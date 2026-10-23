@@ -180,6 +180,10 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 	metricsAddr := freeAddr(t)
 	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret, "AUTH_REFRESH_REUSE_GRACE=1ms",
 		"METRICS_ADDR=" + metricsAddr, "OTEL_EXPORTER_OTLP_ENDPOINT=" + spans.url, "CORS_ALLOWED_ORIGINS=https://app.example.com"}
+	if project.method == "jwt" {
+		// The JWT project runs with the optional settings so both modes are covered.
+		env = append(env, "AUTH_JWT_CONFIRM=true", "AUTH_LIMIT_STORE=database")
+	}
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
 	c, stop := startAPI(t, dir, env)
 	project.smoke(t, c, dir, env, project.method)
@@ -535,9 +539,13 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 		t.Fatalf("login with a text/plain body = %d", resp.StatusCode)
 	}
 
+	survivor := asAnn.expect("POST", "/auth/api-keys", map[string]any{"name": "before password change"}, http.StatusCreated)
+	asSurvivor := c.as(survivor["key"].(string))
+	asSurvivor.expect("GET", "/auth/me", nil, http.StatusOK)
 	asAnn.expect("PUT", "/auth/password", map[string]any{"currentPassword": "wrong", "newPassword": "ann password 2"}, http.StatusUnprocessableEntity)
 	asAnn.expect("PUT", "/auth/password", map[string]any{"currentPassword": "ann password 1", "newPassword": "ann password 2"}, http.StatusNoContent)
 	c.expect("POST", "/auth/login", map[string]any{"email": annEmail, "password": "ann password 1"}, http.StatusUnauthorized)
+	asSurvivor.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
 	fresh := login(annEmail, "ann password 2")
 	if method == "jwt" {
 		refreshed := c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": fresh["refreshToken"]}, http.StatusOK)
@@ -552,6 +560,9 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 		asFresh.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
 	} else {
 		c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": fresh["refreshToken"]}, http.StatusUnauthorized)
+		// AUTH_JWT_CONFIRM=true: routes without roles stop accepting the access token at once.
+		asFresh.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
+		asFresh.expect("GET", "/notes", nil, http.StatusUnauthorized)
 	}
 
 	var limited reply
@@ -560,6 +571,14 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	}
 	if limited.StatusCode != http.StatusTooManyRequests || limited.Header.Get("Retry-After") == "" {
 		t.Fatalf("login rate limit = %d %q", limited.StatusCode, limited.Header.Get("Retry-After"))
+	}
+	if method == "jwt" {
+		// AUTH_LIMIT_STORE=database: a second instance sees the counter of the first.
+		other, stop := startAPI(t, dir, append(slices.Clone(env), "METRICS_ADDR=", "OTEL_EXPORTER_OTLP_ENDPOINT="))
+		if resp, _ := other.send("POST", "/auth/login", map[string]any{"email": bobEmail, "password": "bob password 1"}, nil); resp.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("login on a second instance = %d, want the shared limit", resp.StatusCode)
+		}
+		stop()
 	}
 	asBob.expect("GET", "/auth/me", nil, http.StatusOK)
 	asAnn.expect("DELETE", "/notes/"+noteID+"/labels/"+labelID, nil, http.StatusNoContent)

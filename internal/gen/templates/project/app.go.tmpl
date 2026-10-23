@@ -32,7 +32,11 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler({{.Auth.Package}}.NewAuthService(db, accounts), guard, cfg, logger))
+	var limits auth.LimitStore = auth.NewMemoryStore()
+	if cfg.LimitStore == auth.LimitStoreDatabase {
+		limits = {{.Auth.Package}}.NewLimitStore(db)
+	}
+	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler({{.Auth.Package}}.NewAuthService(db, accounts), guard, cfg, logger, limits))
 {{- end}}
 {{- range .Wired}}
 	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger){{if $.Auth}}, guard{{end}})

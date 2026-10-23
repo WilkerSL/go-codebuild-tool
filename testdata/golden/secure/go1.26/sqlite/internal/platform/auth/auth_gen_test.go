@@ -86,44 +86,49 @@ func TestTokens(t *testing.T) {
 }
 
 func TestLimiter(t *testing.T) {
+	ctx := context.Background()
 	now := time.Unix(0, 0)
-	l := NewLimiter(2, time.Minute)
-	l.now = func() time.Time { return now }
-	if l.Allow("k") != nil || l.Allow("k") != nil {
+	store := NewMemoryStore()
+	store.now = func() time.Time { return now }
+	l := NewLimiter("login", 2, time.Minute, store)
+	if l.Allow(ctx, "k") != nil || l.Allow(ctx, "k") != nil {
 		t.Fatal("attempts within the limit were rejected")
 	}
-	err := l.Allow("k")
+	err := l.Allow(ctx, "k")
 	httpErr, ok := errors.AsType[*httpx.Error](err)
 	if !ok || httpErr.Status != http.StatusTooManyRequests || httpErr.Header.Get("Retry-After") != "60" {
 		t.Fatalf("third attempt = %v", err)
 	}
-	if l.Allow("other") != nil {
+	if l.Allow(ctx, "other") != nil {
 		t.Fatal("keys share a window")
 	}
-	l.Reset("k")
-	if l.Allow("k") != nil {
+	if NewLimiter("client", 2, time.Minute, store).Allow(ctx, "k") != nil {
+		t.Fatal("scopes share a window")
+	}
+	if err := l.Reset(ctx, "k"); err != nil || l.Allow(ctx, "k") != nil {
 		t.Fatal("reset did not clear the window")
 	}
-	l.Allow("k")
+	l.Allow(ctx, "k")
 	now = now.Add(time.Minute)
-	if l.Allow("k") != nil {
+	if l.Allow(ctx, "k") != nil {
 		t.Fatal("the window did not expire")
 	}
-	if NewLimiter(0, time.Minute).Allow("k") != nil {
+	if NewLimiter("login", 0, time.Minute, store).Allow(ctx, "k") != nil {
 		t.Fatal("a zero limit must disable the limiter")
 	}
-	small := NewLimiter(1, time.Minute)
+	small := NewMemoryStore()
 	small.now = func() time.Time { return now }
 	small.maxKeys = 2
+	one := NewLimiter("login", 1, time.Minute, small)
 	for _, key := range []string{"a", "b", "c"} {
-		if small.Allow(key) != nil {
+		if one.Allow(ctx, key) != nil {
 			t.Fatalf("first attempt for %s was rejected", key)
 		}
 	}
-	if small.order.Len() != 2 || small.Allow("a") != nil || small.Allow("c") == nil {
+	if small.order.Len() != 2 || one.Allow(ctx, "a") != nil || one.Allow(ctx, "c") == nil {
 		t.Fatalf("the limiter kept %d keys and did not evict the oldest", small.order.Len())
 	}
-	if small.Allow(strings.Repeat("x", 1<<20)) != nil || small.order.Len() != 2 {
+	if one.Allow(ctx, strings.Repeat("x", 1<<20)) != nil || small.order.Len() != 2 {
 		t.Fatal("long keys must not grow the limiter")
 	}
 }
@@ -152,14 +157,15 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.CookieSecure || cfg.LoginLimit != 10 || len(cfg.TrustedOrigins) != 2 {
+	if !cfg.CookieSecure || cfg.LoginLimit != 10 || len(cfg.TrustedOrigins) != 2 || cfg.LimitStore != LimitStoreMemory {
 		t.Fatalf("config = %+v", cfg)
 	}
 	env["AUTH_COOKIE_SECURE"] = "maybe"
 	env["AUTH_LOGIN_LIMIT"] = "-1"
 	env["AUTH_TRUSTED_ORIGINS"] = "not a url"
+	env["AUTH_LIMIT_STORE"] = "redis"
 	_, err = LoadConfig(func(k string) string { return env[k] })
-	for _, key := range []string{"AUTH_COOKIE_SECURE", "AUTH_LOGIN_LIMIT", "AUTH_TRUSTED_ORIGINS"} {
+	for _, key := range []string{"AUTH_COOKIE_SECURE", "AUTH_LOGIN_LIMIT", "AUTH_TRUSTED_ORIGINS", "AUTH_LIMIT_STORE"} {
 		if err == nil || !strings.Contains(err.Error(), key) {
 			t.Errorf("invalid %s was not reported: %v", key, err)
 		}

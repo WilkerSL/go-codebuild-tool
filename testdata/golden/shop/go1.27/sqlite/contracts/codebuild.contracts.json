@@ -316,6 +316,23 @@
         "role": 2
       }
     },
+    "identity.v1.RateLimitRequest": {
+      "fields": {
+        "key": 1,
+        "limit": 2,
+        "window_millis": 3
+      }
+    },
+    "identity.v1.RateLimitResetRequest": {
+      "fields": {
+        "key": 1
+      }
+    },
+    "identity.v1.RateLimitResponse": {
+      "fields": {
+        "retry_after_millis": 1
+      }
+    },
     "identity.v1.Tokens": {
       "fields": {
         "access_token": 1,

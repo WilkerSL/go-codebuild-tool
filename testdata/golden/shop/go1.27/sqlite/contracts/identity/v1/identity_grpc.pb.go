@@ -247,6 +247,8 @@ const (
 	AuthService_Logout_FullMethodName         = "/identity.v1.AuthService/Logout"
 	AuthService_Me_FullMethodName             = "/identity.v1.AuthService/Me"
 	AuthService_ChangePassword_FullMethodName = "/identity.v1.AuthService/ChangePassword"
+	AuthService_HitRateLimit_FullMethodName   = "/identity.v1.AuthService/HitRateLimit"
+	AuthService_ResetRateLimit_FullMethodName = "/identity.v1.AuthService/ResetRateLimit"
 	AuthService_CreateAPIKey_FullMethodName   = "/identity.v1.AuthService/CreateAPIKey"
 	AuthService_ListAPIKeys_FullMethodName    = "/identity.v1.AuthService/ListAPIKeys"
 	AuthService_DeleteAPIKey_FullMethodName   = "/identity.v1.AuthService/DeleteAPIKey"
@@ -259,6 +261,8 @@ type AuthServiceClient interface {
 	Logout(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Me(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*User, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	HitRateLimit(ctx context.Context, in *RateLimitRequest, opts ...grpc.CallOption) (*RateLimitResponse, error)
+	ResetRateLimit(ctx context.Context, in *RateLimitResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateAPIKey(ctx context.Context, in *APIKeyCreateRequest, opts ...grpc.CallOption) (*CreatedAPIKey, error)
 	ListAPIKeys(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*APIKeyList, error)
 	DeleteAPIKey(ctx context.Context, in *APIKeyDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -326,6 +330,24 @@ func (c *authServiceClient) ChangePassword(ctx context.Context, in *ChangePasswo
 	return out, nil
 }
 
+func (c *authServiceClient) HitRateLimit(ctx context.Context, in *RateLimitRequest, opts ...grpc.CallOption) (*RateLimitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RateLimitResponse)
+	if err := c.cc.Invoke(ctx, AuthService_HitRateLimit_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ResetRateLimit(ctx context.Context, in *RateLimitResetRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	if err := c.cc.Invoke(ctx, AuthService_ResetRateLimit_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateAPIKey(ctx context.Context, in *APIKeyCreateRequest, opts ...grpc.CallOption) (*CreatedAPIKey, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreatedAPIKey)
@@ -360,6 +382,8 @@ type AuthServiceServer interface {
 	Logout(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	Me(context.Context, *emptypb.Empty) (*User, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*emptypb.Empty, error)
+	HitRateLimit(context.Context, *RateLimitRequest) (*RateLimitResponse, error)
+	ResetRateLimit(context.Context, *RateLimitResetRequest) (*emptypb.Empty, error)
 	CreateAPIKey(context.Context, *APIKeyCreateRequest) (*CreatedAPIKey, error)
 	ListAPIKeys(context.Context, *emptypb.Empty) (*APIKeyList, error)
 	DeleteAPIKey(context.Context, *APIKeyDeleteRequest) (*emptypb.Empty, error)
@@ -390,6 +414,14 @@ func (UnimplementedAuthServiceServer) Me(context.Context, *emptypb.Empty) (*User
 
 func (UnimplementedAuthServiceServer) ChangePassword(context.Context, *ChangePasswordRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method ChangePassword not implemented")
+}
+
+func (UnimplementedAuthServiceServer) HitRateLimit(context.Context, *RateLimitRequest) (*RateLimitResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HitRateLimit not implemented")
+}
+
+func (UnimplementedAuthServiceServer) ResetRateLimit(context.Context, *RateLimitResetRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetRateLimit not implemented")
 }
 
 func (UnimplementedAuthServiceServer) CreateAPIKey(context.Context, *APIKeyCreateRequest) (*CreatedAPIKey, error) {
@@ -500,6 +532,36 @@ func _AuthService_ChangePassword_Handler(srv any, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_HitRateLimit_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(RateLimitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).HitRateLimit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AuthService_HitRateLimit_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(AuthServiceServer).HitRateLimit(ctx, req.(*RateLimitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ResetRateLimit_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(RateLimitResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ResetRateLimit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: AuthService_ResetRateLimit_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(AuthServiceServer).ResetRateLimit(ctx, req.(*RateLimitResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateAPIKey_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(APIKeyCreateRequest)
 	if err := dec(in); err != nil {
@@ -555,6 +617,8 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "Logout", Handler: _AuthService_Logout_Handler},
 		{MethodName: "Me", Handler: _AuthService_Me_Handler},
 		{MethodName: "ChangePassword", Handler: _AuthService_ChangePassword_Handler},
+		{MethodName: "HitRateLimit", Handler: _AuthService_HitRateLimit_Handler},
+		{MethodName: "ResetRateLimit", Handler: _AuthService_ResetRateLimit_Handler},
 		{MethodName: "CreateAPIKey", Handler: _AuthService_CreateAPIKey_Handler},
 		{MethodName: "ListAPIKeys", Handler: _AuthService_ListAPIKeys_Handler},
 		{MethodName: "DeleteAPIKey", Handler: _AuthService_DeleteAPIKey_Handler},

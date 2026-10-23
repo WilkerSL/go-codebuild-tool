@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -62,6 +63,78 @@ type Accounts struct {
 	q    database.DBTX
 	repo *Repository
 	cfg  auth.Config
+}
+
+const (
+	maxRateLimitRows   = 100_000
+	maxRateLimitPasses = 3
+	rateLimitCleanup   = time.Minute
+)
+
+type LimitStore struct {
+	q       database.DBTX
+	cleaned atomic.Int64
+}
+
+func NewLimitStore(db *sql.DB) *LimitStore {
+	return &LimitStore{q: database.Traced(db)}
+}
+
+func (s *LimitStore) Hit(ctx context.Context, key string, limit int, window time.Duration) (time.Duration, error) {
+	now := authNow()
+	s.cleanup(ctx, now, window)
+	if _, err := s.q.ExecContext(ctx, expireRateLimitQuery, key, database.TimeArg(now)); err != nil {
+		return 0, fmt.Errorf("rate limit: %w", err)
+	}
+	for range maxRateLimitPasses {
+		res, err := s.q.ExecContext(ctx, hitRateLimitQuery, key, limit)
+		if err != nil {
+			return 0, fmt.Errorf("rate limit: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("rate limit: %w", err)
+		}
+		if n > 0 {
+			return 0, nil
+		}
+		var reset time.Time
+		err = s.q.QueryRowContext(ctx, rateLimitResetQuery, key).Scan(&reset)
+		if err == nil {
+			return max(reset.Sub(now), time.Second), nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("rate limit: %w", err)
+		}
+		_, err = s.q.ExecContext(ctx, insertRateLimitQuery, key, 1, database.TimeArg(now.Add(window)))
+		if err == nil {
+			return 0, nil
+		}
+		if c, ok := database.Constraint(err); !ok || c.Kind != database.UniqueViolation {
+			return 0, fmt.Errorf("rate limit: %w", err)
+		}
+	}
+	return 0, fmt.Errorf("rate limit: the counter kept changing after %d passes", maxRateLimitPasses)
+}
+
+func (s *LimitStore) Reset(ctx context.Context, key string) error {
+	if _, err := s.q.ExecContext(ctx, deleteRateLimitQuery, key); err != nil {
+		return fmt.Errorf("rate limit: %w", err)
+	}
+	return nil
+}
+
+func (s *LimitStore) cleanup(ctx context.Context, now time.Time, window time.Duration) {
+	last := s.cleaned.Load()
+	if now.UnixNano()-last < int64(rateLimitCleanup) || !s.cleaned.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+	before := now
+	var count int
+	if err := s.q.QueryRowContext(ctx, countRateLimitsQuery).Scan(&count); err == nil && count > maxRateLimitRows {
+		before = now.Add(window / 2)
+	}
+	_, _ = s.q.ExecContext(ctx, deleteExpiredLimitsQuery, database.TimeArg(before))
 }
 
 func NewAccounts(db *sql.DB, cfg auth.Config) *Accounts {
@@ -209,6 +282,9 @@ func (a *Accounts) ChangePassword(ctx context.Context, caller auth.Principal, in
 	}
 	if _, err := a.q.ExecContext(ctx, deleteOtherSessionsQuery, database.UUIDArg(caller.ID), caller.CredentialID); err != nil {
 		return fmt.Errorf("revoke other sessions: %w", err)
+	}
+	if err := a.revokeRows(ctx, deleteUserAPIKeysQuery, database.UUIDArg(caller.ID)); err != nil {
+		return fmt.Errorf("revoke API keys: %w", err)
 	}
 	return nil
 }

@@ -31,6 +31,13 @@ type AuthQueries struct {
 	ListAPIKeys           string
 	DeleteAPIKey          string
 	DeleteUserAPIKeys     string
+	ExpireRateLimit       string
+	HitRateLimit          string
+	RateLimitReset        string
+	InsertRateLimit       string
+	DeleteRateLimit       string
+	DeleteExpiredLimits   string
+	CountRateLimits       string
 }
 
 type sqlParams struct {
@@ -164,5 +171,19 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 		p = newParams(d)
 		q.DeleteUserAPIKeys = "DELETE FROM " + keys + "\nWHERE " + userCol + " = " + p.next("user")
 	}
+
+	limits := d.Quote(schema.RateLimitsTable)
+	p = newParams(d)
+	q.ExpireRateLimit = "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " = " + p.next("key") + " AND " + d.Quote("reset_at") + " <= " + p.next("now")
+	p = newParams(d)
+	q.HitRateLimit = "UPDATE " + limits + "\nSET " + d.Quote("hits") + " = " + d.Quote("hits") + " + 1\nWHERE " + d.Quote("key_hash") + " = " + p.next("key") + " AND " + d.Quote("hits") + " < " + p.next("limit")
+	p = newParams(d)
+	q.RateLimitReset = "SELECT " + d.Quote("reset_at") + "\nFROM " + limits + "\nWHERE " + d.Quote("key_hash") + " = " + p.next("key")
+	q.InsertRateLimit = insert(schema.RateLimitsTable, []string{"key_hash", "hits", "reset_at"})
+	p = newParams(d)
+	q.DeleteRateLimit = "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " = " + p.next("key")
+	p = newParams(d)
+	q.DeleteExpiredLimits = "DELETE FROM " + limits + "\nWHERE " + d.Quote("reset_at") + " <= " + p.next("before")
+	q.CountRateLimits = "SELECT COUNT(*)\nFROM " + limits
 	return q
 }

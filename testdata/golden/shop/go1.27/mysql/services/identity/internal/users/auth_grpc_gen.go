@@ -5,12 +5,14 @@ package users
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	identityv1 "example.com/shop/contracts/identity/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"example.com/shop/services/identity/internal/platform/auth"
 	"example.com/shop/services/identity/internal/platform/grpcx"
+	"example.com/shop/services/identity/internal/platform/httpx"
 	"example.com/shop/services/identity/internal/platform/validation"
 )
 
@@ -18,11 +20,12 @@ type AuthGRPCServer struct {
 	identityv1.UnimplementedAuthServiceServer
 	svc      *AuthService
 	accounts *Accounts
+	limits   *LimitStore
 	logger   *slog.Logger
 }
 
-func NewAuthGRPCServer(svc *AuthService, accounts *Accounts, logger *slog.Logger) *AuthGRPCServer {
-	return &AuthGRPCServer{svc: svc, accounts: accounts, logger: logger}
+func NewAuthGRPCServer(svc *AuthService, accounts *Accounts, limits *LimitStore, logger *slog.Logger) *AuthGRPCServer {
+	return &AuthGRPCServer{svc: svc, accounts: accounts, limits: limits, logger: logger}
 }
 
 func (s *AuthGRPCServer) fail(ctx context.Context, err error) error {
@@ -106,6 +109,30 @@ func (s *AuthGRPCServer) ChangePassword(ctx context.Context, req *identityv1.Cha
 		return nil, s.fail(ctx, err)
 	}
 	if err := s.svc.ChangePassword(ctx, caller, PasswordChange{Current: req.GetCurrentPassword(), New: req.GetNewPassword()}); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+const maxRateLimitWindow = 24 * time.Hour
+
+func (s *AuthGRPCServer) HitRateLimit(ctx context.Context, req *identityv1.RateLimitRequest) (*identityv1.RateLimitResponse, error) {
+	window := time.Duration(req.GetWindowMillis()) * time.Millisecond
+	if len(req.GetKey()) != 64 || req.GetLimit() <= 0 || window <= 0 || window > maxRateLimitWindow {
+		return nil, s.fail(ctx, httpx.BadRequest("invalid rate limit request"))
+	}
+	wait, err := s.limits.Hit(ctx, req.GetKey(), int(req.GetLimit()), window)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return &identityv1.RateLimitResponse{RetryAfterMillis: wait.Milliseconds()}, nil
+}
+
+func (s *AuthGRPCServer) ResetRateLimit(ctx context.Context, req *identityv1.RateLimitResetRequest) (*emptypb.Empty, error) {
+	if len(req.GetKey()) != 64 {
+		return nil, s.fail(ctx, httpx.BadRequest("invalid rate limit request"))
+	}
+	if err := s.limits.Reset(ctx, req.GetKey()); err != nil {
 		return nil, s.fail(ctx, err)
 	}
 	return &emptypb.Empty{}, nil

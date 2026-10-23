@@ -69,7 +69,7 @@ func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger
 		return err
 	}
 	accounts := {{.Auth.Package}}.NewAccounts(db, cfg)
-	{{.Current.Alias}}.RegisterAuthServiceServer(server, {{.Auth.Package}}.NewAuthGRPCServer({{.Auth.Package}}.NewAuthService(db, accounts), accounts, logger))
+	{{.Current.Alias}}.RegisterAuthServiceServer(server, {{.Auth.Package}}.NewAuthGRPCServer({{.Auth.Package}}.NewAuthService(db, accounts), accounts, {{.Auth.Package}}.NewLimitStore(db), logger))
 {{- end}}
 {{- range .Domains}}
 	{{.GRPC.Alias}}.Register{{.GRPC.Service}}Server(server, {{.Package}}.NewGRPCServer({{.Package}}.NewService(db), logger{{range .GRPC.Peers}}, {{.Alias}}.New{{.Type}}(peers.{{.Service}}){{end}}))

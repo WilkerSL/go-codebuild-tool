@@ -1,3 +1,11 @@
+CREATE TABLE `auth_rate_limits` (
+    `key_hash` VARCHAR(64) NOT NULL,
+    `hits` INT NOT NULL,
+    `reset_at` DATETIME(6) NOT NULL,
+    CONSTRAINT `pk_auth_rate_limits` PRIMARY KEY (`key_hash`),
+    INDEX `ix_auth_rate_limits_reset_at` (`reset_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE `users` (
     `id` CHAR(36) NOT NULL,
     `email` VARCHAR(254) NOT NULL,

@@ -11,3 +11,5 @@ DROP TABLE "auth_api_keys";
 DROP TABLE "users";
 
 DROP TABLE "labels";
+
+DROP TABLE "auth_rate_limits";

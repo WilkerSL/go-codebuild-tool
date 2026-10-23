@@ -17,11 +17,13 @@ type Config struct {
 	RefreshReuseGrace time.Duration
 	Secret            []byte
 	PreviousSecret    []byte
+	JWTConfirm        bool
 	CookieSecure      bool
 	TrustedOrigins    []string
 	LoginLimit        int
 	LoginWindow       time.Duration
 	TrustForwardedFor bool
+	LimitStore        string
 }
 
 func LoadConfig(getenv func(string) string) (Config, error) {
@@ -56,10 +58,19 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		RefreshReuseGrace: duration("AUTH_REFRESH_REUSE_GRACE", 30*time.Second),
 		Secret:            []byte(getenv("AUTH_JWT_SECRET")),
 		PreviousSecret:    []byte(getenv("AUTH_JWT_PREVIOUS_SECRET")),
+		JWTConfirm:        boolean("AUTH_JWT_CONFIRM", false),
 		CookieSecure:      boolean("AUTH_COOKIE_SECURE", true),
 		LoginLimit:        10,
 		LoginWindow:       duration("AUTH_LOGIN_WINDOW", 15*time.Minute),
 		TrustForwardedFor: boolean("AUTH_TRUST_FORWARDED_FOR", false),
+		LimitStore:        LimitStoreMemory,
+	}
+	switch v := getenv("AUTH_LIMIT_STORE"); v {
+	case "", LimitStoreMemory:
+	case LimitStoreDatabase:
+		cfg.LimitStore = v
+	default:
+		errs = append(errs, fmt.Errorf("AUTH_LIMIT_STORE must be memory or database, got %q", v))
 	}
 	if v := getenv("AUTH_LOGIN_LIMIT"); v != "" {
 		n, err := strconv.Atoi(v)

@@ -21,19 +21,25 @@ type AuthHandler struct {
 	clients *auth.Limiter
 }
 
-func NewAuthHandler(svc *AuthService, guard *auth.Guard, cfg auth.Config, logger *slog.Logger) *AuthHandler {
+func NewAuthHandler(svc *AuthService, guard *auth.Guard, cfg auth.Config, logger *slog.Logger, store auth.LimitStore) *AuthHandler {
 	return &AuthHandler{
 		svc:     svc,
 		guard:   guard,
 		cfg:     cfg,
 		logger:  logger,
-		logins:  auth.NewLimiter(cfg.LoginLimit, cfg.LoginWindow),
-		clients: auth.NewLimiter(cfg.LoginLimit*10, cfg.LoginWindow),
+		logins:  auth.NewLimiter("login", cfg.LoginLimit, cfg.LoginWindow, store),
+		clients: auth.NewLimiter("client", cfg.LoginLimit*10, cfg.LoginWindow, store),
 	}
 }
 
 func (h *AuthHandler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	httpx.WriteError(w, r, h.logger, err)
+}
+
+func (h *AuthHandler) resetLimit(r *http.Request, key string) {
+	if err := h.logins.Reset(r.Context(), key); err != nil {
+		h.logger.WarnContext(r.Context(), "rate limit reset failed", slog.Any("error", err))
+	}
 }
 
 func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
@@ -43,7 +49,7 @@ func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
 }
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
-	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(r.Context(), auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -80,11 +86,11 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	}
 	client := auth.ClientKey(r, h.cfg.TrustForwardedFor)
 	key := client + "|" + normalizeIdentity(in.Identity)
-	if err := h.clients.Allow(client); err != nil {
+	if err := h.clients.Allow(r.Context(), client); err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.logins.Allow(key); err != nil {
+	if err := h.logins.Allow(r.Context(), key); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -93,7 +99,7 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	h.logins.Reset(key)
+	h.resetLimit(r, key)
 	h.writeTokens(w, tokens)
 }
 
@@ -142,11 +148,11 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := "password|" + caller.CredentialID
-	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(r.Context(), auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.logins.Allow(key); err != nil {
+	if err := h.logins.Allow(r.Context(), key); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -154,7 +160,7 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	h.logins.Reset(key)
+	h.resetLimit(r, key)
 	w.WriteHeader(http.StatusNoContent)
 }
 

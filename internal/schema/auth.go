@@ -106,9 +106,10 @@ const (
 	SessionsTable      = "auth_sessions"
 	RefreshTokensTable = "auth_refresh_tokens"
 	APIKeysTable       = "auth_api_keys"
+	RateLimitsTable    = "auth_rate_limits"
 )
 
-var AuthTables = []string{APIKeysTable, RefreshTokensTable, SessionsTable}
+var AuthTables = []string{APIKeysTable, RateLimitsTable, RefreshTokensTable, SessionsTable}
 
 const (
 	TokenHashSize = 64
@@ -189,6 +190,15 @@ func authTables(e *Entity) []*Table {
 		t.Indexes = []*Index{ix, {Name: ConstraintName("ux", t.Name, "key_hash"), Columns: []string{"key_hash"}, Unique: true}}
 		tables = append(tables, t)
 	}
+	limits := &Table{Name: RateLimitsTable}
+	limits.Columns = []*Column{
+		{Name: "key_hash", Kind: ColumnString, Size: TokenHashSize},
+		{Name: "hits", Kind: ColumnInt32},
+		{Name: "reset_at", Kind: ColumnTime},
+	}
+	limits.PrimaryKey = &PrimaryKey{Name: ConstraintName("pk", limits.Name), Columns: []string{"key_hash"}}
+	limits.Indexes = []*Index{{Name: ConstraintName("ix", limits.Name, "reset_at"), Columns: []string{"reset_at"}}}
+	tables = append(tables, limits)
 	for _, t := range tables {
 		sortTable(t)
 	}

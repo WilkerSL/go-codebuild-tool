@@ -105,3 +105,33 @@ WHERE "id" = $1 AND "user_id" = $2`
 const deleteUserAPIKeysQuery = `
 DELETE FROM "auth_api_keys"
 WHERE "user_id" = $1`
+
+const expireRateLimitQuery = `
+DELETE FROM "auth_rate_limits"
+WHERE "key_hash" = $1 AND "reset_at" <= $2`
+
+const hitRateLimitQuery = `
+UPDATE "auth_rate_limits"
+SET "hits" = "hits" + 1
+WHERE "key_hash" = $1 AND "hits" < $2`
+
+const rateLimitResetQuery = `
+SELECT "reset_at"
+FROM "auth_rate_limits"
+WHERE "key_hash" = $1`
+
+const insertRateLimitQuery = `
+INSERT INTO "auth_rate_limits" ("key_hash", "hits", "reset_at")
+VALUES ($1, $2, $3)`
+
+const deleteRateLimitQuery = `
+DELETE FROM "auth_rate_limits"
+WHERE "key_hash" = $1`
+
+const deleteExpiredLimitsQuery = `
+DELETE FROM "auth_rate_limits"
+WHERE "reset_at" <= $1`
+
+const countRateLimitsQuery = `
+SELECT COUNT(*)
+FROM "auth_rate_limits"`

@@ -3,6 +3,7 @@ package project
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"io/fs"
@@ -774,5 +775,33 @@ func TestWorkspaceIsChecked(t *testing.T) {
 	t.Setenv("GOWORK", "off")
 	if _, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")}); err != nil {
 		t.Fatalf("GOWORK=off: %v", err)
+	}
+}
+
+// Projects generated before the shared rate limiter existed get its table
+// through a new migration instead of an edit of the first one.
+func TestRateLimitTableIsAddedIncrementally(t *testing.T) {
+	dir := secureStarter(t, "1.27.0", "postgres", false)
+	path := filepath.Join(dir, "migrations", "codebuild.snapshot.json")
+	var snapshot map[string]any
+	if err := json.Unmarshal([]byte(readTestFile(t, path)), &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	tables := snapshot["tables"].([]any)
+	snapshot["tables"] = slices.DeleteFunc(tables, func(table any) bool {
+		return table.(map[string]any)["name"] == "auth_rate_limits"
+	})
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, path, string(data)+"\n")
+	plan := build(t, Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if plan.Migration == nil || plan.Migration.Name != "0002_create_auth_rate_limits" {
+		t.Fatalf("migration = %+v", plan.Migration)
+	}
+	up := readTestFile(t, filepath.Join(dir, "migrations", "0002_create_auth_rate_limits.up.sql"))
+	if !strings.Contains(up, `CREATE TABLE "auth_rate_limits"`) || !strings.Contains(up, `"ix_auth_rate_limits_reset_at"`) {
+		t.Fatalf("unexpected migration:\n%s", up)
 	}
 }

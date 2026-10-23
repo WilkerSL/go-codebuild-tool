@@ -338,6 +338,13 @@ func (f *File) auth(e *schema.Entity) {
 		&Method{Name: "Me", Input: Empty, Output: account.FullName},
 		&Method{Name: "ChangePassword", Input: change.FullName, Output: Empty},
 	)
+	limit := f.message("RateLimitRequest", field("key", TypeString), field("limit", TypeInt32), field("window_millis", TypeInt64))
+	limited := f.message("RateLimitResponse", field("retry_after_millis", TypeInt64))
+	resetLimit := f.message("RateLimitResetRequest", field("key", TypeString))
+	svc.Methods = append(svc.Methods,
+		&Method{Name: "HitRateLimit", Input: limit.FullName, Output: limited.FullName},
+		&Method{Name: "ResetRateLimit", Input: resetLimit.FullName, Output: Empty},
+	)
 	if e.HasMethod(schema.MethodAPIKey) {
 		keyFields := func(extra ...*Field) []*Field {
 			fields := []*Field{field("id", TypeString), field("name", TypeString), field("prefix", TypeString),

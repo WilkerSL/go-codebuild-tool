@@ -79,7 +79,7 @@ func tableNames(db *schema.Database) []string {
 
 func TestBuildTables(t *testing.T) {
 	db := schema.Build(parse(t, notesSpecs))
-	want := []string{schema.APIKeysTable, schema.RefreshTokensTable, "note_tags", "notes", "tags", "users"}
+	want := []string{schema.APIKeysTable, schema.RateLimitsTable, schema.RefreshTokensTable, "note_tags", "notes", "tags", "users"}
 	if got := tableNames(db); !slices.Equal(got, want) {
 		t.Fatalf("tables = %v, want %v", got, want)
 	}
@@ -169,7 +169,7 @@ func TestBuildDatabasesSplitsServices(t *testing.T) {
 	}
 	want := map[string][]string{
 		"billing":  {"invoice_items", "invoices"},
-		"identity": {schema.APIKeysTable, schema.SessionsTable, "users"},
+		"identity": {schema.APIKeysTable, schema.RateLimitsTable, schema.SessionsTable, "users"},
 		"shared":   {"categories", "products", "stocks"},
 	}
 	for name, names := range want {
@@ -195,7 +195,7 @@ func TestBuildDatabasesSplitsServices(t *testing.T) {
 		t.Errorf("services sharing a database keep their foreign keys: %+v", fk)
 	}
 	monolith := schema.Build(model)
-	if len(monolith.Tables) != 8 {
+	if len(monolith.Tables) != 9 {
 		t.Errorf("Build merges every database: %v", tableNames(monolith))
 	}
 }

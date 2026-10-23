@@ -87,6 +87,20 @@ message ChangePasswordRequest {
   string new_password = 2;
 }
 
+message RateLimitRequest {
+  string key = 1;
+  int32 limit = 2;
+  int64 window_millis = 3;
+}
+
+message RateLimitResponse {
+  int64 retry_after_millis = 1;
+}
+
+message RateLimitResetRequest {
+  string key = 1;
+}
+
 message APIKey {
   string id = 1;
   string name = 2;
@@ -133,6 +147,8 @@ service AuthService {
   rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Me(google.protobuf.Empty) returns (User);
   rpc ChangePassword(ChangePasswordRequest) returns (google.protobuf.Empty);
+  rpc HitRateLimit(RateLimitRequest) returns (RateLimitResponse);
+  rpc ResetRateLimit(RateLimitResetRequest) returns (google.protobuf.Empty);
   rpc CreateAPIKey(APIKeyCreateRequest) returns (CreatedAPIKey);
   rpc ListAPIKeys(google.protobuf.Empty) returns (APIKeyList);
   rpc DeleteAPIKey(APIKeyDeleteRequest) returns (google.protobuf.Empty);

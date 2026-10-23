@@ -5,6 +5,7 @@ package users
 import (
 	"context"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,6 +29,30 @@ func Authenticator(client identityv1.AuthServiceClient, logger *slog.Logger) aut
 		}
 		return auth.Principal{ID: p.GetId(), Role: p.GetRole(), Method: auth.Method(p.GetMethod()), CredentialID: p.GetCredentialId()}, nil
 	}
+}
+
+type LimitStore struct {
+	client identityv1.AuthServiceClient
+	logger *slog.Logger
+}
+
+func NewLimitStore(client identityv1.AuthServiceClient, logger *slog.Logger) *LimitStore {
+	return &LimitStore{client: client, logger: logger}
+}
+
+func (s *LimitStore) Hit(ctx context.Context, key string, limit int, window time.Duration) (time.Duration, error) {
+	res, err := s.client.HitRateLimit(ctx, &identityv1.RateLimitRequest{Key: key, Limit: int32(min(limit, math.MaxInt32)), WindowMillis: window.Milliseconds()})
+	if err != nil {
+		return 0, grpcx.HTTPError(ctx, s.logger, err)
+	}
+	return time.Duration(res.GetRetryAfterMillis()) * time.Millisecond, nil
+}
+
+func (s *LimitStore) Reset(ctx context.Context, key string) error {
+	if _, err := s.client.ResetRateLimit(ctx, &identityv1.RateLimitResetRequest{Key: key}); err != nil {
+		return grpcx.HTTPError(ctx, s.logger, err)
+	}
+	return nil
 }
 
 type loginRequest struct {
@@ -158,19 +183,25 @@ type AuthHandler struct {
 	clients *auth.Limiter
 }
 
-func NewAuthHandler(client identityv1.AuthServiceClient, guard *auth.Guard, cfg auth.Config, logger *slog.Logger) *AuthHandler {
+func NewAuthHandler(client identityv1.AuthServiceClient, guard *auth.Guard, cfg auth.Config, logger *slog.Logger, store auth.LimitStore) *AuthHandler {
 	return &AuthHandler{
 		client:  client,
 		guard:   guard,
 		cfg:     cfg,
 		logger:  logger,
-		logins:  auth.NewLimiter(cfg.LoginLimit, cfg.LoginWindow),
-		clients: auth.NewLimiter(cfg.LoginLimit*10, cfg.LoginWindow),
+		logins:  auth.NewLimiter("login", cfg.LoginLimit, cfg.LoginWindow, store),
+		clients: auth.NewLimiter("client", cfg.LoginLimit*10, cfg.LoginWindow, store),
 	}
 }
 
 func (h *AuthHandler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	httpx.WriteError(w, r, h.logger, grpcx.HTTPError(r.Context(), h.logger, err))
+}
+
+func (h *AuthHandler) resetLimit(r *http.Request, key string) {
+	if err := h.logins.Reset(r.Context(), key); err != nil {
+		h.logger.WarnContext(r.Context(), "rate limit reset failed", slog.Any("error", err))
+	}
 }
 
 func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
@@ -180,7 +211,7 @@ func (h *AuthHandler) writeTokens(w http.ResponseWriter, tokens auth.Tokens) {
 }
 
 func (h *AuthHandler) register(w http.ResponseWriter, r *http.Request) {
-	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(r.Context(), auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -217,11 +248,11 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 	}
 	client := auth.ClientKey(r, h.cfg.TrustForwardedFor)
 	key := client + "|" + normalizeIdentity(msg.GetIdentity())
-	if err := h.clients.Allow(client); err != nil {
+	if err := h.clients.Allow(r.Context(), client); err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.logins.Allow(key); err != nil {
+	if err := h.logins.Allow(r.Context(), key); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -230,7 +261,7 @@ func (h *AuthHandler) login(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	h.logins.Reset(key)
+	h.resetLimit(r, key)
 	h.writeTokens(w, tokensFrom(tokens))
 }
 
@@ -269,11 +300,11 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := "password|" + caller.CredentialID
-	if err := h.clients.Allow(auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
+	if err := h.clients.Allow(r.Context(), auth.ClientKey(r, h.cfg.TrustForwardedFor)); err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	if err := h.logins.Allow(key); err != nil {
+	if err := h.logins.Allow(r.Context(), key); err != nil {
 		h.fail(w, r, err)
 		return
 	}
@@ -281,7 +312,7 @@ func (h *AuthHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	h.logins.Reset(key)
+	h.resetLimit(r, key)
 	w.WriteHeader(http.StatusNoContent)
 }
 

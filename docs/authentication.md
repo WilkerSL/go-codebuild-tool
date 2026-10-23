@@ -34,8 +34,8 @@ With these specs, anyone can list labels, only admins can change them, every use
 
 | Method | Credential | Stored as | Revocation |
 |---|---|---|---|
-| `session` | Opaque token `ses_…` with 130 random bits | SHA-256 hash in `auth_sessions` with an expiry | Immediate: logout deletes the row; a password change deletes every other session. |
-| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use inside a transaction. A client that presents the same token again within `AUTH_REFRESH_REUSE_GRACE`, because it lost the response or two tabs refreshed at once, receives the same successor; once that successor has been used, or the window has passed, presenting the old token revokes the whole family (theft detection). Access tokens stay valid until they expire on ordinary routes. Routes restricted by `roles=` or `writeroles=`, and API key creation, check the token against the database first, so logout, `accounts revoke`, deleting the account and role changes take effect there immediately. |
+| `session` | Opaque token `ses_…` with 130 random bits | SHA-256 hash in `auth_sessions` with an expiry | Immediate: logout deletes the row; a password change deletes every other session and every API key. |
+| `jwt` | HS256 access token (15 minutes by default) plus a refresh token `rt_…` | Refresh tokens as SHA-256 hashes in `auth_refresh_tokens` | Refresh tokens rotate on every use inside a transaction. A client that presents the same token again within `AUTH_REFRESH_REUSE_GRACE`, because it lost the response or two tabs refreshed at once, receives the same successor; once that successor has been used, or the window has passed, presenting the old token revokes the whole family (theft detection). By default access tokens stay valid until they expire on ordinary routes. Routes restricted by `roles=` or `writeroles=`, and API key creation, check the token against the database first, so logout, `accounts revoke`, deleting the account and role changes take effect there immediately. With `AUTH_JWT_CONFIRM=true` every route does that check. |
 | `apikey` | Key `key_…` created by a logged-in user | SHA-256 hash in `auth_api_keys`, optional expiry | `DELETE /auth/api-keys/{id}`. Keys cannot create, list or delete keys, change passwords or log out. |
 
 Passwords are hashed with PBKDF2-SHA256, 600,000 iterations and a 16-byte random salt (`crypto/pbkdf2`). The iteration count is stored with the hash, so raising it later rehashes old passwords on the next successful login. Comparisons are constant time, and a login for an unknown account spends the same hashing time as a real one, so response timing does not reveal which accounts exist.
@@ -79,7 +79,7 @@ The service is yours. To let admins see every row, read the caller with `auth.Fr
 | `POST /auth/refresh` | public | JWT only. Body `{"refreshToken": …}` or the `refresh_token` cookie. |
 | `POST /auth/logout` | logged in | Revokes the current session or refresh token family and clears the cookies. |
 | `GET /auth/me` | logged in | The account of the caller. |
-| `PUT /auth/password` | logged in, rate limited | `currentPassword` and `newPassword`; revokes every other session or refresh family. API keys stay valid; delete them, or run `accounts revoke`, when an account may be compromised. |
+| `PUT /auth/password` | logged in, rate limited | `currentPassword` and `newPassword`; revokes every other session or refresh family and every API key of the account. |
 | `POST`, `GET /auth/api-keys`, `DELETE /auth/api-keys/{id}` | logged in | With `apikey`. The key is returned once, on creation; at most 100 keys per account. |
 
 Unauthenticated requests get 401 with `WWW-Authenticate: Bearer`, missing roles get 403, and rate-limited requests get 429 with `Retry-After`. Request bodies must be sent with `Content-Type: application/json` (or another `+json` type); anything else gets 415. All errors are RFC 9457 problem details.
@@ -100,13 +100,21 @@ Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `Sa
 | `AUTH_REFRESH_REUSE_GRACE` | `30s` | How long a used refresh token is still accepted, for concurrent refreshes (`jwt`). |
 | `AUTH_JWT_SECRET` | required for `jwt` | At least 32 bytes, for example `openssl rand -base64 48`. |
 | `AUTH_JWT_PREVIOUS_SECRET` | empty | Still accepted for verification while you rotate the secret. |
+| `AUTH_JWT_CONFIRM` | `false` | `true` checks every access token against the database on every route, so logout and revocation take effect at once everywhere, at the cost of one indexed query per request (`jwt`). |
 | `AUTH_COOKIE_SECURE` | `true` | Set `false` only for plain HTTP during local development. |
 | `AUTH_TRUSTED_ORIGINS` | empty | Comma-separated origins allowed to use the cookie cross-site. |
 | `AUTH_LOGIN_LIMIT` | `10` | Attempts per client and identity per window (the client alone gets ten times more across login, registration and password changes); password changes are also limited per session. `0` disables the limit. |
 | `AUTH_LOGIN_WINDOW` | `15m` | Rate limit window. |
 | `AUTH_TRUST_FORWARDED_FOR` | `false` | Use the last hop of the last `X-Forwarded-For` header as the client IP; enable only behind a proxy you control. |
+| `AUTH_LIMIT_STORE` | `memory` | Where the login and password change limiter keeps its counters: `memory` (per process) or `database` (shared by every replica). |
 
-The limiter keeps its counters in memory, so each replica limits on its own. It stores a hash of each key and at most 100,000 keys, dropping the oldest window first, so floods of distinct identities cannot exhaust memory. IPv6 clients are counted per /64 network, the block a single host usually controls.
+## Rate limiting
+
+Login, registration and password changes go through two limiters: one per client and identity (or per session for password changes) and one per client alone. Keys are SHA-256 hashes, never the identity itself, and IPv6 clients are counted per /64 network, the block a single host usually controls.
+
+With `AUTH_LIMIT_STORE=memory` each process keeps at most 100,000 keys and drops the oldest window first, so floods of distinct identities cannot exhaust memory, but each replica limits on its own and a restart resets the counters.
+
+With `AUTH_LIMIT_STORE=database` the counters live in the `auth_rate_limits` table, so every replica shares them and they survive restarts. Each attempt costs a few indexed statements on the primary key. Rows expire with their window; once a minute each process deletes expired rows and, if the table holds more than 100,000 rows, also the older half of the current window, which bounds its size under a flood of distinct identities. Projects created before 0.4.0 get the table through a new migration on the next build. In a workspace the gateway has no database: with `AUTH_LIMIT_STORE=database` it asks the account service (`AuthService.HitRateLimit`), which keeps the counters in its own database, so several gateway replicas share them.
 
 ## Administration
 
@@ -153,7 +161,6 @@ Projects created before authentication existed keep their `cmd/api/main.go`. If 
 
 ## Known limits
 
-- The rate limiter keeps its counters in memory, so each replica limits on its own, and a restart resets them. Put a limiting proxy in front of the API if you need a global limit.
-- With `jwt` in a monolith, an access token stays valid until it expires on routes without `roles=` or `writeroles=`: revoking the session does not stop a copy of that token from reading data there. Shorten `AUTH_ACCESS_TTL` if that matters, or restrict the route to a role. In a workspace the gateway checks every JWT against the account service, so revocation is immediate everywhere.
-- API keys keep working after a password change. Delete them or run `accounts revoke` when an account may be compromised.
+- The default rate limiter (`AUTH_LIMIT_STORE=memory`) limits each replica on its own and forgets its counters on restart. Set `AUTH_LIMIT_STORE=database` behind several replicas. The limiter only covers the authentication endpoints; put a limiting proxy in front of the API for everything else.
+- With `jwt` in a monolith and the default `AUTH_JWT_CONFIRM=false`, an access token stays valid until it expires on routes without `roles=` or `writeroles=`: revoking the session does not stop a copy of that token from reading data there. Set `AUTH_JWT_CONFIRM=true`, shorten `AUTH_ACCESS_TTL` or restrict the route to a role if that matters. In a workspace the gateway checks every JWT against the account service, so revocation is immediate everywhere.
 - The internal review of this code was not an independent audit; see [SECURITY.md](../SECURITY.md).

@@ -18,6 +18,7 @@ type Guard struct {
 	authenticate Authenticator
 	origins      *http.CrossOriginProtection
 	logger       *slog.Logger
+	confirm      bool
 }
 
 func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Guard, error) {
@@ -27,12 +28,12 @@ func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Gua
 			return nil, fmt.Errorf("auth: trusted origin: %w", err)
 		}
 	}
-	return &Guard{authenticate: authenticate, origins: origins, logger: logger}, nil
+	return &Guard{authenticate: authenticate, origins: origins, logger: logger, confirm: cfg.JWTConfirm}, nil
 }
 
 func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if len(roles) > 0 {
+		if len(roles) > 0 || g.confirm {
 			r = r.WithContext(WithConfirmation(r.Context()))
 		}
 		p, err := g.Authenticate(r)

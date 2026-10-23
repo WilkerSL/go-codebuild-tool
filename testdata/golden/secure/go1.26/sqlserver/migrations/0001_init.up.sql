@@ -1,3 +1,10 @@
+CREATE TABLE [auth_rate_limits] (
+    [key_hash] NVARCHAR(64) NOT NULL,
+    [hits] INT NOT NULL,
+    [reset_at] DATETIME2(7) NOT NULL,
+    CONSTRAINT [pk_auth_rate_limits] PRIMARY KEY ([key_hash])
+);
+
 CREATE TABLE [labels] (
     [id] BIGINT IDENTITY(1,1) NOT NULL,
     [name] NVARCHAR(40) NOT NULL,
@@ -68,6 +75,8 @@ CREATE TABLE [note_labels] (
     CONSTRAINT [fk_note_labels_label_id] FOREIGN KEY ([label_id]) REFERENCES [labels] ([id]) ON DELETE CASCADE,
     CONSTRAINT [fk_note_labels_note_id] FOREIGN KEY ([note_id]) REFERENCES [notes] ([id]) ON DELETE CASCADE
 );
+
+CREATE INDEX [ix_auth_rate_limits_reset_at] ON [auth_rate_limits] ([reset_at]);
 
 CREATE UNIQUE INDEX [ux_labels_name] ON [labels] ([name]);
 

@@ -18,6 +18,7 @@ type Config struct {
 	LoginLimit        int
 	LoginWindow       time.Duration
 	TrustForwardedFor bool
+	LimitStore        string
 }
 
 func LoadConfig(getenv func(string) string) (Config, error) {
@@ -52,6 +53,14 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		LoginLimit:        10,
 		LoginWindow:       duration("AUTH_LOGIN_WINDOW", 15*time.Minute),
 		TrustForwardedFor: boolean("AUTH_TRUST_FORWARDED_FOR", false),
+		LimitStore:        LimitStoreMemory,
+	}
+	switch v := getenv("AUTH_LIMIT_STORE"); v {
+	case "", LimitStoreMemory:
+	case LimitStoreDatabase:
+		cfg.LimitStore = v
+	default:
+		errs = append(errs, fmt.Errorf("AUTH_LIMIT_STORE must be memory or database, got %q", v))
 	}
 	if v := getenv("AUTH_LOGIN_LIMIT"); v != "" {
 		n, err := strconv.Atoi(v)
