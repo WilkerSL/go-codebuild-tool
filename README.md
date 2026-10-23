@@ -51,7 +51,7 @@ go get -tool github.com/WilkerSL/go-codebuild-tool/cmd/codebuild@latest
 go tool codebuild version
 ```
 
-codebuild needs Go 1.26 or later.
+codebuild needs Go 1.26 or later. Prebuilt binaries for Linux, macOS and Windows are attached to each [release](https://github.com/WilkerSL/go-codebuild-tool/releases) with signed checksums, SBOMs and build provenance; [SECURITY.md](SECURITY.md#verifying-a-release) shows how to verify them.
 
 ## Five-minute quickstart
 

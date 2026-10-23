@@ -150,7 +150,9 @@ jobs:
         with:
           version: "~> v2"
           args: check
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: anchore/sbom-action/download-syft@v0
+      - name: Snapshot release with SBOMs
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: build --snapshot --clean
+          args: release --snapshot --clean --skip=publish,sign
