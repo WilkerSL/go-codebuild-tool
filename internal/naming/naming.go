@@ -63,6 +63,13 @@ func isSeparator(r rune) bool {
 	return r == '_' || r == '-' || r == ' ' || r == '.'
 }
 
+// isUpper is false for capital letters that have no lowercase form, such as the Greek
+// upsilon with hook. Lowering such a letter changes nothing, so treating it as a word
+// boundary would split names differently each time they are converted again.
+func isUpper(r rune) bool {
+	return unicode.IsUpper(r) && unicode.ToLower(r) != r
+}
+
 func Words(s string) []string {
 	runes := []rune(s)
 	var words []string
@@ -78,12 +85,12 @@ func Words(s string) []string {
 			flush()
 			continue
 		}
-		if i > 0 && unicode.IsUpper(r) && len(current) > 0 {
+		if i > 0 && isUpper(r) && len(current) > 0 {
 			prev := runes[i-1]
 			switch {
 			case unicode.IsLower(prev) || unicode.IsDigit(prev):
 				flush()
-			case unicode.IsUpper(prev) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
+			case isUpper(prev) && i+1 < len(runes) && unicode.IsLower(runes[i+1]):
 				pluralAcronym := runes[i+1] == 's' && (i+2 == len(runes) || unicode.IsUpper(runes[i+2]) || isSeparator(runes[i+2]))
 				if !pluralAcronym {
 					flush()

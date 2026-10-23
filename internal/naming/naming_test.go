@@ -19,6 +19,8 @@ func TestWords(t *testing.T) {
 		{"read-only", []string{"read", "only"}},
 		{"Address2", []string{"Address2"}},
 		{"ID", []string{"ID"}},
+		{"Aϒ", []string{"Aϒ"}},
+		{"aϒ", []string{"aϒ"}},
 	}
 	for _, tt := range tests {
 		if got := Words(tt.in); !reflect.DeepEqual(got, tt.want) {
