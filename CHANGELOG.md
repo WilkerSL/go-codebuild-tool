@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
 ### Added
 
 - `SECURITY.md` with the supported versions and private vulnerability reporting, issue forms and a pull request template.
@@ -93,6 +95,7 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.3.0
 [0.2.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.2.0
 [0.1.0]: https://github.com/WilkerSL/go-codebuild-tool/tree/8f14877
