@@ -60,6 +60,19 @@ go test -count=1 -run TestWorkspaceEndToEnd -v ./cmd/codebuild
 
 Use databases dedicated to tests: the run creates and drops tables. To test against a local SQL Server Express instance on Windows that only accepts shared memory connections, also set `CODEBUILD_TEST_SQLSERVER_IMPORT=github.com/microsoft/go-mssqldb/sharedmemory` and use a DSN such as `sqlserver://localhost/SQLEXPRESS?database=codebuild&protocol=lpc&encrypt=disable`.
 
+The load test measures the generated API on PostgreSQL and prints a Markdown table; it needs `CODEBUILD_TEST_POSTGRES_DSN` and takes several minutes. `CODEBUILD_E2E_LOAD_DURATION`, `CODEBUILD_E2E_LOAD_CONCURRENCY` and `CODEBUILD_E2E_LOAD_ROWS` change its size, and the manual `Load test` workflow runs it on GitHub:
+
+```bash
+CODEBUILD_E2E_LOAD=1 CODEBUILD_E2E_LOAD_OUT=load.md go test -count=1 -timeout 60m -run TestLoad -v ./cmd/codebuild
+```
+
+The Kubernetes test builds the images of a monolith and of the `shop` workspace, loads them into a kind cluster and deploys the generated manifests, then rotates the workspace certificates. It needs `docker`, `kind` and `kubectl` with a running cluster; the `Kubernetes` workflow runs it whenever the manifests or the gRPC transport change:
+
+```bash
+kind create cluster
+CODEBUILD_E2E_KUBERNETES=1 go test -count=1 -timeout 40m -run TestKubernetesEndToEnd -v ./cmd/codebuild
+```
+
 To check the Go 1.26 path with a newer toolchain installed:
 
 ```bash

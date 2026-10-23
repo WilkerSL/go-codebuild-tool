@@ -1,0 +1,53 @@
+name: Load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Duration of each scenario
+        default: 20s
+      concurrency:
+        description: Concurrent clients
+        default: "32"
+      rows:
+        description: Projects seeded before the list scenarios
+        default: "50000"
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+      - name: Run the load test
+        env:
+          CODEBUILD_E2E_LOAD: "1"
+          CODEBUILD_TEST_POSTGRES_DSN: postgres://app:app@localhost:5432/app?sslmode=disable
+          CODEBUILD_E2E_LOAD_DURATION: ${{ inputs.duration }}
+          CODEBUILD_E2E_LOAD_CONCURRENCY: ${{ inputs.concurrency }}
+          CODEBUILD_E2E_LOAD_ROWS: ${{ inputs.rows }}
+          CODEBUILD_E2E_LOAD_OUT: load.md
+        run: go test -count=1 -timeout 50m -run TestLoad -v ./cmd/codebuild
+      - name: Publish the results
+        if: always()
+        run: test -f load.md && cat load.md >> "$GITHUB_STEP_SUMMARY" || true
