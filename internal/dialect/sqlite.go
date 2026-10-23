@@ -14,7 +14,7 @@ func (SQLite) Name() string { return "sqlite" }
 func (SQLite) Driver() Driver {
 	return Driver{
 		Module:     "modernc.org/sqlite",
-		Version:    "v1.60.1",
+		Version:    "v1.61.0",
 		Import:     "modernc.org/sqlite",
 		Name:       "sqlite",
 		ExampleDSN: "file:app.db",

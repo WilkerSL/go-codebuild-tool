@@ -7,7 +7,7 @@ require (
 	example.com/shop/databases/shared v0.0.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
-	modernc.org/sqlite v1.60.1
+	modernc.org/sqlite v1.61.0
 )
 
 replace example.com/shop/contracts => ../../contracts
