@@ -58,12 +58,13 @@ const maxRevokePasses = 8
 
 type Accounts struct {
 	db   *sql.DB
+	q    database.DBTX
 	repo *Repository
 	cfg  auth.Config
 }
 
 func NewAccounts(db *sql.DB, cfg auth.Config) *Accounts {
-	return &Accounts{db: db, repo: NewRepository(db), cfg: cfg}
+	return &Accounts{db: db, q: database.Traced(db), repo: NewRepository(db), cfg: cfg}
 }
 
 func authNow() time.Time {
@@ -94,7 +95,7 @@ func formatAccountID(id uuid.UUID) string {
 }
 
 func (a *Accounts) findByIdentity(ctx context.Context, identity string) (User, error) {
-	item, err := scanUser(a.db.QueryRowContext(ctx, userByIdentityQuery, normalizeIdentity(identity)).Scan)
+	item, err := scanUser(a.q.QueryRowContext(ctx, userByIdentityQuery, normalizeIdentity(identity)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, database.ErrNotFound
 	}
@@ -130,7 +131,7 @@ func (a *Accounts) setPassword(ctx context.Context, id uuid.UUID, password strin
 	if err != nil {
 		return err
 	}
-	res, err := a.db.ExecContext(ctx, setPasswordQuery, hash, database.UUIDArg(id))
+	res, err := a.q.ExecContext(ctx, setPasswordQuery, hash, database.UUIDArg(id))
 	if err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
@@ -146,10 +147,10 @@ func (a *Accounts) setPassword(ctx context.Context, id uuid.UUID, password strin
 
 func (a *Accounts) Issue(ctx context.Context, user User) (auth.Tokens, error) {
 	issued := authNow()
-	if _, err := a.db.ExecContext(ctx, deleteExpiredRefreshQuery, database.UUIDArg(user.ID), database.TimeArg(issued)); err != nil {
+	if _, err := a.q.ExecContext(ctx, deleteExpiredRefreshQuery, database.UUIDArg(user.ID), database.TimeArg(issued)); err != nil {
 		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
 	}
-	return a.issueTokens(ctx, a.db, user.ID, user.Role, auth.NewID(), auth.NewToken(auth.RefreshPrefix), issued)
+	return a.issueTokens(ctx, a.q, user.ID, user.Role, auth.NewID(), auth.NewToken(auth.RefreshPrefix), issued)
 }
 
 func (a *Accounts) issueTokens(ctx context.Context, db database.DBTX, id uuid.UUID, role string, family, refresh string, issued time.Time) (auth.Tokens, error) {
@@ -201,7 +202,7 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 	}
 	issued := authNow()
 	hash := auth.HashToken(token)
-	row, err := a.refreshRow(ctx, a.db, hash, issued)
+	row, err := a.refreshRow(ctx, a.q, hash, issued)
 	if err != nil {
 		return auth.Tokens{}, err
 	}
@@ -211,7 +212,7 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 	if !reused {
 		err = database.InTx(ctx, a.db, func(tx *sql.Tx) error {
 			var err error
-			tokens, reused, err = a.rotate(ctx, tx, row, hash, next, issued)
+			tokens, reused, err = a.rotate(ctx, database.Traced(tx), row, hash, next, issued)
 			return err
 		})
 		if err != nil {
@@ -227,7 +228,7 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 	return tokens, nil
 }
 
-func (a *Accounts) rotate(ctx context.Context, tx *sql.Tx, row refreshRow, hash, next string, issued time.Time) (auth.Tokens, bool, error) {
+func (a *Accounts) rotate(ctx context.Context, tx database.DBTX, row refreshRow, hash, next string, issued time.Time) (auth.Tokens, bool, error) {
 	res, err := tx.ExecContext(ctx, useRefreshQuery, database.TimeArg(issued), hash)
 	if err != nil {
 		return auth.Tokens{}, false, fmt.Errorf("refresh tokens: %w", err)
@@ -256,7 +257,7 @@ func (a *Accounts) rotate(ctx context.Context, tx *sql.Tx, row refreshRow, hash,
 }
 
 func (a *Accounts) confirm(ctx context.Context, p auth.Principal) (auth.Principal, error) {
-	err := a.db.QueryRowContext(ctx, jwtPrincipalQuery, database.UUIDArg(p.ID), p.CredentialID, database.TimeArg(authNow())).Scan(database.ScanUUID(&p.ID), &p.Role)
+	err := a.q.QueryRowContext(ctx, jwtPrincipalQuery, database.UUIDArg(p.ID), p.CredentialID, database.TimeArg(authNow())).Scan(database.ScanUUID(&p.ID), &p.Role)
 	return foundPrincipal(p, err)
 }
 
@@ -264,7 +265,7 @@ func (a *Accounts) Authenticate(ctx context.Context, token string) (auth.Princip
 	switch {
 	case strings.HasPrefix(token, auth.APIKeyPrefix):
 		p := auth.Principal{Method: auth.MethodAPIKey}
-		err := a.db.QueryRowContext(ctx, apiKeyPrincipalQuery, auth.HashToken(token), database.TimeArg(authNow())).Scan(&p.CredentialID, database.ScanUUID(&p.ID), &p.Role)
+		err := a.q.QueryRowContext(ctx, apiKeyPrincipalQuery, auth.HashToken(token), database.TimeArg(authNow())).Scan(&p.CredentialID, database.ScanUUID(&p.ID), &p.Role)
 		return foundPrincipal(p, err)
 	case strings.Count(token, ".") == 2:
 		claims, err := auth.ParseJWT(token, time.Now(), a.cfg.Secret, a.cfg.PreviousSecret)
@@ -338,7 +339,7 @@ func (a *Accounts) SetRole(ctx context.Context, identity, role string) error {
 	default:
 		return fmt.Errorf("role must be one of: admin, member")
 	}
-	res, err := a.db.ExecContext(ctx, setRoleQuery, role, normalizeIdentity(identity))
+	res, err := a.q.ExecContext(ctx, setRoleQuery, role, normalizeIdentity(identity))
 	if err != nil {
 		return fmt.Errorf("set role: %w", err)
 	}
@@ -385,7 +386,7 @@ func (a *Accounts) revokeAll(ctx context.Context, id uuid.UUID) error {
 
 func (a *Accounts) revokeRows(ctx context.Context, query string, args ...any) error {
 	for range maxRevokePasses {
-		res, err := a.db.ExecContext(ctx, query, args...)
+		res, err := a.q.ExecContext(ctx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -414,7 +415,7 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 		return CreatedAPIKey{}, validation.Errors{{Field: "expiresAt", Message: "must be in the future"}}
 	}
 	var count int
-	if err := a.db.QueryRowContext(ctx, countAPIKeysQuery, database.UUIDArg(caller.ID)).Scan(&count); err != nil {
+	if err := a.q.QueryRowContext(ctx, countAPIKeysQuery, database.UUIDArg(caller.ID)).Scan(&count); err != nil {
 		return CreatedAPIKey{}, fmt.Errorf("count API keys: %w", err)
 	}
 	if count >= maxAPIKeys {
@@ -426,7 +427,7 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 		expires := in.ExpiresAt.UTC().Truncate(time.Microsecond)
 		item.ExpiresAt = &expires
 	}
-	if _, err := a.db.ExecContext(ctx, insertAPIKeyQuery, item.ID, database.UUIDArg(caller.ID), item.Name, item.Prefix, auth.HashToken(key), database.TimeArg(created), database.NullTimeArg(item.ExpiresAt)); err != nil {
+	if _, err := a.q.ExecContext(ctx, insertAPIKeyQuery, item.ID, database.UUIDArg(caller.ID), item.Name, item.Prefix, auth.HashToken(key), database.TimeArg(created), database.NullTimeArg(item.ExpiresAt)); err != nil {
 		return CreatedAPIKey{}, fmt.Errorf("create API key: %w", err)
 	}
 	return item, nil
@@ -436,7 +437,7 @@ func (a *Accounts) ListAPIKeys(ctx context.Context, caller auth.Principal) ([]AP
 	if caller.Method == auth.MethodAPIKey {
 		return nil, auth.ErrForbidden
 	}
-	rows, err := a.db.QueryContext(ctx, listAPIKeysQuery, database.UUIDArg(caller.ID))
+	rows, err := a.q.QueryContext(ctx, listAPIKeysQuery, database.UUIDArg(caller.ID))
 	if err != nil {
 		return nil, fmt.Errorf("list API keys: %w", err)
 	}
@@ -459,7 +460,7 @@ func (a *Accounts) DeleteAPIKey(ctx context.Context, caller auth.Principal, id s
 	if caller.Method == auth.MethodAPIKey {
 		return auth.ErrForbidden
 	}
-	res, err := a.db.ExecContext(ctx, deleteAPIKeyQuery, id, database.UUIDArg(caller.ID))
+	res, err := a.q.ExecContext(ctx, deleteAPIKeyQuery, id, database.UUIDArg(caller.ID))
 	if err != nil {
 		return fmt.Errorf("delete API key: %w", err)
 	}

@@ -18,11 +18,11 @@ type Repository struct {
 }
 
 func NewRepository(db database.DBTX) *Repository {
-	return &Repository{db: db}
+	return &Repository{db: database.Traced(db)}
 }
 
 func (r *Repository) WithTx(tx *sql.Tx) *Repository {
-	return &Repository{db: tx}
+	return &Repository{db: database.Traced(tx)}
 }
 
 func scanInvoiceItem(scan func(dest ...any) error) (InvoiceItem, error) {

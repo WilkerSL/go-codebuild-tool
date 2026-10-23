@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Database spans: with tracing enabled, every query of the generated repositories and account code is a child span of its request, following the OpenTelemetry database conventions, without parameter values. `database.Traced` wraps your own `*sql.DB` or `*sql.Tx` the same way.
+
 ### Changed
 
 - Generated SQLite projects use `modernc.org/sqlite` v1.61.0.

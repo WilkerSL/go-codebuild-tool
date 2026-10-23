@@ -630,14 +630,14 @@ func telemetryCheck(t *testing.T, c client, metricsAddr string, spans *collector
 			t.Fatalf("metrics lack %s:\n%s", want, page)
 		}
 	}
+	// Server spans and the database spans inside them should both reach the collector.
 	deadline := time.Now().Add(15 * time.Second)
-	for len(spans.received()) == 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("no span reached the OTLP collector")
+	for _, prefix := range []string{"POST /", "INSERT "} {
+		for !slices.ContainsFunc(spans.received(), func(n string) bool { return strings.HasPrefix(n, prefix) }) {
+			if time.Now().After(deadline) {
+				t.Fatalf("no span starting with %q reached the OTLP collector: %v", prefix, spans.received())
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	if names := spans.received(); !slices.ContainsFunc(names, func(n string) bool { return strings.HasPrefix(n, "POST /") }) {
-		t.Fatalf("spans = %v", names)
 	}
 }

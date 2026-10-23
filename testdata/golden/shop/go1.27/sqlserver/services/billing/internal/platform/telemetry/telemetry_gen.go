@@ -125,3 +125,8 @@ func (t *Telemetry) Shutdown(ctx context.Context) error {
 	}
 	return errors.Join(errs...)
 }
+
+func Tracing() bool {
+	t := current.Load()
+	return t != nil && t.exporter != nil
+}

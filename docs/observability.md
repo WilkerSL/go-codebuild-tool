@@ -31,7 +31,7 @@ Set `OTEL_EXPORTER_OTLP_ENDPOINT` to the base URL of an OpenTelemetry collector,
 - Logs written with the request context carry `trace_id` and `span_id` next to `request_id`, so a log line leads to its trace.
 - Spans are batched in memory, at most 2,048 waiting, and sent every five seconds or every 512 spans. When the collector is down they are dropped and counted in `telemetry_spans_dropped_total`; the API never waits for the collector. Shutdown flushes what is left.
 
-Database queries do not get spans of their own; the request span covers them.
+Every query of the generated repositories and of the account code becomes a client span inside the request span, named after the operation and the table (`SELECT notes`, `INSERT users`), with `db.system.name`, `db.operation.name`, `db.collection.name` and the parameterized SQL in `db.query.text`. Parameter values are never recorded, and a failed query only marks the span as an error, because some drivers put row values in their messages. Queries in your own code are traced when they go through `database.Traced(db)`, which wraps a `*sql.DB` or `*sql.Tx`; migrations and health checks are not traced.
 
 | Variable | Default | Meaning |
 |---|---|---|
