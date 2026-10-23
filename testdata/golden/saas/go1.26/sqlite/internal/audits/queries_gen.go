@@ -27,6 +27,18 @@ WHERE (? IS NULL OR "action" = ?)
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "action",
+    "payload",
+    "created_at"
+FROM "audit_log"
+WHERE (? IS NULL OR "action" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "audit_log"

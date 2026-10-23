@@ -23,7 +23,8 @@ message InvoicePage {
   repeated Invoice items = 1;
   int32 limit = 2;
   int32 offset = 3;
-  int64 total = 4;
+  optional int64 total = 4;
+  optional string next_cursor = 5;
 }
 
 message InvoiceGetRequest {
@@ -35,6 +36,7 @@ message InvoiceListRequest {
   int32 offset = 2;
   optional string number = 3;
   optional string status = 4;
+  string cursor = 5;
 }
 
 message InvoiceExistsRequest {
@@ -70,7 +72,8 @@ message InvoiceItemPage {
   repeated InvoiceItem items = 1;
   int32 limit = 2;
   int32 offset = 3;
-  int64 total = 4;
+  optional int64 total = 4;
+  optional string next_cursor = 5;
 }
 
 message InvoiceItemGetRequest {
@@ -82,6 +85,7 @@ message InvoiceItemListRequest {
   int32 offset = 2;
   optional string invoice_id = 3;
   optional int64 product_id = 4;
+  string cursor = 5;
 }
 
 message InvoiceItemExistsRequest {
@@ -112,6 +116,7 @@ message ListInvoiceItemsRequest {
   int32 limit = 2;
   int32 offset = 3;
   optional int64 product_id = 4;
+  string cursor = 5;
 }
 
 service InvoiceService {

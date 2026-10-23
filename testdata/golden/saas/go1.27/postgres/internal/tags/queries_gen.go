@@ -25,6 +25,17 @@ WHERE ($1::text IS NULL OR "name" = $1)
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "color"
+FROM "tags"
+WHERE ($1::text IS NULL OR "name" = $1)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "tags"
@@ -74,6 +85,19 @@ WHERE "user_tags"."user_id" = $1
     AND ($2::text IS NULL OR "tags"."name" = $2)
 ORDER BY "tags"."id"
 LIMIT $3 OFFSET $4`
+
+const listUserTagsAfterQuery = `
+SELECT
+    "tags"."id",
+    "tags"."name",
+    "tags"."color"
+FROM "tags"
+JOIN "user_tags" ON "user_tags"."tag_id" = "tags"."id"
+WHERE "user_tags"."user_id" = $1
+    AND ($2::text IS NULL OR "tags"."name" = $2)
+    AND "tags"."id" > $3
+ORDER BY "tags"."id"
+LIMIT $4 OFFSET 0`
 
 const countUserTagsQuery = `
 SELECT COUNT(*)

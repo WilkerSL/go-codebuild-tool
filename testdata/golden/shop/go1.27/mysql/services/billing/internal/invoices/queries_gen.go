@@ -31,6 +31,22 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `owner_id`,\n" +
+	"    `number`,\n" +
+	"    `status`,\n" +
+	"    `notes`,\n" +
+	"    `created_at`\n" +
+	"FROM `invoices`\n" +
+	"WHERE `owner_id` = ?\n" +
+	"    AND `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `number` = ?)\n" +
+	"    AND (? IS NULL OR `status` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `invoices`\n" +
 	"WHERE `owner_id` = ?\n" +

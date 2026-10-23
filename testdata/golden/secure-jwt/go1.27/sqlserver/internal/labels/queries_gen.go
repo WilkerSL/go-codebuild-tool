@@ -24,6 +24,17 @@ ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [name]
+FROM [labels]
+WHERE (@p1 IS NULL OR [name] = @p1)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [labels]
@@ -87,6 +98,19 @@ WHERE [note_labels].[note_id] = @p1
     AND (@p2 IS NULL OR [labels].[name] = @p2)
 ORDER BY [labels].[id]
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listNoteLabelsAfterQuery = `
+SELECT
+    [labels].[id],
+    [labels].[name]
+FROM [labels]
+JOIN [note_labels] ON [note_labels].[label_id] = [labels].[id]
+WHERE [note_labels].[note_id] = @p1
+    AND (@p2 IS NULL OR [labels].[name] = @p2)
+    AND [labels].[id] > @p3
+ORDER BY [labels].[id]
+OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countNoteLabelsQuery = `

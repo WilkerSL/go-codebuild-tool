@@ -24,6 +24,17 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `action`,\n" +
+	"    `payload`,\n" +
+	"    `created_at`\n" +
+	"FROM `audit_log`\n" +
+	"WHERE (? IS NULL OR `action` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `audit_log`\n" +
 	"WHERE (? IS NULL OR `action` = ?)"

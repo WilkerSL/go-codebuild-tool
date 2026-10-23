@@ -19,7 +19,8 @@ message StockPage {
   repeated Stock items = 1;
   int32 limit = 2;
   int32 offset = 3;
-  int64 total = 4;
+  optional int64 total = 4;
+  optional string next_cursor = 5;
 }
 
 message StockGetRequest {
@@ -30,6 +31,7 @@ message StockListRequest {
   int32 limit = 1;
   int32 offset = 2;
   optional int64 product_id = 3;
+  string cursor = 4;
 }
 
 message StockExistsRequest {

@@ -32,6 +32,22 @@ ORDER BY [id]
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [invoice_id],
+    [product_id],
+    [quantity],
+    [price]
+FROM [invoice_items]
+WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
+    AND (@p1 IS NULL OR [invoice_id] = @p1)
+    AND (@p2 IS NULL OR [product_id] = @p2)
+    AND [id] > @p3
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [invoice_items]
@@ -132,6 +148,22 @@ WHERE [invoice_id] = @p1
     AND (@p2 IS NULL OR [product_id] = @p2)
 ORDER BY [id]
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listInvoiceItemsAfterQuery = `
+SELECT
+    [id],
+    [invoice_id],
+    [product_id],
+    [quantity],
+    [price]
+FROM [invoice_items]
+WHERE [invoice_id] = @p1
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [product_id] = @p2)
+    AND [id] > @p3
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countInvoiceItemsQuery = `

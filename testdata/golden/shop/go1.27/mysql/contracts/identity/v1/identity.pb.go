@@ -107,7 +107,8 @@ type UserPage struct {
 	Items         []*User                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,10 +164,17 @@ func (x *UserPage) GetOffset() int32 {
 }
 
 func (x *UserPage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *UserPage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type UserGetRequest struct {
@@ -217,6 +225,7 @@ type UserListRequest struct {
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Email         *string                `protobuf:"bytes,3,opt,name=email,proto3,oneof" json:"email,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -267,6 +276,13 @@ func (x *UserListRequest) GetOffset() int32 {
 func (x *UserListRequest) GetEmail() string {
 	if x != nil && x.Email != nil {
 		return *x.Email
+	}
+	return ""
+}
+
+func (x *UserListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
 	}
 	return ""
 }
@@ -1070,18 +1086,23 @@ const file_identity_v1_identity_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"w\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xbc\x01\n" +
 	"\bUserPage\x12'\n" +
 	"\x05items\x18\x01 \x03(\v2\x11.identity.v1.UserR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\" \n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\" \n" +
 	"\x0eUserGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"d\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"|\n" +
 	"\x0fUserListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x19\n" +
-	"\x05email\x18\x03 \x01(\tH\x00R\x05email\x88\x01\x01B\b\n" +
+	"\x05email\x18\x03 \x01(\tH\x00R\x05email\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursorB\b\n" +
 	"\x06_email\"#\n" +
 	"\x11UserExistsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\xaa\x01\n" +
@@ -1256,6 +1277,7 @@ func file_identity_v1_identity_proto_init() {
 	if File_identity_v1_identity_proto != nil {
 		return
 	}
+	file_identity_v1_identity_proto_msgTypes[1].OneofWrappers = []any{}
 	file_identity_v1_identity_proto_msgTypes[3].OneofWrappers = []any{}
 	file_identity_v1_identity_proto_msgTypes[5].OneofWrappers = []any{}
 	file_identity_v1_identity_proto_msgTypes[6].OneofWrappers = []any{}

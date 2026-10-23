@@ -246,6 +246,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 		byName := messageFields(msg)
 		var c strings.Builder
 		c.WriteString("var p ListParams\nvar err error\nif p.Limit, p.Offset, err = grpcx.Page(req.GetLimit(), req.GetOffset()); err != nil {\nreturn ListParams{}, err\n}\nvar errs validation.Errors\n")
+		c.WriteString("if raw := req.GetCursor(); raw != \"\" {\ncursor, err := ParseCursor(raw)\nif err != nil {\nerrs.Add(\"cursor\", \"is invalid\")\n} else {\np.Cursor = &cursor\n}\n}\n")
 		for _, fv := range dv.Filters {
 			if fv.F == skip {
 				continue

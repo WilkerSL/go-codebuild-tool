@@ -34,6 +34,7 @@ type UpdateInput struct {
 type ListParams struct {
 	Limit    int
 	Offset   int
+	Cursor   *Cursor
 	OrgID    *uuid.UUID
 	OwnerID  *uuid.UUID
 	Archived *bool

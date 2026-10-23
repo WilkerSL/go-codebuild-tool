@@ -37,6 +37,24 @@ WHERE "deleted_at" IS NULL
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "email",
+    "role",
+    "bio",
+    "org_id",
+    "created_at",
+    "updated_at"
+FROM "users"
+WHERE "deleted_at" IS NULL
+    AND (? IS NULL OR "email" = ?)
+    AND (? IS NULL OR "org_id" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "users"
@@ -126,6 +144,24 @@ WHERE "org_id" = ?
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listOrgUsersAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "email",
+    "role",
+    "bio",
+    "org_id",
+    "created_at",
+    "updated_at"
+FROM "users"
+WHERE "org_id" = ?
+    AND "deleted_at" IS NULL
+    AND (? IS NULL OR "email" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countOrgUsersQuery = `
 SELECT COUNT(*)
 FROM "users"
@@ -156,6 +192,26 @@ WHERE "user_tags"."tag_id" = ?
     AND (? IS NULL OR "users"."org_id" = ?)
 ORDER BY "users"."created_at" DESC, "users"."id" DESC
 LIMIT ? OFFSET ?`
+
+const listTagUsersAfterQuery = `
+SELECT
+    "users"."id",
+    "users"."name",
+    "users"."email",
+    "users"."role",
+    "users"."bio",
+    "users"."org_id",
+    "users"."created_at",
+    "users"."updated_at"
+FROM "users"
+JOIN "user_tags" ON "user_tags"."user_id" = "users"."id"
+WHERE "user_tags"."tag_id" = ?
+    AND "users"."deleted_at" IS NULL
+    AND (? IS NULL OR "users"."email" = ?)
+    AND (? IS NULL OR "users"."org_id" = ?)
+    AND ("users"."created_at" < ? OR ("users"."created_at" = ? AND "users"."id" < ?))
+ORDER BY "users"."created_at" DESC, "users"."id" DESC
+LIMIT ? OFFSET 0`
 
 const countTagUsersQuery = `
 SELECT COUNT(*)

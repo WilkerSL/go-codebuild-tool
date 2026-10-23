@@ -6,10 +6,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Cursor pagination: every list response carries `nextCursor`, and `?cursor=` returns the rows after it without a `COUNT(*)`, using the list order as the key, so it stays fast on large tables and correct while rows are added. Offset pagination works as before. In workspaces the gateway forwards the cursor and the contracts gain `cursor` and `next_cursor` fields; existing field numbers do not change.
 - Database spans: with tracing enabled, every query of the generated repositories and account code is a child span of its request, following the OpenTelemetry database conventions, without parameter values. `database.Traced` wraps your own `*sql.DB` or `*sql.Tx` the same way.
 
 ### Changed
 
+- `Page.Total` is an `*int64`, nil on cursor pages, and `Page` has a `NextCursor *string`; `ListParams` has a `Cursor *Cursor`. Code of yours that reads `Total` needs a dereference. In workspace contracts `total` is now `optional`.
 - Generated SQLite projects use `modernc.org/sqlite` v1.61.0.
 
 ### Fixed

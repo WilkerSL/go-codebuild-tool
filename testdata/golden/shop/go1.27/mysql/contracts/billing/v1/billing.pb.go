@@ -107,7 +107,8 @@ type InvoicePage struct {
 	Items         []*Invoice             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,10 +164,17 @@ func (x *InvoicePage) GetOffset() int32 {
 }
 
 func (x *InvoicePage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *InvoicePage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type InvoiceGetRequest struct {
@@ -218,6 +226,7 @@ type InvoiceListRequest struct {
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Number        *string                `protobuf:"bytes,3,opt,name=number,proto3,oneof" json:"number,omitempty"`
 	Status        *string                `protobuf:"bytes,4,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	Cursor        string                 `protobuf:"bytes,5,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -275,6 +284,13 @@ func (x *InvoiceListRequest) GetNumber() string {
 func (x *InvoiceListRequest) GetStatus() string {
 	if x != nil && x.Status != nil {
 		return *x.Status
+	}
+	return ""
+}
+
+func (x *InvoiceListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
 	}
 	return ""
 }
@@ -571,7 +587,8 @@ type InvoiceItemPage struct {
 	Items         []*InvoiceItem         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -627,10 +644,17 @@ func (x *InvoiceItemPage) GetOffset() int32 {
 }
 
 func (x *InvoiceItemPage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *InvoiceItemPage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type InvoiceItemGetRequest struct {
@@ -682,6 +706,7 @@ type InvoiceItemListRequest struct {
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	InvoiceId     *string                `protobuf:"bytes,3,opt,name=invoice_id,json=invoiceId,proto3,oneof" json:"invoice_id,omitempty"`
 	ProductId     *int64                 `protobuf:"varint,4,opt,name=product_id,json=productId,proto3,oneof" json:"product_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,5,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -741,6 +766,13 @@ func (x *InvoiceItemListRequest) GetProductId() int64 {
 		return *x.ProductId
 	}
 	return 0
+}
+
+func (x *InvoiceItemListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
 }
 
 type InvoiceItemExistsRequest struct {
@@ -977,6 +1009,7 @@ type ListInvoiceItemsRequest struct {
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
 	ProductId     *int64                 `protobuf:"varint,4,opt,name=product_id,json=productId,proto3,oneof" json:"product_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,5,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1038,6 +1071,13 @@ func (x *ListInvoiceItemsRequest) GetProductId() int64 {
 	return 0
 }
 
+func (x *ListInvoiceItemsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 var File_billing_v1_billing_proto protoreflect.FileDescriptor
 
 const file_billing_v1_billing_proto_rawDesc = "" +
@@ -1052,19 +1092,24 @@ const file_billing_v1_billing_proto_rawDesc = "" +
 	"\x05notes\x18\x05 \x01(\tH\x00R\x05notes\x88\x01\x01\x129\n" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAtB\b\n" +
-	"\x06_notes\"|\n" +
+	"\x06_notes\"\xc1\x01\n" +
 	"\vInvoicePage\x12)\n" +
 	"\x05items\x18\x01 \x03(\v2\x13.billing.v1.InvoiceR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\"#\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\"#\n" +
 	"\x11InvoiceGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x92\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xaa\x01\n" +
 	"\x12InvoiceListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1b\n" +
 	"\x06number\x18\x03 \x01(\tH\x00R\x06number\x88\x01\x01\x12\x1b\n" +
-	"\x06status\x18\x04 \x01(\tH\x01R\x06status\x88\x01\x01B\t\n" +
+	"\x06status\x18\x04 \x01(\tH\x01R\x06status\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x05 \x01(\tR\x06cursorB\t\n" +
 	"\a_numberB\t\n" +
 	"\a_status\"&\n" +
 	"\x14InvoiceExistsRequest\x12\x0e\n" +
@@ -1093,21 +1138,26 @@ const file_billing_v1_billing_proto_rawDesc = "" +
 	"\n" +
 	"product_id\x18\x03 \x01(\x03R\tproductId\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12\x14\n" +
-	"\x05price\x18\x05 \x01(\x01R\x05price\"\x84\x01\n" +
+	"\x05price\x18\x05 \x01(\x01R\x05price\"\xc9\x01\n" +
 	"\x0fInvoiceItemPage\x12-\n" +
 	"\x05items\x18\x01 \x03(\v2\x17.billing.v1.InvoiceItemR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\"'\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\"'\n" +
 	"\x15InvoiceItemGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xac\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xc4\x01\n" +
 	"\x16InvoiceItemListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\"\n" +
 	"\n" +
 	"invoice_id\x18\x03 \x01(\tH\x00R\tinvoiceId\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"product_id\x18\x04 \x01(\x03H\x01R\tproductId\x88\x01\x01B\r\n" +
+	"product_id\x18\x04 \x01(\x03H\x01R\tproductId\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x05 \x01(\tR\x06cursorB\r\n" +
 	"\v_invoice_idB\r\n" +
 	"\v_product_id\"*\n" +
 	"\x18InvoiceItemExistsRequest\x12\x0e\n" +
@@ -1136,13 +1186,14 @@ const file_billing_v1_billing_proto_rawDesc = "" +
 	"\t_quantityB\b\n" +
 	"\x06_price\"*\n" +
 	"\x18InvoiceItemDeleteRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x97\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xaf\x01\n" +
 	"\x17ListInvoiceItemsRequest\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\"\n" +
 	"\n" +
-	"product_id\x18\x04 \x01(\x03H\x00R\tproductId\x88\x01\x01B\r\n" +
+	"product_id\x18\x04 \x01(\x03H\x00R\tproductId\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x05 \x01(\tR\x06cursorB\r\n" +
 	"\v_product_id2\x99\x03\n" +
 	"\x0eInvoiceService\x129\n" +
 	"\x03Get\x12\x1d.billing.v1.InvoiceGetRequest\x1a\x13.billing.v1.Invoice\x12?\n" +
@@ -1238,9 +1289,11 @@ func file_billing_v1_billing_proto_init() {
 		return
 	}
 	file_billing_v1_billing_proto_msgTypes[0].OneofWrappers = []any{}
+	file_billing_v1_billing_proto_msgTypes[1].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[3].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[5].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[6].OneofWrappers = []any{}
+	file_billing_v1_billing_proto_msgTypes[9].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[11].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[13].OneofWrappers = []any{}
 	file_billing_v1_billing_proto_msgTypes[14].OneofWrappers = []any{}

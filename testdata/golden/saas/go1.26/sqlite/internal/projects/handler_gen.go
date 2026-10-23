@@ -28,6 +28,14 @@ func listParams(r *http.Request) (ListParams, error) {
 	var errs validation.Errors
 	var p ListParams
 	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+	if raw := httpx.Cursor(q, &errs); raw != "" {
+		cursor, err := ParseCursor(raw)
+		if err != nil {
+			errs.Add("cursor", "is invalid")
+		} else {
+			p.Cursor = &cursor
+		}
+	}
 	p.OrgID = httpx.QueryUUID(q, "orgId", &errs)
 	p.OwnerID = httpx.QueryUUID(q, "ownerId", &errs)
 	p.Archived = httpx.QueryBool(q, "archived", &errs)

@@ -223,6 +223,10 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 	if page := c.expect(http.MethodGet, "/categories/"+strconv.FormatInt(categoryID, 10)+"/products", nil, http.StatusOK); page["total"].(float64) != 1 {
 		t.Fatalf("category products = %v", page)
 	}
+	admin.expect(http.MethodPost, "/categories", map[string]any{"name": "Paper"}, http.StatusCreated)
+	if ids := walkCursor(t, c, "/categories"); len(ids) != 2 {
+		t.Fatalf("cursor pagination through the gateway saw %d categories", len(ids))
+	}
 	admin.expect(http.MethodPost, "/stocks", map[string]any{"productId": productID, "quantity": 10}, http.StatusCreated)
 	missing := admin.expect(http.MethodPost, "/stocks", map[string]any{"productId": 999999, "quantity": 1}, http.StatusUnprocessableEntity)
 	if got := strings.Join(fieldErrors(missing), ","); got != "productId" {

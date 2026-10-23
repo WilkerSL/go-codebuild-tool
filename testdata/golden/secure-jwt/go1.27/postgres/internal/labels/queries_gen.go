@@ -23,6 +23,16 @@ WHERE ($1::text IS NULL OR "name" = $1)
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name"
+FROM "labels"
+WHERE ($1::text IS NULL OR "name" = $1)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "labels"
@@ -66,6 +76,18 @@ WHERE "note_labels"."note_id" = $1
     AND ($2::text IS NULL OR "labels"."name" = $2)
 ORDER BY "labels"."id"
 LIMIT $3 OFFSET $4`
+
+const listNoteLabelsAfterQuery = `
+SELECT
+    "labels"."id",
+    "labels"."name"
+FROM "labels"
+JOIN "note_labels" ON "note_labels"."label_id" = "labels"."id"
+WHERE "note_labels"."note_id" = $1
+    AND ($2::text IS NULL OR "labels"."name" = $2)
+    AND "labels"."id" > $3
+ORDER BY "labels"."id"
+LIMIT $4 OFFSET 0`
 
 const countNoteLabelsQuery = `
 SELECT COUNT(*)

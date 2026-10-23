@@ -36,6 +36,25 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `owner_id`,\n" +
+	"    `folder_id`,\n" +
+	"    `title`,\n" +
+	"    `body`,\n" +
+	"    `pinned`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `notes`\n" +
+	"WHERE `owner_id` = ?\n" +
+	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `folder_id` = ?)\n" +
+	"    AND (? IS NULL OR `pinned` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `notes`\n" +
 	"WHERE `owner_id` = ?\n" +
@@ -99,6 +118,25 @@ const listFolderNotesQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listFolderNotesAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `owner_id`,\n" +
+	"    `folder_id`,\n" +
+	"    `title`,\n" +
+	"    `body`,\n" +
+	"    `pinned`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `notes`\n" +
+	"WHERE `folder_id` = ?\n" +
+	"    AND `owner_id` = ?\n" +
+	"    AND `deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `pinned` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countFolderNotesQuery = "SELECT COUNT(*)\n" +
 	"FROM `notes`\n" +
 	"WHERE `folder_id` = ?\n" +
@@ -130,6 +168,27 @@ const listLabelNotesQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `notes`.`pinned` = ?)\n" +
 	"ORDER BY `notes`.`created_at` DESC, `notes`.`id` DESC\n" +
 	"LIMIT ? OFFSET ?"
+
+const listLabelNotesAfterQuery = "SELECT\n" +
+	"    `notes`.`id`,\n" +
+	"    `notes`.`owner_id`,\n" +
+	"    `notes`.`folder_id`,\n" +
+	"    `notes`.`title`,\n" +
+	"    `notes`.`body`,\n" +
+	"    `notes`.`pinned`,\n" +
+	"    `notes`.`created_at`,\n" +
+	"    `notes`.`updated_at`\n" +
+	"FROM `notes`\n" +
+	"JOIN `note_labels` ON `note_labels`.`note_id` = `notes`.`id`\n" +
+	"WHERE `note_labels`.`label_id` = ?\n" +
+	"    AND `notes`.`owner_id` = ?\n" +
+	"    AND `notes`.`deleted_at` IS NULL\n" +
+	"    AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `notes`.`folder_id` = ?)\n" +
+	"    AND (? IS NULL OR `notes`.`pinned` = ?)\n" +
+	"    AND (`notes`.`created_at` < ? OR (`notes`.`created_at` = ? AND `notes`.`id` < ?))\n" +
+	"ORDER BY `notes`.`created_at` DESC, `notes`.`id` DESC\n" +
+	"LIMIT ? OFFSET 0"
 
 const countLabelNotesQuery = "SELECT COUNT(*)\n" +
 	"FROM `notes`\n" +

@@ -34,6 +34,23 @@ WHERE "owner_id" = ?
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "owner_id",
+    "number",
+    "status",
+    "notes",
+    "created_at"
+FROM "invoices"
+WHERE "owner_id" = ?
+    AND "deleted_at" IS NULL
+    AND (? IS NULL OR "number" = ?)
+    AND (? IS NULL OR "status" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "invoices"

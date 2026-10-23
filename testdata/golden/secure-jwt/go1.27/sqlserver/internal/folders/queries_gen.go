@@ -26,6 +26,18 @@ WHERE [owner_id] = @p1
 ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [owner_id],
+    [name]
+FROM [folders]
+WHERE [owner_id] = @p1
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [folders].[owner_id] AND [users].[deleted_at] IS NULL)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [folders]

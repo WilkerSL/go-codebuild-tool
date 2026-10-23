@@ -29,6 +29,20 @@ ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [category_id],
+    [name],
+    [price]
+FROM [products]
+WHERE [deleted_at] IS NULL
+    AND (@p1 IS NULL OR [category_id] = @p1)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [products]
@@ -113,6 +127,20 @@ WHERE [category_id] = @p1
     AND [deleted_at] IS NULL
 ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listCategoryProductsAfterQuery = `
+SELECT
+    [id],
+    [category_id],
+    [name],
+    [price]
+FROM [products]
+WHERE [category_id] = @p1
+    AND [deleted_at] IS NULL
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countCategoryProductsQuery = `

@@ -55,6 +55,9 @@ func (r *Repository) Exists(ctx context.Context, id int64) (bool, error) {
 }
 
 func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
+	if p.Cursor != nil {
+		return r.pageAfter(ctx, p, listAfterQuery, []any{p.Action, database.CursorTimeArg(p.Cursor.CreatedAt), p.Cursor.ID, p.Limit + 1})
+	}
 	return r.page(ctx, p, listQuery, []any{p.Action, p.Offset, p.Limit}, countQuery, []any{p.Action})
 }
 
@@ -128,7 +131,36 @@ func (r *Repository) page(ctx context.Context, p ListParams, listSQL string, lis
 	if err := r.db.QueryRowContext(ctx, countSQL, countArgs...).Scan(&total); err != nil {
 		return Page{}, fmt.Errorf("count audit log: %w", err)
 	}
-	return Page{Items: items, Limit: p.Limit, Offset: p.Offset, Total: total}, nil
+	page := Page{Items: items, Limit: p.Limit, Offset: p.Offset, Total: &total}
+	if len(items) > 0 && int64(p.Offset+len(items)) < total {
+		page.NextCursor = cursorAfter(items[len(items)-1])
+	}
+	return page, nil
+}
+
+func (r *Repository) pageAfter(ctx context.Context, p ListParams, listSQL string, listArgs []any) (Page, error) {
+	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
+	if err != nil {
+		return Page{}, fmt.Errorf("list audit log: %w", err)
+	}
+	defer rows.Close()
+	items := make([]Audit, 0, max(0, min(p.Limit+1, 101)))
+	for rows.Next() {
+		item, err := scanAudit(rows.Scan)
+		if err != nil {
+			return Page{}, fmt.Errorf("list audit log: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return Page{}, fmt.Errorf("list audit log: %w", err)
+	}
+	page := Page{Items: items, Limit: p.Limit}
+	if p.Limit > 0 && len(items) > p.Limit {
+		page.Items = items[:p.Limit]
+		page.NextCursor = cursorAfter(page.Items[p.Limit-1])
+	}
+	return page, nil
 }
 
 func writeError(op string, err error) error {

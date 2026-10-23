@@ -24,6 +24,17 @@ ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [name]
+FROM [categories]
+WHERE (@p1 IS NULL OR [name] = @p1)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [categories]

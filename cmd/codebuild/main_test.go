@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -373,6 +374,11 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 		t.Fatalf("filtered list = %v", page)
 	}
 	c.expect("GET", "/users?limit=1000", nil, http.StatusBadRequest)
+	c.expect("POST", "/orgs", map[string]any{"name": "Beta", "slug": "beta-" + suffix}, http.StatusCreated)
+	c.expect("POST", "/orgs", map[string]any{"name": "Gamma", "slug": "gamma-" + suffix}, http.StatusCreated)
+	if ids := walkCursor(t, c, "/orgs"); len(ids) < 3 {
+		t.Fatalf("cursor pagination saw %d orgs", len(ids))
+	}
 	nested := c.expect("GET", "/orgs/"+orgID+"/users", nil, http.StatusOK)
 	if nested["total"].(float64) != 1 {
 		t.Fatalf("nested list = %v", nested)
@@ -640,4 +646,44 @@ func telemetryCheck(t *testing.T, c client, metricsAddr string, spans *collector
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
+}
+
+// walkCursor follows nextCursor from the first page of path to the last one,
+// checks that no item repeats and that cursor pages skip the count, and
+// returns the ids it saw.
+func walkCursor(t *testing.T, c client, path string) []string {
+	t.Helper()
+	first := c.expect("GET", path+"?limit=1", nil, http.StatusOK)
+	seen := map[string]bool{}
+	var ids []string
+	page := first
+	for pages := 0; ; pages++ {
+		if pages > 1000 {
+			t.Fatalf("the cursor pages of %s never end", path)
+		}
+		for _, item := range page["items"].([]any) {
+			id := fmt.Sprint(item.(map[string]any)["id"])
+			if seen[id] {
+				t.Fatalf("%s returned %s on two pages", path, id)
+			}
+			seen[id] = true
+			ids = append(ids, id)
+		}
+		next, _ := page["nextCursor"].(string)
+		if next == "" {
+			break
+		}
+		page = c.expect("GET", path+"?limit=1&cursor="+url.QueryEscape(next), nil, http.StatusOK)
+		if _, counted := page["total"]; counted {
+			t.Fatalf("a cursor page of %s carries a total: %v", path, page)
+		}
+	}
+	if total := first["total"].(float64); len(ids) != int(total) {
+		t.Fatalf("cursor pages of %s returned %d items, the offset page counts %v", path, len(ids), total)
+	}
+	c.expect("GET", path+"?cursor=not-a-cursor", nil, http.StatusBadRequest)
+	if next, _ := first["nextCursor"].(string); next != "" {
+		c.expect("GET", path+"?offset=1&cursor="+url.QueryEscape(next), nil, http.StatusBadRequest)
+	}
+	return ids
 }

@@ -23,6 +23,16 @@ WHERE (? IS NULL OR "name" = ?)
 ORDER BY "id"
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name"
+FROM "categories"
+WHERE (? IS NULL OR "name" = ?)
+    AND "id" > ?
+ORDER BY "id"
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "categories"

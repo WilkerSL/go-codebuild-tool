@@ -25,6 +25,7 @@ type UpdateInput struct {
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor *Cursor
 	Slug   *string
 	Plan   *string
 }

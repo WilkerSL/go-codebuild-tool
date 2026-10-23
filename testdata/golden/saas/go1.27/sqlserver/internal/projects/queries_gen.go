@@ -43,6 +43,28 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [org_id],
+    [owner_id],
+    [name],
+    [budget],
+    [priority],
+    [archived],
+    [logo],
+    [due_at],
+    [created_at]
+FROM [projects]
+WHERE EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
+    AND (@p1 IS NULL OR [org_id] = @p1)
+    AND (@p2 IS NULL OR [owner_id] = @p2)
+    AND (@p3 IS NULL OR [archived] = @p3)
+    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [projects]
@@ -196,6 +218,28 @@ WHERE [org_id] = @p1
     AND (@p3 IS NULL OR [archived] = @p3)
 ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listOrgProjectsAfterQuery = `
+SELECT
+    [id],
+    [org_id],
+    [owner_id],
+    [name],
+    [budget],
+    [priority],
+    [archived],
+    [logo],
+    [due_at],
+    [created_at]
+FROM [projects]
+WHERE [org_id] = @p1
+    AND EXISTS (SELECT 1 FROM [orgs] WHERE [orgs].[id] = [projects].[org_id] AND [orgs].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [owner_id] = @p2)
+    AND (@p3 IS NULL OR [archived] = @p3)
+    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countOrgProjectsQuery = `

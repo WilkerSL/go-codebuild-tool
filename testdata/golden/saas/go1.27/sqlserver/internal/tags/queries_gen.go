@@ -26,6 +26,18 @@ ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [name],
+    [color]
+FROM [tags]
+WHERE (@p1 IS NULL OR [name] = @p1)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [tags]
@@ -99,6 +111,20 @@ WHERE [user_tags].[user_id] = @p1
     AND (@p2 IS NULL OR [tags].[name] = @p2)
 ORDER BY [tags].[id]
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listUserTagsAfterQuery = `
+SELECT
+    [tags].[id],
+    [tags].[name],
+    [tags].[color]
+FROM [tags]
+JOIN [user_tags] ON [user_tags].[tag_id] = [tags].[id]
+WHERE [user_tags].[user_id] = @p1
+    AND (@p2 IS NULL OR [tags].[name] = @p2)
+    AND [tags].[id] > @p3
+ORDER BY [tags].[id]
+OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countUserTagsQuery = `

@@ -114,8 +114,8 @@ func TestRepositoryCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if page.Total < 1 || len(page.Items) < 1 {
-		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	if *page.Total < 1 || len(page.Items) < 1 {
+		t.Fatalf("list returned %d of %d items", len(page.Items), *page.Total)
 	}
 	updated, err := repo.Update(ctx, owner, created.ID, folders.UpdateInput{
 		Name: "a",
@@ -142,6 +142,59 @@ func TestRepositoryCRUD(t *testing.T) {
 	}
 	if _, err := repo.Get(ctx, uuid.New(), -1); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get missing: %v", err)
+	}
+}
+
+func TestRepositoryCursor(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	repo := folders.NewRepository(db)
+	owner := fixtureUser(t, ctx, db).ID
+	want := map[int64]bool{}
+	for range 3 {
+		want[fixtureFolder(t, ctx, db, owner).ID] = true
+	}
+	first, err := repo.List(ctx, owner, folders.ListParams{Limit: 1})
+	if err != nil || first.Total == nil || first.NextCursor == nil {
+		t.Fatalf("an offset page with more rows has no cursor: %+v %v", first, err)
+	}
+	seen := map[int64]bool{}
+	p := folders.ListParams{Limit: 2}
+	for pages := 0; ; pages++ {
+		if pages > 10000 {
+			t.Fatal("cursor pagination does not end")
+		}
+		page, err := repo.List(ctx, owner, p)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if p.Cursor != nil && page.Total != nil {
+			t.Fatal("a cursor page counted the rows")
+		}
+		for _, item := range page.Items {
+			if seen[item.ID] {
+				t.Fatalf("%v appeared on two pages", item.ID)
+			}
+			seen[item.ID] = true
+		}
+		if page.NextCursor == nil {
+			break
+		}
+		cursor, err := folders.ParseCursor(*page.NextCursor)
+		if err != nil {
+			t.Fatalf("parse cursor %q: %v", *page.NextCursor, err)
+		}
+		p.Cursor = &cursor
+	}
+	for id := range want {
+		if !seen[id] {
+			t.Fatalf("cursor pagination skipped %v", id)
+		}
+	}
+	for _, bad := range []string{"", "not a cursor", "e30"} {
+		if _, err := folders.ParseCursor(bad); !errors.Is(err, folders.ErrInvalidCursor) {
+			t.Errorf("ParseCursor(%q) = %v", bad, err)
+		}
 	}
 }
 

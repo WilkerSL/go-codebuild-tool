@@ -23,6 +23,17 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `product_id`,\n" +
+	"    `quantity`\n" +
+	"FROM `stocks`\n" +
+	"WHERE EXISTS (SELECT 1 FROM `products` WHERE `products`.`id` = `stocks`.`product_id` AND `products`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `product_id` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `stocks`\n" +
 	"WHERE EXISTS (SELECT 1 FROM `products` WHERE `products`.`id` = `stocks`.`product_id` AND `products`.`deleted_at` IS NULL)\n" +

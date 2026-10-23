@@ -22,6 +22,16 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`,\n" +
+	"    `color`\n" +
+	"FROM `tags`\n" +
+	"WHERE (? IS NULL OR `name` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `tags`\n" +
 	"WHERE (? IS NULL OR `name` = ?)"
@@ -57,6 +67,18 @@ const listUserTagsQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `tags`.`name` = ?)\n" +
 	"ORDER BY `tags`.`id`\n" +
 	"LIMIT ? OFFSET ?"
+
+const listUserTagsAfterQuery = "SELECT\n" +
+	"    `tags`.`id`,\n" +
+	"    `tags`.`name`,\n" +
+	"    `tags`.`color`\n" +
+	"FROM `tags`\n" +
+	"JOIN `user_tags` ON `user_tags`.`tag_id` = `tags`.`id`\n" +
+	"WHERE `user_tags`.`user_id` = ?\n" +
+	"    AND (? IS NULL OR `tags`.`name` = ?)\n" +
+	"    AND `tags`.`id` > ?\n" +
+	"ORDER BY `tags`.`id`\n" +
+	"LIMIT ? OFFSET 0"
 
 const countUserTagsQuery = "SELECT COUNT(*)\n" +
 	"FROM `tags`\n" +

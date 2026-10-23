@@ -46,7 +46,7 @@ func toPageMessage(page Page) *billingv1.InvoicePage {
 	for i, item := range page.Items {
 		items[i] = toMessage(item)
 	}
-	return &billingv1.InvoicePage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total}
+	return &billingv1.InvoicePage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total, NextCursor: page.NextCursor}
 }
 
 func listParamsFrom(req *billingv1.InvoiceListRequest) (ListParams, error) {
@@ -56,6 +56,14 @@ func listParamsFrom(req *billingv1.InvoiceListRequest) (ListParams, error) {
 		return ListParams{}, err
 	}
 	var errs validation.Errors
+	if raw := req.GetCursor(); raw != "" {
+		cursor, err := ParseCursor(raw)
+		if err != nil {
+			errs.Add("cursor", "is invalid")
+		} else {
+			p.Cursor = &cursor
+		}
+	}
 	p.Number = req.Number
 	p.Status = req.Status
 	if len(errs) > 0 {

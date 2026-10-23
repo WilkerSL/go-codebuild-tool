@@ -84,6 +84,10 @@ func TimeArg(t time.Time) any {
 	return t.UTC()
 }
 
+func CursorTimeArg(t time.Time) any {
+	return t.UTC().Format("2006-01-02 15:04:05.000")
+}
+
 func NullTimeArg(t *time.Time) any {
 	if t == nil {
 		return nil

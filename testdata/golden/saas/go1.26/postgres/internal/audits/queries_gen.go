@@ -27,6 +27,18 @@ WHERE ($1::text IS NULL OR "action" = $1)
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "action",
+    "payload",
+    "created_at"
+FROM "audit_log"
+WHERE ($1::text IS NULL OR "action" = $1)
+    AND ("created_at" < $2 OR ("created_at" = $2 AND "id" < $3))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT $4 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "audit_log"

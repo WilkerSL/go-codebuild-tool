@@ -35,6 +35,23 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [email],
+    [name],
+    [password_hash],
+    [role],
+    [created_at],
+    [updated_at]
+FROM [users]
+WHERE [deleted_at] IS NULL
+    AND (@p1 IS NULL OR [email] = @p1)
+    AND ([created_at] < @p2 OR ([created_at] = @p2 AND [id] < @p3))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [users]

@@ -25,6 +25,18 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `category_id`,\n" +
+	"    `name`,\n" +
+	"    `price`\n" +
+	"FROM `products`\n" +
+	"WHERE `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `category_id` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `products`\n" +
 	"WHERE `deleted_at` IS NULL\n" +
@@ -65,6 +77,18 @@ const listCategoryProductsQuery = "SELECT\n" +
 	"    AND `deleted_at` IS NULL\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
+
+const listCategoryProductsAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `category_id`,\n" +
+	"    `name`,\n" +
+	"    `price`\n" +
+	"FROM `products`\n" +
+	"WHERE `category_id` = ?\n" +
+	"    AND `deleted_at` IS NULL\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
 
 const countCategoryProductsQuery = "SELECT COUNT(*)\n" +
 	"FROM `products`\n" +

@@ -37,6 +37,24 @@ WHERE "deleted_at" IS NULL
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "slug",
+    "plan",
+    "active",
+    "locale",
+    "created_at",
+    "updated_at"
+FROM "orgs"
+WHERE "deleted_at" IS NULL
+    AND (? IS NULL OR "slug" = ?)
+    AND (? IS NULL OR "plan" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "orgs"

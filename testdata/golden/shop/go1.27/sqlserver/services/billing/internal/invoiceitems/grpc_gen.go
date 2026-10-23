@@ -47,7 +47,7 @@ func toPageMessage(page Page) *billingv1.InvoiceItemPage {
 	for i, item := range page.Items {
 		items[i] = toMessage(item)
 	}
-	return &billingv1.InvoiceItemPage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total}
+	return &billingv1.InvoiceItemPage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total, NextCursor: page.NextCursor}
 }
 
 func listParamsFrom(req *billingv1.InvoiceItemListRequest) (ListParams, error) {
@@ -57,6 +57,14 @@ func listParamsFrom(req *billingv1.InvoiceItemListRequest) (ListParams, error) {
 		return ListParams{}, err
 	}
 	var errs validation.Errors
+	if raw := req.GetCursor(); raw != "" {
+		cursor, err := ParseCursor(raw)
+		if err != nil {
+			errs.Add("cursor", "is invalid")
+		} else {
+			p.Cursor = &cursor
+		}
+	}
 	p.InvoiceID = grpcx.ParseNullUUID(req.InvoiceId, "invoiceId", &errs)
 	p.ProductID = req.ProductId
 	if len(errs) > 0 {
@@ -186,6 +194,14 @@ func listParamsListInvoiceItems(req *billingv1.ListInvoiceItemsRequest) (ListPar
 		return ListParams{}, err
 	}
 	var errs validation.Errors
+	if raw := req.GetCursor(); raw != "" {
+		cursor, err := ParseCursor(raw)
+		if err != nil {
+			errs.Add("cursor", "is invalid")
+		} else {
+			p.Cursor = &cursor
+		}
+	}
 	p.ProductID = req.ProductId
 	if len(errs) > 0 {
 		return ListParams{}, grpcx.Problem(codes.InvalidArgument, http.StatusBadRequest, "the query string contains invalid parameters", errs)

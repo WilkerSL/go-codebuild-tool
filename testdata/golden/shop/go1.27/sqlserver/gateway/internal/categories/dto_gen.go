@@ -17,10 +17,11 @@ type Category struct {
 }
 
 type Page struct {
-	Items  []Category `json:"items"`
-	Limit  int        `json:"limit"`
-	Offset int        `json:"offset"`
-	Total  int64      `json:"total"`
+	Items      []Category `json:"items"`
+	Limit      int        `json:"limit"`
+	Offset     int        `json:"offset"`
+	Total      *int64     `json:"total,omitempty"`
+	NextCursor *string    `json:"nextCursor"`
 }
 
 func fromMessage(m *catalogv1.Category) Category {
@@ -35,12 +36,13 @@ func fromPage(m *catalogv1.CategoryPage) Page {
 	for i, item := range m.GetItems() {
 		items[i] = fromMessage(item)
 	}
-	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.GetTotal()}
+	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.Total, NextCursor: m.NextCursor}
 }
 
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor string
 	Name   *string
 }
 
@@ -49,6 +51,7 @@ func listParams(r *http.Request) (ListParams, error) {
 	var errs validation.Errors
 	var p ListParams
 	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+	p.Cursor = httpx.Cursor(q, &errs)
 	p.Name = httpx.QueryString(q, "name")
 	if len(errs) > 0 {
 		return ListParams{}, httpx.BadRequest("the query string contains invalid parameters", errs...)
@@ -60,6 +63,7 @@ func (p ListParams) message() *catalogv1.CategoryListRequest {
 	return &catalogv1.CategoryListRequest{
 		Limit:  int32(p.Limit),
 		Offset: int32(p.Offset),
+		Cursor: p.Cursor,
 		Name:   p.Name,
 	}
 }

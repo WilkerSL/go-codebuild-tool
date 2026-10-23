@@ -40,6 +40,27 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [owner_id],
+    [folder_id],
+    [title],
+    [body],
+    [pinned],
+    [created_at],
+    [updated_at]
+FROM [notes]
+WHERE [owner_id] = @p1
+    AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [folder_id] = @p2)
+    AND (@p3 IS NULL OR [pinned] = @p3)
+    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [notes]
@@ -172,6 +193,27 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listFolderNotesAfterQuery = `
+SELECT
+    [id],
+    [owner_id],
+    [folder_id],
+    [title],
+    [body],
+    [pinned],
+    [created_at],
+    [updated_at]
+FROM [notes]
+WHERE [folder_id] = @p1
+    AND [owner_id] = @p2
+    AND [deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
+    AND (@p3 IS NULL OR [pinned] = @p3)
+    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countFolderNotesQuery = `
 SELECT COUNT(*)
 FROM [notes]
@@ -207,6 +249,29 @@ WHERE [note_labels].[label_id] = @p1
     AND (@p4 IS NULL OR [notes].[pinned] = @p4)
 ORDER BY [notes].[created_at] DESC, [notes].[id] DESC
 OFFSET @p5 ROWS FETCH NEXT @p6 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listLabelNotesAfterQuery = `
+SELECT
+    [notes].[id],
+    [notes].[owner_id],
+    [notes].[folder_id],
+    [notes].[title],
+    [notes].[body],
+    [notes].[pinned],
+    [notes].[created_at],
+    [notes].[updated_at]
+FROM [notes]
+JOIN [note_labels] ON [note_labels].[note_id] = [notes].[id]
+WHERE [note_labels].[label_id] = @p1
+    AND [notes].[owner_id] = @p2
+    AND [notes].[deleted_at] IS NULL
+    AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL)
+    AND (@p3 IS NULL OR [notes].[folder_id] = @p3)
+    AND (@p4 IS NULL OR [notes].[pinned] = @p4)
+    AND ([notes].[created_at] < @p5 OR ([notes].[created_at] = @p5 AND [notes].[id] < @p6))
+ORDER BY [notes].[created_at] DESC, [notes].[id] DESC
+OFFSET 0 ROWS FETCH NEXT @p7 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countLabelNotesQuery = `

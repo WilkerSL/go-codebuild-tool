@@ -42,6 +42,27 @@ WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "org_id",
+    "owner_id",
+    "name",
+    "budget",
+    "priority",
+    "archived",
+    "logo",
+    "due_at",
+    "created_at"
+FROM "projects"
+WHERE EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND (? IS NULL OR "org_id" = ?)
+    AND (? IS NULL OR "owner_id" = ?)
+    AND (? IS NULL OR "archived" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "projects"
@@ -143,6 +164,27 @@ WHERE "org_id" = ?
     AND (? IS NULL OR "archived" = ?)
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
+
+const listOrgProjectsAfterQuery = `
+SELECT
+    "id",
+    "org_id",
+    "owner_id",
+    "name",
+    "budget",
+    "priority",
+    "archived",
+    "logo",
+    "due_at",
+    "created_at"
+FROM "projects"
+WHERE "org_id" = ?
+    AND EXISTS (SELECT 1 FROM "orgs" WHERE "orgs"."id" = "projects"."org_id" AND "orgs"."deleted_at" IS NULL)
+    AND (? IS NULL OR "owner_id" = ?)
+    AND (? IS NULL OR "archived" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
 
 const countOrgProjectsQuery = `
 SELECT COUNT(*)

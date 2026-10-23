@@ -28,6 +28,20 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `invoice_id`,\n" +
+	"    `product_id`,\n" +
+	"    `quantity`,\n" +
+	"    `price`\n" +
+	"FROM `invoice_items`\n" +
+	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `invoice_id` = ?)\n" +
+	"    AND (? IS NULL OR `product_id` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `invoice_items`\n" +
 	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
@@ -77,6 +91,20 @@ const listInvoiceItemsQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `product_id` = ?)\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
+
+const listInvoiceItemsAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `invoice_id`,\n" +
+	"    `product_id`,\n" +
+	"    `quantity`,\n" +
+	"    `price`\n" +
+	"FROM `invoice_items`\n" +
+	"WHERE `invoice_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `product_id` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
 
 const countInvoiceItemsQuery = "SELECT COUNT(*)\n" +
 	"FROM `invoice_items`\n" +

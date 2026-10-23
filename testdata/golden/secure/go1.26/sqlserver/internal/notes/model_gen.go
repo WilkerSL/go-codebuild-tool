@@ -3,6 +3,9 @@
 package notes
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +23,46 @@ type Note struct {
 }
 
 type Page struct {
-	Items  []Note `json:"items"`
-	Limit  int    `json:"limit"`
-	Offset int    `json:"offset"`
-	Total  int64  `json:"total"`
+	Items      []Note  `json:"items"`
+	Limit      int     `json:"limit"`
+	Offset     int     `json:"offset"`
+	Total      *int64  `json:"total,omitempty"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+type Cursor struct {
+	CreatedAt time.Time
+	ID        uuid.UUID
+}
+
+type cursorJSON struct {
+	Time *time.Time `json:"t"`
+	Key  *uuid.UUID `json:"k"`
+}
+
+var ErrInvalidCursor = errors.New("notes: invalid cursor")
+
+func (c Cursor) String() string {
+	data, _ := json.Marshal(cursorJSON{Time: &c.CreatedAt, Key: &c.ID})
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func ParseCursor(s string) (Cursor, error) {
+	if len(s) > 1024 {
+		return Cursor{}, ErrInvalidCursor
+	}
+	data, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return Cursor{}, ErrInvalidCursor
+	}
+	var raw cursorJSON
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Key == nil || raw.Time == nil {
+		return Cursor{}, ErrInvalidCursor
+	}
+	return Cursor{CreatedAt: raw.Time.UTC(), ID: *raw.Key}, nil
+}
+
+func cursorAfter(item Note) *string {
+	next := Cursor{CreatedAt: item.CreatedAt, ID: item.ID}.String()
+	return &next
 }

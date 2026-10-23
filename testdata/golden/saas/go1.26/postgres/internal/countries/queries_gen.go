@@ -22,6 +22,15 @@ FROM "countries"
 ORDER BY "code"
 LIMIT $1 OFFSET $2`
 
+const listAfterQuery = `
+SELECT
+    "code",
+    "name"
+FROM "countries"
+WHERE "code" > $1
+ORDER BY "code"
+LIMIT $2 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "countries"`

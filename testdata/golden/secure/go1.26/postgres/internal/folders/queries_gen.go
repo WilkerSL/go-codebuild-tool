@@ -26,6 +26,18 @@ WHERE "owner_id" = $1
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "owner_id",
+    "name"
+FROM "folders"
+WHERE "owner_id" = $1
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "folders"."owner_id" AND "users"."deleted_at" IS NULL)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "folders"

@@ -3,6 +3,13 @@
 package {{.Package}}
 
 import (
+	"encoding/base64"
+{{- if .Caps.JSONv2}}
+	"encoding/json/v2"
+{{- else}}
+	"encoding/json"
+{{- end}}
+	"errors"
 	"time"
 
 	"{{.UUIDImport}}"
@@ -23,8 +30,50 @@ type {{.Name}} struct {
 }
 
 type Page struct {
-	Items  []{{.Name}} `json:"items"`
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
-	Total  int64 `json:"total"`
+	Items      []{{.Name}} `json:"items"`
+	Limit      int `json:"limit"`
+	Offset     int `json:"offset"`
+	Total      *int64 `json:"total,omitempty"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+type Cursor struct {
+{{- with .CursorTime}}
+	{{.Name}} time.Time
+{{- end}}
+	{{.PK.Name}} {{.PK.BaseType}}
+}
+
+type cursorJSON struct {
+{{- if .CursorTime}}
+	Time *time.Time `json:"t"`
+{{- end}}
+	Key *{{.PK.BaseType}} `json:"k"`
+}
+
+var ErrInvalidCursor = errors.New("{{.Package}}: invalid cursor")
+
+func (c Cursor) String() string {
+	data, _ := json.Marshal(cursorJSON{ {{- if .CursorTime}}Time: &c.{{.CursorTime.Name}}, {{end}}Key: &c.{{.PK.Name}}})
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func ParseCursor(s string) (Cursor, error) {
+	if len(s) > 1024 {
+		return Cursor{}, ErrInvalidCursor
+	}
+	data, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return Cursor{}, ErrInvalidCursor
+	}
+	var raw cursorJSON
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Key == nil{{if .CursorTime}} || raw.Time == nil{{end}} {
+		return Cursor{}, ErrInvalidCursor
+	}
+	return Cursor{ {{- if .CursorTime}}{{.CursorTime.Name}}: raw.Time.UTC(), {{end}}{{.PK.Name}}: *raw.Key}, nil
+}
+
+func cursorAfter(item {{.Name}}) *string {
+	next := Cursor{ {{- if .CursorTime}}{{.CursorTime.Name}}: item.{{.CursorTime.Name}}, {{end}}{{.PK.Name}}: item.{{.PK.Name}}}.String()
+	return &next
 }

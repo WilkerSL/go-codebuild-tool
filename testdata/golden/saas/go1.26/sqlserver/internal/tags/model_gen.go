@@ -2,6 +2,12 @@
 
 package tags
 
+import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+)
+
 type Tag struct {
 	ID    int64   `json:"id"`
 	Name  string  `json:"name"`
@@ -9,8 +15,44 @@ type Tag struct {
 }
 
 type Page struct {
-	Items  []Tag `json:"items"`
-	Limit  int   `json:"limit"`
-	Offset int   `json:"offset"`
-	Total  int64 `json:"total"`
+	Items      []Tag   `json:"items"`
+	Limit      int     `json:"limit"`
+	Offset     int     `json:"offset"`
+	Total      *int64  `json:"total,omitempty"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+type Cursor struct {
+	ID int64
+}
+
+type cursorJSON struct {
+	Key *int64 `json:"k"`
+}
+
+var ErrInvalidCursor = errors.New("tags: invalid cursor")
+
+func (c Cursor) String() string {
+	data, _ := json.Marshal(cursorJSON{Key: &c.ID})
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+func ParseCursor(s string) (Cursor, error) {
+	if len(s) > 1024 {
+		return Cursor{}, ErrInvalidCursor
+	}
+	data, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return Cursor{}, ErrInvalidCursor
+	}
+	var raw cursorJSON
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Key == nil {
+		return Cursor{}, ErrInvalidCursor
+	}
+	return Cursor{ID: *raw.Key}, nil
+}
+
+func cursorAfter(item Tag) *string {
+	next := Cursor{ID: item.ID}.String()
+	return &next
 }

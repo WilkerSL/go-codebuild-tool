@@ -82,7 +82,8 @@ type StockPage struct {
 	Items         []*Stock               `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -138,10 +139,17 @@ func (x *StockPage) GetOffset() int32 {
 }
 
 func (x *StockPage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *StockPage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type StockGetRequest struct {
@@ -192,6 +200,7 @@ type StockListRequest struct {
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	ProductId     *int64                 `protobuf:"varint,3,opt,name=product_id,json=productId,proto3,oneof" json:"product_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -244,6 +253,13 @@ func (x *StockListRequest) GetProductId() int64 {
 		return *x.ProductId
 	}
 	return 0
+}
+
+func (x *StockListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
 }
 
 type StockExistsRequest struct {
@@ -451,19 +467,24 @@ const file_inventory_v1_inventory_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x02 \x01(\x03R\tproductId\x12\x1a\n" +
-	"\bquantity\x18\x03 \x01(\x05R\bquantity\"z\n" +
+	"\bquantity\x18\x03 \x01(\x05R\bquantity\"\xbf\x01\n" +
 	"\tStockPage\x12)\n" +
 	"\x05items\x18\x01 \x03(\v2\x13.inventory.v1.StockR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\"!\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\"!\n" +
 	"\x0fStockGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"s\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x8b\x01\n" +
 	"\x10StockListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\"\n" +
 	"\n" +
-	"product_id\x18\x03 \x01(\x03H\x00R\tproductId\x88\x01\x01B\r\n" +
+	"product_id\x18\x03 \x01(\x03H\x00R\tproductId\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursorB\r\n" +
 	"\v_product_id\"$\n" +
 	"\x12StockExistsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"u\n" +
@@ -541,6 +562,7 @@ func file_inventory_v1_inventory_proto_init() {
 	if File_inventory_v1_inventory_proto != nil {
 		return
 	}
+	file_inventory_v1_inventory_proto_msgTypes[1].OneofWrappers = []any{}
 	file_inventory_v1_inventory_proto_msgTypes[3].OneofWrappers = []any{}
 	file_inventory_v1_inventory_proto_msgTypes[5].OneofWrappers = []any{}
 	file_inventory_v1_inventory_proto_msgTypes[6].OneofWrappers = []any{}

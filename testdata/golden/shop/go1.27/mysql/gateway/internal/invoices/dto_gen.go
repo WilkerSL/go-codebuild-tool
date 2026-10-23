@@ -29,10 +29,11 @@ type Invoice struct {
 }
 
 type Page struct {
-	Items  []Invoice `json:"items"`
-	Limit  int       `json:"limit"`
-	Offset int       `json:"offset"`
-	Total  int64     `json:"total"`
+	Items      []Invoice `json:"items"`
+	Limit      int       `json:"limit"`
+	Offset     int       `json:"offset"`
+	Total      *int64    `json:"total,omitempty"`
+	NextCursor *string   `json:"nextCursor"`
 }
 
 func fromMessage(m *billingv1.Invoice) Invoice {
@@ -51,12 +52,13 @@ func fromPage(m *billingv1.InvoicePage) Page {
 	for i, item := range m.GetItems() {
 		items[i] = fromMessage(item)
 	}
-	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.GetTotal()}
+	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.Total, NextCursor: m.NextCursor}
 }
 
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor string
 	Number *string
 	Status *string
 }
@@ -66,6 +68,7 @@ func listParams(r *http.Request) (ListParams, error) {
 	var errs validation.Errors
 	var p ListParams
 	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+	p.Cursor = httpx.Cursor(q, &errs)
 	p.Number = httpx.QueryString(q, "number")
 	p.Status = httpx.QueryString(q, "status")
 	if p.Status != nil {
@@ -85,6 +88,7 @@ func (p ListParams) message() *billingv1.InvoiceListRequest {
 	return &billingv1.InvoiceListRequest{
 		Limit:  int32(p.Limit),
 		Offset: int32(p.Offset),
+		Cursor: p.Cursor,
 		Number: p.Number,
 		Status: p.Status,
 	}

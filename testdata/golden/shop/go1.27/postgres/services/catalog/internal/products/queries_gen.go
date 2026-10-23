@@ -28,6 +28,19 @@ WHERE "deleted_at" IS NULL
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "category_id",
+    "name",
+    "price"
+FROM "products"
+WHERE "deleted_at" IS NULL
+    AND ($1::bigint IS NULL OR "category_id" = $1)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "products"
@@ -84,6 +97,19 @@ WHERE "category_id" = $1
     AND "deleted_at" IS NULL
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
+
+const listCategoryProductsAfterQuery = `
+SELECT
+    "id",
+    "category_id",
+    "name",
+    "price"
+FROM "products"
+WHERE "category_id" = $1
+    AND "deleted_at" IS NULL
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
 
 const countCategoryProductsQuery = `
 SELECT COUNT(*)

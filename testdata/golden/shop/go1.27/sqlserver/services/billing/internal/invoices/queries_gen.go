@@ -35,6 +35,24 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [owner_id],
+    [number],
+    [status],
+    [notes],
+    [created_at]
+FROM [invoices]
+WHERE [owner_id] = @p1
+    AND [deleted_at] IS NULL
+    AND (@p2 IS NULL OR [number] = @p2)
+    AND (@p3 IS NULL OR [status] = @p3)
+    AND ([created_at] < @p4 OR ([created_at] = @p4 AND [id] < @p5))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [invoices]

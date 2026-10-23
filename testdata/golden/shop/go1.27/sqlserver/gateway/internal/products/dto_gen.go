@@ -19,10 +19,11 @@ type Product struct {
 }
 
 type Page struct {
-	Items  []Product `json:"items"`
-	Limit  int       `json:"limit"`
-	Offset int       `json:"offset"`
-	Total  int64     `json:"total"`
+	Items      []Product `json:"items"`
+	Limit      int       `json:"limit"`
+	Offset     int       `json:"offset"`
+	Total      *int64    `json:"total,omitempty"`
+	NextCursor *string   `json:"nextCursor"`
 }
 
 func fromMessage(m *catalogv1.Product) Product {
@@ -39,12 +40,13 @@ func fromPage(m *catalogv1.ProductPage) Page {
 	for i, item := range m.GetItems() {
 		items[i] = fromMessage(item)
 	}
-	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.GetTotal()}
+	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.Total, NextCursor: m.NextCursor}
 }
 
 type ListParams struct {
 	Limit      int
 	Offset     int
+	Cursor     string
 	CategoryID *int64
 }
 
@@ -53,6 +55,7 @@ func listParams(r *http.Request) (ListParams, error) {
 	var errs validation.Errors
 	var p ListParams
 	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+	p.Cursor = httpx.Cursor(q, &errs)
 	p.CategoryID = httpx.QueryInt[int64](q, "categoryId", &errs)
 	if len(errs) > 0 {
 		return ListParams{}, httpx.BadRequest("the query string contains invalid parameters", errs...)
@@ -64,6 +67,7 @@ func (p ListParams) message() *catalogv1.ProductListRequest {
 	return &catalogv1.ProductListRequest{
 		Limit:      int32(p.Limit),
 		Offset:     int32(p.Offset),
+		Cursor:     p.Cursor,
 		CategoryId: p.CategoryID,
 	}
 }
@@ -73,6 +77,7 @@ func (p ListParams) listCategoryProductsRequest(categoryID int64) *catalogv1.Lis
 		SourceId: categoryID,
 		Limit:    int32(p.Limit),
 		Offset:   int32(p.Offset),
+		Cursor:   p.Cursor,
 	}
 }
 

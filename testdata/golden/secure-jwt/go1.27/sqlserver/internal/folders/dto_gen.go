@@ -17,6 +17,7 @@ type UpdateInput struct {
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor *Cursor
 }
 
 type createRequest struct {

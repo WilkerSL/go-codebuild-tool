@@ -23,6 +23,16 @@ WHERE (? IS NULL OR "name" = ?)
 ORDER BY "id"
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name"
+FROM "labels"
+WHERE (? IS NULL OR "name" = ?)
+    AND "id" > ?
+ORDER BY "id"
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "labels"
@@ -66,6 +76,18 @@ WHERE "note_labels"."note_id" = ?
     AND (? IS NULL OR "labels"."name" = ?)
 ORDER BY "labels"."id"
 LIMIT ? OFFSET ?`
+
+const listNoteLabelsAfterQuery = `
+SELECT
+    "labels"."id",
+    "labels"."name"
+FROM "labels"
+JOIN "note_labels" ON "note_labels"."label_id" = "labels"."id"
+WHERE "note_labels"."note_id" = ?
+    AND (? IS NULL OR "labels"."name" = ?)
+    AND "labels"."id" > ?
+ORDER BY "labels"."id"
+LIMIT ? OFFSET 0`
 
 const countNoteLabelsQuery = `
 SELECT COUNT(*)

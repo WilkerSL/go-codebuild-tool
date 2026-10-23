@@ -27,6 +27,19 @@ ORDER BY [id]
 OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [product_id],
+    [quantity]
+FROM [stocks]
+WHERE EXISTS (SELECT 1 FROM [products] WHERE [products].[id] = [stocks].[product_id] AND [products].[deleted_at] IS NULL)
+    AND (@p1 IS NULL OR [product_id] = @p1)
+    AND [id] > @p2
+ORDER BY [id]
+OFFSET 0 ROWS FETCH NEXT @p3 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [stocks]

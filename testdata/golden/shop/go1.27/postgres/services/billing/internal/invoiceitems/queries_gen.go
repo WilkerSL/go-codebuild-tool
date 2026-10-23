@@ -31,6 +31,21 @@ WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."
 ORDER BY "id"
 LIMIT $3 OFFSET $4`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "invoice_id",
+    "product_id",
+    "quantity",
+    "price"
+FROM "invoice_items"
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+    AND ($1::uuid IS NULL OR "invoice_id" = $1)
+    AND ($2::bigint IS NULL OR "product_id" = $2)
+    AND "id" > $3
+ORDER BY "id"
+LIMIT $4 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "invoice_items"
@@ -99,6 +114,21 @@ WHERE "invoice_id" = $1
     AND ($2::bigint IS NULL OR "product_id" = $2)
 ORDER BY "id"
 LIMIT $3 OFFSET $4`
+
+const listInvoiceItemsAfterQuery = `
+SELECT
+    "id",
+    "invoice_id",
+    "product_id",
+    "quantity",
+    "price"
+FROM "invoice_items"
+WHERE "invoice_id" = $1
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+    AND ($2::bigint IS NULL OR "product_id" = $2)
+    AND "id" > $3
+ORDER BY "id"
+LIMIT $4 OFFSET 0`
 
 const countInvoiceItemsQuery = `
 SELECT COUNT(*)

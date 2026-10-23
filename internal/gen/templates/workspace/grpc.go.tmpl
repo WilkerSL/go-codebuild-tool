@@ -47,7 +47,7 @@ func toPageMessage(page Page) *{{$g.Alias}}.{{$g.Page}} {
 	for i, item := range page.Items {
 		items[i] = toMessage(item)
 	}
-	return &{{$g.Alias}}.{{$g.Page}}{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total}
+	return &{{$g.Alias}}.{{$g.Page}}{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total, NextCursor: page.NextCursor}
 }
 
 func listParamsFrom(req *{{$g.Alias}}.{{$g.List.Request}}) (ListParams, error) {

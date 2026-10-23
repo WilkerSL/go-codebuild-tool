@@ -255,7 +255,8 @@ func (f *File) entity(m *schema.Model, e *schema.Entity) {
 	entity := f.message(e.Name, response...)
 	page := f.message(e.Name+"Page",
 		&Field{Name: "items", Type: TypeMessage, TypeName: entity.FullName, Repeated: true},
-		field("limit", TypeInt32), field("offset", TypeInt32), field("total", TypeInt64))
+		field("limit", TypeInt32), field("offset", TypeInt32), &Field{Name: "total", Type: TypeInt64, Optional: true},
+		&Field{Name: "next_cursor", Type: TypeString, Optional: true})
 	filters := func(skip *schema.Field) []*Field {
 		fields := []*Field{field("limit", TypeInt32), field("offset", TypeInt32)}
 		for _, sf := range e.FilterFields() {
@@ -263,7 +264,7 @@ func (f *File) entity(m *schema.Model, e *schema.Entity) {
 				fields = append(fields, fromField(ProtoName(sf.Name), sf, true))
 			}
 		}
-		return fields
+		return append(fields, field("cursor", TypeString))
 	}
 	get := f.message(e.Name+"GetRequest", idField("id", pk))
 	list := f.message(e.Name+"ListRequest", filters(nil)...)

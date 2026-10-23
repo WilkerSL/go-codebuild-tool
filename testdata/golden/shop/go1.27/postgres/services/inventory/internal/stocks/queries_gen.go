@@ -26,6 +26,18 @@ WHERE EXISTS (SELECT 1 FROM "products" WHERE "products"."id" = "stocks"."product
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "product_id",
+    "quantity"
+FROM "stocks"
+WHERE EXISTS (SELECT 1 FROM "products" WHERE "products"."id" = "stocks"."product_id" AND "products"."deleted_at" IS NULL)
+    AND ($1::bigint IS NULL OR "product_id" = $1)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "stocks"

@@ -23,6 +23,16 @@ WHERE ($1::text IS NULL OR "name" = $1)
 ORDER BY "id"
 LIMIT $2 OFFSET $3`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name"
+FROM "categories"
+WHERE ($1::text IS NULL OR "name" = $1)
+    AND "id" > $2
+ORDER BY "id"
+LIMIT $3 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "categories"

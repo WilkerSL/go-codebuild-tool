@@ -34,6 +34,23 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`,\n" +
+	"    `email`,\n" +
+	"    `role`,\n" +
+	"    `bio`,\n" +
+	"    `org_id`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `users`\n" +
+	"WHERE `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `email` = ?)\n" +
+	"    AND (? IS NULL OR `org_id` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `users`\n" +
 	"WHERE `deleted_at` IS NULL\n" +
@@ -98,6 +115,23 @@ const listOrgUsersQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listOrgUsersAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`,\n" +
+	"    `email`,\n" +
+	"    `role`,\n" +
+	"    `bio`,\n" +
+	"    `org_id`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `users`\n" +
+	"WHERE `org_id` = ?\n" +
+	"    AND `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `email` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countOrgUsersQuery = "SELECT COUNT(*)\n" +
 	"FROM `users`\n" +
 	"WHERE `org_id` = ?\n" +
@@ -125,6 +159,25 @@ const listTagUsersQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `users`.`org_id` = ?)\n" +
 	"ORDER BY `users`.`created_at` DESC, `users`.`id` DESC\n" +
 	"LIMIT ? OFFSET ?"
+
+const listTagUsersAfterQuery = "SELECT\n" +
+	"    `users`.`id`,\n" +
+	"    `users`.`name`,\n" +
+	"    `users`.`email`,\n" +
+	"    `users`.`role`,\n" +
+	"    `users`.`bio`,\n" +
+	"    `users`.`org_id`,\n" +
+	"    `users`.`created_at`,\n" +
+	"    `users`.`updated_at`\n" +
+	"FROM `users`\n" +
+	"JOIN `user_tags` ON `user_tags`.`user_id` = `users`.`id`\n" +
+	"WHERE `user_tags`.`tag_id` = ?\n" +
+	"    AND `users`.`deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `users`.`email` = ?)\n" +
+	"    AND (? IS NULL OR `users`.`org_id` = ?)\n" +
+	"    AND (`users`.`created_at` < ? OR (`users`.`created_at` = ? AND `users`.`id` < ?))\n" +
+	"ORDER BY `users`.`created_at` DESC, `users`.`id` DESC\n" +
+	"LIMIT ? OFFSET 0"
 
 const countTagUsersQuery = "SELECT COUNT(*)\n" +
 	"FROM `users`\n" +

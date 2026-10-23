@@ -22,6 +22,15 @@ FROM [countries]
 ORDER BY [code]
 OFFSET @p1 ROWS FETCH NEXT @p2 ROWS ONLY`
 
+const listAfterQuery = `
+SELECT
+    [code],
+    [name]
+FROM [countries]
+WHERE [code] > @p1
+ORDER BY [code]
+OFFSET 0 ROWS FETCH NEXT @p2 ROWS ONLY`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [countries]`

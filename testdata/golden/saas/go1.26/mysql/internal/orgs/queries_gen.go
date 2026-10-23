@@ -34,6 +34,23 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`,\n" +
+	"    `slug`,\n" +
+	"    `plan`,\n" +
+	"    `active`,\n" +
+	"    `locale`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `orgs`\n" +
+	"WHERE `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `slug` = ?)\n" +
+	"    AND (? IS NULL OR `plan` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `orgs`\n" +
 	"WHERE `deleted_at` IS NULL\n" +

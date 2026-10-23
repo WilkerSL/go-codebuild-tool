@@ -25,6 +25,17 @@ WHERE (? IS NULL OR "name" = ?)
 ORDER BY "id"
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "color"
+FROM "tags"
+WHERE (? IS NULL OR "name" = ?)
+    AND "id" > ?
+ORDER BY "id"
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "tags"
@@ -74,6 +85,19 @@ WHERE "user_tags"."user_id" = ?
     AND (? IS NULL OR "tags"."name" = ?)
 ORDER BY "tags"."id"
 LIMIT ? OFFSET ?`
+
+const listUserTagsAfterQuery = `
+SELECT
+    "tags"."id",
+    "tags"."name",
+    "tags"."color"
+FROM "tags"
+JOIN "user_tags" ON "user_tags"."tag_id" = "tags"."id"
+WHERE "user_tags"."user_id" = ?
+    AND (? IS NULL OR "tags"."name" = ?)
+    AND "tags"."id" > ?
+ORDER BY "tags"."id"
+LIMIT ? OFFSET 0`
 
 const countUserTagsQuery = `
 SELECT COUNT(*)

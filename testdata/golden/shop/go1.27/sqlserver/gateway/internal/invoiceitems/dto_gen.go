@@ -22,10 +22,11 @@ type InvoiceItem struct {
 }
 
 type Page struct {
-	Items  []InvoiceItem `json:"items"`
-	Limit  int           `json:"limit"`
-	Offset int           `json:"offset"`
-	Total  int64         `json:"total"`
+	Items      []InvoiceItem `json:"items"`
+	Limit      int           `json:"limit"`
+	Offset     int           `json:"offset"`
+	Total      *int64        `json:"total,omitempty"`
+	NextCursor *string       `json:"nextCursor"`
 }
 
 func fromMessage(m *billingv1.InvoiceItem) InvoiceItem {
@@ -43,12 +44,13 @@ func fromPage(m *billingv1.InvoiceItemPage) Page {
 	for i, item := range m.GetItems() {
 		items[i] = fromMessage(item)
 	}
-	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.GetTotal()}
+	return Page{Items: items, Limit: int(m.GetLimit()), Offset: int(m.GetOffset()), Total: m.Total, NextCursor: m.NextCursor}
 }
 
 type ListParams struct {
 	Limit     int
 	Offset    int
+	Cursor    string
 	InvoiceID *uuid.UUID
 	ProductID *int64
 }
@@ -58,6 +60,7 @@ func listParams(r *http.Request) (ListParams, error) {
 	var errs validation.Errors
 	var p ListParams
 	p.Limit, p.Offset = httpx.Pagination(q, &errs)
+	p.Cursor = httpx.Cursor(q, &errs)
 	p.InvoiceID = httpx.QueryUUID(q, "invoiceId", &errs)
 	p.ProductID = httpx.QueryInt[int64](q, "productId", &errs)
 	if len(errs) > 0 {
@@ -70,6 +73,7 @@ func (p ListParams) message() *billingv1.InvoiceItemListRequest {
 	return &billingv1.InvoiceItemListRequest{
 		Limit:     int32(p.Limit),
 		Offset:    int32(p.Offset),
+		Cursor:    p.Cursor,
 		InvoiceId: grpcx.UUIDString(p.InvoiceID),
 		ProductId: p.ProductID,
 	}
@@ -80,6 +84,7 @@ func (p ListParams) listInvoiceItemsRequest(invoiceID uuid.UUID) *billingv1.List
 		SourceId:  invoiceID.String(),
 		Limit:     int32(p.Limit),
 		Offset:    int32(p.Offset),
+		Cursor:    p.Cursor,
 		ProductId: p.ProductID,
 	}
 }

@@ -39,6 +39,26 @@ WHERE "owner_id" = ?
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "owner_id",
+    "folder_id",
+    "title",
+    "body",
+    "pinned",
+    "created_at",
+    "updated_at"
+FROM "notes"
+WHERE "owner_id" = ?
+    AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
+    AND (? IS NULL OR "folder_id" = ?)
+    AND (? IS NULL OR "pinned" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "notes"
@@ -126,6 +146,26 @@ WHERE "folder_id" = ?
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listFolderNotesAfterQuery = `
+SELECT
+    "id",
+    "owner_id",
+    "folder_id",
+    "title",
+    "body",
+    "pinned",
+    "created_at",
+    "updated_at"
+FROM "notes"
+WHERE "folder_id" = ?
+    AND "owner_id" = ?
+    AND "deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
+    AND (? IS NULL OR "pinned" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countFolderNotesQuery = `
 SELECT COUNT(*)
 FROM "notes"
@@ -160,6 +200,28 @@ WHERE "note_labels"."label_id" = ?
     AND (? IS NULL OR "notes"."pinned" = ?)
 ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
 LIMIT ? OFFSET ?`
+
+const listLabelNotesAfterQuery = `
+SELECT
+    "notes"."id",
+    "notes"."owner_id",
+    "notes"."folder_id",
+    "notes"."title",
+    "notes"."body",
+    "notes"."pinned",
+    "notes"."created_at",
+    "notes"."updated_at"
+FROM "notes"
+JOIN "note_labels" ON "note_labels"."note_id" = "notes"."id"
+WHERE "note_labels"."label_id" = ?
+    AND "notes"."owner_id" = ?
+    AND "notes"."deleted_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
+    AND (? IS NULL OR "notes"."folder_id" = ?)
+    AND (? IS NULL OR "notes"."pinned" = ?)
+    AND ("notes"."created_at" < ? OR ("notes"."created_at" = ? AND "notes"."id" < ?))
+ORDER BY "notes"."created_at" DESC, "notes"."id" DESC
+LIMIT ? OFFSET 0`
 
 const countLabelNotesQuery = `
 SELECT COUNT(*)

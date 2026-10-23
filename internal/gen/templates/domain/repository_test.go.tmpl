@@ -154,12 +154,12 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("list: %v", err)
 	}
 {{- if .ListFilterField}}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{.PK.Name}} != created.{{.PK.Name}} {
-		t.Fatalf("filtered list returned %d of %d items", len(page.Items), page.Total)
+	if *page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{.PK.Name}} != created.{{.PK.Name}} {
+		t.Fatalf("filtered list returned %d of %d items", len(page.Items), *page.Total)
 	}
 {{- else}}
-	if page.Total < 1 || len(page.Items) < 1 {
-		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	if *page.Total < 1 || len(page.Items) < 1 {
+		t.Fatalf("list returned %d of %d items", len(page.Items), *page.Total)
 	}
 {{- end}}
 {{- if .HasUpdate}}
@@ -200,6 +200,64 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("get missing: %v", err)
 	}
 }
+{{- if .Creatable}}
+
+func TestRepositoryCursor(t *testing.T) {
+	db := openFixtureDB(t)
+	ctx := context.Background()
+	repo := {{.Package}}.NewRepository(db)
+{{- if .Owned}}
+	{{.TestOwner}}
+{{- end}}
+	want := map[{{.PK.BaseType}}]bool{}
+	for range 3 {
+		want[{{.OwnHelper}}(t, ctx, db{{.TestOwnerSuffix}}).{{.PK.Name}}] = true
+	}
+	first, err := repo.List(ctx, {{.TestOwnerArg}}{{.Package}}.ListParams{Limit: 1})
+	if err != nil || first.Total == nil || first.NextCursor == nil {
+		t.Fatalf("an offset page with more rows has no cursor: %+v %v", first, err)
+	}
+	seen := map[{{.PK.BaseType}}]bool{}
+	p := {{.Package}}.ListParams{Limit: 2}
+	for pages := 0; ; pages++ {
+		if pages > 10000 {
+			t.Fatal("cursor pagination does not end")
+		}
+		page, err := repo.List(ctx, {{.TestOwnerArg}}p)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if p.Cursor != nil && page.Total != nil {
+			t.Fatal("a cursor page counted the rows")
+		}
+		for _, item := range page.Items {
+			if seen[item.{{.PK.Name}}] {
+				t.Fatalf("%v appeared on two pages", item.{{.PK.Name}})
+			}
+			seen[item.{{.PK.Name}}] = true
+		}
+		if page.NextCursor == nil {
+			break
+		}
+		cursor, err := {{.Package}}.ParseCursor(*page.NextCursor)
+		if err != nil {
+			t.Fatalf("parse cursor %q: %v", *page.NextCursor, err)
+		}
+		p.Cursor = &cursor
+	}
+	for id := range want {
+		if !seen[id] {
+			t.Fatalf("cursor pagination skipped %v", id)
+		}
+	}
+	for _, bad := range []string{"", "not a cursor", "e30"} {
+		if _, err := {{.Package}}.ParseCursor(bad); !errors.Is(err, {{.Package}}.ErrInvalidCursor) {
+			t.Errorf("ParseCursor(%q) = %v", bad, err)
+		}
+	}
+}
+{{- end}}
+
 {{- if .Creatable}}
 
 func TestRepositoryWithTx(t *testing.T) {
@@ -308,8 +366,12 @@ func TestRepository{{.Method}}(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != created.{{$.PK.Name}} {
-		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	if *page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != created.{{$.PK.Name}} {
+		t.Fatalf("list returned %d of %d items", len(page.Items), *page.Total)
+	}
+	after := {{$.Package}}.Cursor{ {{- if $.CursorTime}}{{$.CursorTime.Name}}: created.{{$.CursorTime.Name}}, {{end}}{{$.PK.Name}}: created.{{$.PK.Name}}}
+	if page, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{if .FK.F.Nullable}}*{{end}}created.{{.FK.Name}}, {{$.Package}}.ListParams{Limit: 10, Cursor: &after}); err != nil || len(page.Items) != 0 || page.NextCursor != nil {
+		t.Fatalf("list after the only item = %+v %v", page, err)
 	}
 {{- end}}
 {{- if not .ExternalSource}}
@@ -340,15 +402,19 @@ func TestRepository{{.Method}}(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != target.{{$.PK.Name}} {
-		t.Fatalf("list returned %d of %d items", len(page.Items), page.Total)
+	if *page.Total != 1 || len(page.Items) != 1 || page.Items[0].{{$.PK.Name}} != target.{{$.PK.Name}} {
+		t.Fatalf("list returned %d of %d items", len(page.Items), *page.Total)
+	}
+	after := {{$.Package}}.Cursor{ {{- if $.CursorTime}}{{$.CursorTime.Name}}: target.{{$.CursorTime.Name}}, {{end}}{{$.PK.Name}}: target.{{$.PK.Name}}}
+	if page, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10, Cursor: &after}); err != nil || len(page.Items) != 0 || page.NextCursor != nil {
+		t.Fatalf("list after the only item = %+v %v", page, err)
 	}
 	if err := repo.{{.UnlinkMethod}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, target.{{$.PK.Name}}); err != nil {
 		t.Fatalf("unlink: %v", err)
 	}
 	page, err = repo.{{.Method}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.Package}}.ListParams{Limit: 10})
-	if err != nil || page.Total != 0 {
-		t.Fatalf("list after unlink: %d items, %v", page.Total, err)
+	if err != nil || *page.Total != 0 {
+		t.Fatalf("list after unlink: %d items, %v", *page.Total, err)
 	}
 	if err := repo.{{.LinkMethod}}(ctx, {{.TestOwnerArg}}source.{{.Source.PK.Name}}, {{$.MissingID}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("link a missing record: %v", err)

@@ -9,14 +9,17 @@ import (
 type ArgKind string
 
 const (
-	ArgID       ArgKind = "id"
-	ArgInput    ArgKind = "input"
-	ArgFilter   ArgKind = "filter"
-	ArgLimit    ArgKind = "limit"
-	ArgOffset   ArgKind = "offset"
-	ArgSourceID ArgKind = "source"
-	ArgOwner    ArgKind = "owner"
-	ArgPassword ArgKind = "password"
+	ArgID         ArgKind = "id"
+	ArgInput      ArgKind = "input"
+	ArgFilter     ArgKind = "filter"
+	ArgLimit      ArgKind = "limit"
+	ArgOffset     ArgKind = "offset"
+	ArgSourceID   ArgKind = "source"
+	ArgOwner      ArgKind = "owner"
+	ArgPassword   ArgKind = "password"
+	ArgCursorTime ArgKind = "cursor.time"
+	ArgCursorKey  ArgKind = "cursor.key"
+	ArgFetch      ArgKind = "fetch"
 )
 
 type Arg struct {
@@ -60,6 +63,7 @@ type EntityQueries struct {
 	Get        Query
 	Exists     Query
 	List       Query
+	ListAfter  Query
 	Count      Query
 	Create     *Query
 	Update     *Query
@@ -192,6 +196,10 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 	q.List = b.query(withHint(d, list, hasFilters))
 
 	b = newBuilder(d)
+	conds = append(filterConditions(b, e, false, nil), afterCondition(b, e, false))
+	q.ListAfter = b.query(withHint(d, "SELECT\n"+indent(cols)+"\nFROM "+table+where(conds)+"\n"+orderBy(d, e, false)+"\n"+fetchAfter(b), hasFilters))
+
+	b = newBuilder(d)
 	conds = filterConditions(b, e, false, nil)
 	q.Count = b.query(withHint(d, "SELECT COUNT(*)\nFROM "+table+where(conds), hasFilters))
 
@@ -268,6 +276,7 @@ func BuildEntityQueries(d Dialect, e *schema.Entity) EntityQueries {
 type RelationQueries struct {
 	SourceExists Query
 	List         Query
+	ListAfter    Query
 	Count        Query
 	Link         *Query
 	Unlink       *Query
@@ -340,6 +349,11 @@ func BuildHasManyQueries(d Dialect, parent, child *schema.Entity, fk *schema.Fie
 
 	b = newBuilder(d)
 	conds = append([]string{d.Quote(fk.Column) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: parent.PK()})}, filterConditions(b, child, false, fk)...)
+	conds = append(conds, afterCondition(b, child, false))
+	rq.ListAfter = b.query(withHint(d, "SELECT\n"+indent(cols)+"\nFROM "+table+where(conds)+"\n"+orderBy(d, child, false)+"\n"+fetchAfter(b), hasFilters))
+
+	b = newBuilder(d)
+	conds = append([]string{d.Quote(fk.Column) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: parent.PK()})}, filterConditions(b, child, false, fk)...)
 	rq.Count = b.query(withHint(d, "SELECT COUNT(*)\nFROM "+table+where(conds), hasFilters))
 	return rq
 }
@@ -356,6 +370,11 @@ func BuildManyToManyQueries(d Dialect, source, target *schema.Entity, via string
 	conds := append([]string{columnRef(d, via, sourceCol, true) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: source.PK()})}, filterConditions(b, target, true, nil)...)
 	list := "SELECT\n" + indent(cols) + join + where(conds) + "\n" + orderBy(d, target, true) + "\n" + d.Paginate(func(k ArgKind) string { return b.param(string(k), Arg{Kind: k}) })
 	rq.List = b.query(withHint(d, list, hasFilters))
+
+	b = newBuilder(d)
+	conds = append([]string{columnRef(d, via, sourceCol, true) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: source.PK()})}, filterConditions(b, target, true, nil)...)
+	conds = append(conds, afterCondition(b, target, true))
+	rq.ListAfter = b.query(withHint(d, "SELECT\n"+indent(cols)+join+where(conds)+"\n"+orderBy(d, target, true)+"\n"+fetchAfter(b), hasFilters))
 
 	b = newBuilder(d)
 	conds = append([]string{columnRef(d, via, sourceCol, true) + " = " + b.param("source", Arg{Kind: ArgSourceID, Field: source.PK()})}, filterConditions(b, target, true, nil)...)
@@ -392,4 +411,30 @@ func RowInsert(d Dialect, table string, columns []string, returning []Returned) 
 		return d.InsertSQL(table, quoteAll(d, columns), params, returning)
 	}
 	return "INSERT INTO " + d.Quote(table) + " (" + strings.Join(quoteAll(d, columns), ", ") + ")\nVALUES (" + strings.Join(params, ", ") + ")"
+}
+
+// afterCondition selects the rows that come after a cursor in the list order:
+// newest first by the creation time with the primary key breaking ties, or the
+// primary key alone for entities without a creation time.
+func afterCondition(b *builder, e *schema.Entity, qualified bool) string {
+	pk := e.PK()
+	key := columnRef(b.d, e.Table, pk.Column, qualified)
+	if f := e.AutoCreateField(); f != nil {
+		created := columnRef(b.d, e.Table, f.Column, qualified)
+		first := b.param("cursor.time", Arg{Kind: ArgCursorTime, Field: f})
+		second := b.param("cursor.time", Arg{Kind: ArgCursorTime, Field: f})
+		return "(" + created + " < " + first + " OR (" + created + " = " + second + " AND " + key + " < " + b.param("cursor.key", Arg{Kind: ArgCursorKey, Field: pk}) + "))"
+	}
+	return key + " > " + b.param("cursor.key", Arg{Kind: ArgCursorKey, Field: pk})
+}
+
+// fetchAfter limits a cursor page. It asks for one row more than the page so
+// the repository knows whether another page follows.
+func fetchAfter(b *builder) string {
+	return b.d.Paginate(func(k ArgKind) string {
+		if k == ArgOffset {
+			return "0"
+		}
+		return b.param("fetch", Arg{Kind: ArgFetch})
+	})
 }

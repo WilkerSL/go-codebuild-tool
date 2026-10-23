@@ -38,6 +38,25 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listAfterQuery = `
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM [users]
+WHERE [deleted_at] IS NULL
+    AND (@p1 IS NULL OR [email] = @p1)
+    AND (@p2 IS NULL OR [org_id] = @p2)
+    AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM [users]
@@ -172,6 +191,25 @@ ORDER BY [created_at] DESC, [id] DESC
 OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
 OPTION (RECOMPILE)`
 
+const listOrgUsersAfterQuery = `
+SELECT
+    [id],
+    [name],
+    [email],
+    [role],
+    [bio],
+    [org_id],
+    [created_at],
+    [updated_at]
+FROM [users]
+WHERE [org_id] = @p1
+    AND [deleted_at] IS NULL
+    AND (@p2 IS NULL OR [email] = @p2)
+    AND ([created_at] < @p3 OR ([created_at] = @p3 AND [id] < @p4))
+ORDER BY [created_at] DESC, [id] DESC
+OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
+OPTION (RECOMPILE)`
+
 const countOrgUsersQuery = `
 SELECT COUNT(*)
 FROM [users]
@@ -203,6 +241,27 @@ WHERE [user_tags].[tag_id] = @p1
     AND (@p3 IS NULL OR [users].[org_id] = @p3)
 ORDER BY [users].[created_at] DESC, [users].[id] DESC
 OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
+OPTION (RECOMPILE)`
+
+const listTagUsersAfterQuery = `
+SELECT
+    [users].[id],
+    [users].[name],
+    [users].[email],
+    [users].[role],
+    [users].[bio],
+    [users].[org_id],
+    [users].[created_at],
+    [users].[updated_at]
+FROM [users]
+JOIN [user_tags] ON [user_tags].[user_id] = [users].[id]
+WHERE [user_tags].[tag_id] = @p1
+    AND [users].[deleted_at] IS NULL
+    AND (@p2 IS NULL OR [users].[email] = @p2)
+    AND (@p3 IS NULL OR [users].[org_id] = @p3)
+    AND ([users].[created_at] < @p4 OR ([users].[created_at] = @p4 AND [users].[id] < @p5))
+ORDER BY [users].[created_at] DESC, [users].[id] DESC
+OFFSET 0 ROWS FETCH NEXT @p6 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countTagUsersQuery = `

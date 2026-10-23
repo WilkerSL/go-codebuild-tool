@@ -31,6 +31,21 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `email`,\n" +
+	"    `name`,\n" +
+	"    `password_hash`,\n" +
+	"    `role`,\n" +
+	"    `created_at`,\n" +
+	"    `updated_at`\n" +
+	"FROM `users`\n" +
+	"WHERE `deleted_at` IS NULL\n" +
+	"    AND (? IS NULL OR `email` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `users`\n" +
 	"WHERE `deleted_at` IS NULL\n" +

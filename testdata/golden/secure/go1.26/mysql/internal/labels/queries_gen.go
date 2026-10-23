@@ -20,6 +20,15 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`\n" +
+	"FROM `labels`\n" +
+	"WHERE (? IS NULL OR `name` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `labels`\n" +
 	"WHERE (? IS NULL OR `name` = ?)"
@@ -51,6 +60,17 @@ const listNoteLabelsQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `labels`.`name` = ?)\n" +
 	"ORDER BY `labels`.`id`\n" +
 	"LIMIT ? OFFSET ?"
+
+const listNoteLabelsAfterQuery = "SELECT\n" +
+	"    `labels`.`id`,\n" +
+	"    `labels`.`name`\n" +
+	"FROM `labels`\n" +
+	"JOIN `note_labels` ON `note_labels`.`label_id` = `labels`.`id`\n" +
+	"WHERE `note_labels`.`note_id` = ?\n" +
+	"    AND (? IS NULL OR `labels`.`name` = ?)\n" +
+	"    AND `labels`.`id` > ?\n" +
+	"ORDER BY `labels`.`id`\n" +
+	"LIMIT ? OFFSET 0"
 
 const countNoteLabelsQuery = "SELECT COUNT(*)\n" +
 	"FROM `labels`\n" +

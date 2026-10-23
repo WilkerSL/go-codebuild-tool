@@ -357,12 +357,14 @@ type BillingService struct {
 - Validation rules apply to every value of non-pointer fields and to non-nil values of pointer fields. Use a pointer for optional values.
 - Fields with `auto`, `auto=create`, `auto=update` or the primary key never appear in update requests.
 - Validation failures return HTTP 422 with RFC 9457 problem details and an `errors` array of `{field, message}`.
+- Lists are ordered newest first by the `auto=create` field with the primary key breaking ties, or by the primary key when there is none. A list response is `{items, limit, offset, total, nextCursor}`; `nextCursor` is `null` on the last page.
+- Lists page by `offset` or by `cursor`. Passing the `nextCursor` of a page as `?cursor=` returns the rows after it without counting them, so the response has no `total`; it stays correct while rows are added and is faster on large tables. A cursor cannot be combined with `offset`, and a malformed one answers 400.
 
 ## Generated routes
 
 | Method and path | Purpose | Notes |
 |---|---|---|
-| `GET /<table>` | list | `limit`, `offset` and equality filters on indexed, unique and belongs_to fields |
+| `GET /<table>` | list | `limit` with `offset` or `cursor`, and equality filters on indexed, unique and belongs_to fields |
 | `POST /<table>` | create | 201 with `Location`; skipped for `readonly` |
 | `GET /<table>/{id}` | get | 404 when missing or soft deleted |
 | `PUT /<table>/{id}` | full update | skipped for `readonly` |
@@ -370,7 +372,6 @@ type BillingService struct {
 | `GET /<parents>/{parentId}/<field>` | has_many | generated in the child domain |
 | `GET /<sources>/{sourceId}/<field>` | many_to_many list | generated in the target domain |
 | `PUT` and `DELETE /<sources>/{sourceId}/<field>/{targetId}` | many_to_many link and unlink | 204, idempotent |
-
 ## Diagnostic codes
 
 Diagnostics are printed as `file:line:column: message (did you mean "x"?) [code]` and as JSON objects with `file`, `line`, `column`, `severity`, `code`, `message` and `suggestion` when `--json` is used.

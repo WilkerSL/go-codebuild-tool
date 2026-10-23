@@ -67,6 +67,7 @@
     },
     "billing.v1.InvoiceItemListRequest": {
       "fields": {
+        "cursor": 5,
         "invoice_id": 3,
         "limit": 1,
         "offset": 2,
@@ -77,6 +78,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }
@@ -92,6 +94,7 @@
     },
     "billing.v1.InvoiceListRequest": {
       "fields": {
+        "cursor": 5,
         "limit": 1,
         "number": 3,
         "offset": 2,
@@ -102,6 +105,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }
@@ -116,6 +120,7 @@
     },
     "billing.v1.ListInvoiceItemsRequest": {
       "fields": {
+        "cursor": 5,
         "limit": 2,
         "offset": 3,
         "product_id": 4,
@@ -150,6 +155,7 @@
     },
     "catalog.v1.CategoryListRequest": {
       "fields": {
+        "cursor": 4,
         "limit": 1,
         "name": 3,
         "offset": 2
@@ -159,6 +165,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }
@@ -171,6 +178,7 @@
     },
     "catalog.v1.ListCategoryProductsRequest": {
       "fields": {
+        "cursor": 4,
         "limit": 2,
         "offset": 3,
         "source_id": 1
@@ -209,6 +217,7 @@
     "catalog.v1.ProductListRequest": {
       "fields": {
         "category_id": 3,
+        "cursor": 4,
         "limit": 1,
         "offset": 2
       }
@@ -217,6 +226,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }
@@ -348,6 +358,7 @@
     },
     "identity.v1.UserListRequest": {
       "fields": {
+        "cursor": 4,
         "email": 3,
         "limit": 1,
         "offset": 2
@@ -357,6 +368,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }
@@ -399,6 +411,7 @@
     },
     "inventory.v1.StockListRequest": {
       "fields": {
+        "cursor": 4,
         "limit": 1,
         "offset": 2,
         "product_id": 3
@@ -408,6 +421,7 @@
       "fields": {
         "items": 1,
         "limit": 2,
+        "next_cursor": 5,
         "offset": 3,
         "total": 4
       }

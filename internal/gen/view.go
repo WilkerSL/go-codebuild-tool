@@ -151,11 +151,13 @@ type relationView struct {
 	ItemPath        string
 	ExistsConst     string
 	ListConst       string
+	ListAfterConst  string
 	CountConst      string
 	LinkConst       string
 	UnlinkConst     string
 	ExistsArgs      string
 	ListArgs        string
+	ListAfterArgs   string
 	CountArgs       string
 	LinkArgs        string
 	UnlinkArgs      string
@@ -218,6 +220,8 @@ type domainView struct {
 	GetArgs          string
 	ExistsArgs       string
 	ListArgs         string
+	ListAfterArgs    string
+	CursorTime       *fieldView
 	CountArgs        string
 	CreateArgs       string
 	UpdateArgs       string
@@ -335,6 +339,12 @@ func queryArgs(q dialect.Query, sourceVar string) string {
 			out = append(out, "p.Limit")
 		case dialect.ArgOffset:
 			out = append(out, "p.Offset")
+		case dialect.ArgCursorTime:
+			out = append(out, "database.CursorTimeArg(p.Cursor."+a.Field.Name+")")
+		case dialect.ArgCursorKey:
+			out = append(out, argExpr(nonNull(a.Field), "p.Cursor."+a.Field.Name))
+		case dialect.ArgFetch:
+			out = append(out, "p.Limit+1")
 		case dialect.ArgSourceID:
 			out = append(out, argExpr(nonNull(a.Field), sourceVar))
 		case dialect.ArgOwner:

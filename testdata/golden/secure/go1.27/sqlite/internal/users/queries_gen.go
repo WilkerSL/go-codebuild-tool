@@ -34,6 +34,22 @@ WHERE "deleted_at" IS NULL
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT ? OFFSET ?`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "email",
+    "name",
+    "password_hash",
+    "role",
+    "created_at",
+    "updated_at"
+FROM "users"
+WHERE "deleted_at" IS NULL
+    AND (? IS NULL OR "email" = ?)
+    AND ("created_at" < ? OR ("created_at" = ? AND "id" < ?))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT ? OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "users"

@@ -30,6 +30,7 @@ type UpdateInput struct {
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor *Cursor
 {{- range .Filters}}
 	{{.Name}} {{.FilterType}}
 {{- end}}

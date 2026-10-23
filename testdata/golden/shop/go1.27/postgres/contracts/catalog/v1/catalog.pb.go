@@ -74,7 +74,8 @@ type CategoryPage struct {
 	Items         []*Category            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -130,10 +131,17 @@ func (x *CategoryPage) GetOffset() int32 {
 }
 
 func (x *CategoryPage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *CategoryPage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type CategoryGetRequest struct {
@@ -184,6 +192,7 @@ type CategoryListRequest struct {
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Name          *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -234,6 +243,13 @@ func (x *CategoryListRequest) GetOffset() int32 {
 func (x *CategoryListRequest) GetName() string {
 	if x != nil && x.Name != nil {
 		return *x.Name
+	}
+	return ""
+}
+
+func (x *CategoryListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
 	}
 	return ""
 }
@@ -490,7 +506,8 @@ type ProductPage struct {
 	Items         []*Product             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
-	Total         int64                  `protobuf:"varint,4,opt,name=total,proto3" json:"total,omitempty"`
+	Total         *int64                 `protobuf:"varint,4,opt,name=total,proto3,oneof" json:"total,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,5,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -546,10 +563,17 @@ func (x *ProductPage) GetOffset() int32 {
 }
 
 func (x *ProductPage) GetTotal() int64 {
-	if x != nil {
-		return x.Total
+	if x != nil && x.Total != nil {
+		return *x.Total
 	}
 	return 0
+}
+
+func (x *ProductPage) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
 }
 
 type ProductGetRequest struct {
@@ -600,6 +624,7 @@ type ProductListRequest struct {
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	CategoryId    *int64                 `protobuf:"varint,3,opt,name=category_id,json=categoryId,proto3,oneof" json:"category_id,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -652,6 +677,13 @@ func (x *ProductListRequest) GetCategoryId() int64 {
 		return *x.CategoryId
 	}
 	return 0
+}
+
+func (x *ProductListRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
 }
 
 type ProductExistsRequest struct {
@@ -871,6 +903,7 @@ type ListCategoryProductsRequest struct {
 	SourceId      int64                  `protobuf:"varint,1,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -925,6 +958,13 @@ func (x *ListCategoryProductsRequest) GetOffset() int32 {
 	return 0
 }
 
+func (x *ListCategoryProductsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 var File_catalog_v1_catalog_proto protoreflect.FileDescriptor
 
 const file_catalog_v1_catalog_proto_rawDesc = "" +
@@ -933,18 +973,23 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"catalog.v1\x1a\x16common/v1/common.proto\x1a\x1bgoogle/protobuf/empty.proto\".\n" +
 	"\bCategory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"~\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xc3\x01\n" +
 	"\fCategoryPage\x12*\n" +
 	"\x05items\x18\x01 \x03(\v2\x14.catalog.v1.CategoryR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\"$\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\"$\n" +
 	"\x12CategoryGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"}\n" +
 	"\x13CategoryListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x17\n" +
-	"\x04name\x18\x03 \x01(\tH\x00R\x04name\x88\x01\x01B\a\n" +
+	"\x04name\x18\x03 \x01(\tH\x00R\x04name\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursorB\a\n" +
 	"\x05_name\"'\n" +
 	"\x15CategoryExistsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"9\n" +
@@ -963,19 +1008,24 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"categoryId\x88\x01\x01\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
 	"\x05price\x18\x04 \x01(\x01R\x05priceB\x0e\n" +
-	"\f_category_id\"|\n" +
+	"\f_category_id\"\xc1\x01\n" +
 	"\vProductPage\x12)\n" +
 	"\x05items\x18\x01 \x03(\v2\x13.catalog.v1.ProductR\x05items\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x14\n" +
-	"\x05total\x18\x04 \x01(\x03R\x05total\"#\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x19\n" +
+	"\x05total\x18\x04 \x01(\x03H\x00R\x05total\x88\x01\x01\x12$\n" +
+	"\vnext_cursor\x18\x05 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\b\n" +
+	"\x06_totalB\x0e\n" +
+	"\f_next_cursor\"#\n" +
 	"\x11ProductGetRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"x\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x90\x01\n" +
 	"\x12ProductListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12$\n" +
 	"\vcategory_id\x18\x03 \x01(\x03H\x00R\n" +
-	"categoryId\x88\x01\x01B\x0e\n" +
+	"categoryId\x88\x01\x01\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursorB\x0e\n" +
 	"\f_category_id\"&\n" +
 	"\x14ProductExistsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"\x93\x01\n" +
@@ -997,11 +1047,12 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"\x05_nameB\b\n" +
 	"\x06_price\"&\n" +
 	"\x14ProductDeleteRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"h\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x80\x01\n" +
 	"\x1bListCategoryProductsRequest\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\x03R\bsourceId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset2\xa4\x03\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursor2\xa4\x03\n" +
 	"\x0fCategoryService\x12;\n" +
 	"\x03Get\x12\x1e.catalog.v1.CategoryGetRequest\x1a\x14.catalog.v1.Category\x12A\n" +
 	"\x04List\x12\x1f.catalog.v1.CategoryListRequest\x1a\x18.catalog.v1.CategoryPage\x12A\n" +
@@ -1093,10 +1144,12 @@ func file_catalog_v1_catalog_proto_init() {
 	if File_catalog_v1_catalog_proto != nil {
 		return
 	}
+	file_catalog_v1_catalog_proto_msgTypes[1].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[3].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[5].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[6].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[8].OneofWrappers = []any{}
+	file_catalog_v1_catalog_proto_msgTypes[9].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[11].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[13].OneofWrappers = []any{}
 	file_catalog_v1_catalog_proto_msgTypes[14].OneofWrappers = []any{}

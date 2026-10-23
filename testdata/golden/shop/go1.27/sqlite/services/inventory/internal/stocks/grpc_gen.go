@@ -43,7 +43,7 @@ func toPageMessage(page Page) *inventoryv1.StockPage {
 	for i, item := range page.Items {
 		items[i] = toMessage(item)
 	}
-	return &inventoryv1.StockPage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total}
+	return &inventoryv1.StockPage{Items: items, Limit: int32(page.Limit), Offset: int32(page.Offset), Total: page.Total, NextCursor: page.NextCursor}
 }
 
 func listParamsFrom(req *inventoryv1.StockListRequest) (ListParams, error) {
@@ -53,6 +53,14 @@ func listParamsFrom(req *inventoryv1.StockListRequest) (ListParams, error) {
 		return ListParams{}, err
 	}
 	var errs validation.Errors
+	if raw := req.GetCursor(); raw != "" {
+		cursor, err := ParseCursor(raw)
+		if err != nil {
+			errs.Add("cursor", "is invalid")
+		} else {
+			p.Cursor = &cursor
+		}
+	}
 	p.ProductID = req.ProductId
 	if len(errs) > 0 {
 		return ListParams{}, grpcx.Problem(codes.InvalidArgument, http.StatusBadRequest, "the query string contains invalid parameters", errs)

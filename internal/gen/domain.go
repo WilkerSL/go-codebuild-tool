@@ -78,10 +78,19 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 	add("getQuery", q.Get)
 	add("existsQuery", q.Exists)
 	add("listQuery", q.List)
+	add("listAfterQuery", q.ListAfter)
 	add("countQuery", q.Count)
 	dv.GetArgs = queryArgs(q.Get, "")
 	dv.ExistsArgs = queryArgs(q.Exists, "")
 	dv.ListArgs = queryArgs(q.List, "")
+	dv.ListAfterArgs = queryArgs(q.ListAfter, "")
+	if f := e.AutoCreateField(); f != nil {
+		for _, fv := range dv.Fields {
+			if fv.F == f {
+				dv.CursorTime = fv
+			}
+		}
+	}
 	dv.CountArgs = queryArgs(q.Count, "")
 	if q.Create != nil {
 		add("createQuery", *q.Create)
@@ -233,20 +242,21 @@ func newRelationView(d dialect.Dialect, source, target *schema.Entity, r *schema
 		return nil
 	}
 	rv := &relationView{
-		Kind:          string(r.Kind),
-		Source:        source,
-		SourceVar:     source.Var(),
-		SourceIDVar:   source.Var() + "ID",
-		SourceIDType:  goBase(spk.Kind),
-		SourceParse:   pathParse(spk, source.PathParam()),
-		SourcePackage: source.Domain,
-		SourceHelper:  "fixture" + source.Name,
-		Method:        "List" + source.Name + r.Name,
-		Handler:       "list" + source.Name + r.Name,
-		Path:          source.Path() + "/{" + source.PathParam() + "}/" + r.PathSegment(),
-		ExistsConst:   source.Var() + "ExistsQuery",
-		ListConst:     "list" + source.Name + r.Name + "Query",
-		CountConst:    "count" + source.Name + r.Name + "Query",
+		Kind:           string(r.Kind),
+		Source:         source,
+		SourceVar:      source.Var(),
+		SourceIDVar:    source.Var() + "ID",
+		SourceIDType:   goBase(spk.Kind),
+		SourceParse:    pathParse(spk, source.PathParam()),
+		SourcePackage:  source.Domain,
+		SourceHelper:   "fixture" + source.Name,
+		Method:         "List" + source.Name + r.Name,
+		Handler:        "list" + source.Name + r.Name,
+		Path:           source.Path() + "/{" + source.PathParam() + "}/" + r.PathSegment(),
+		ExistsConst:    source.Var() + "ExistsQuery",
+		ListConst:      "list" + source.Name + r.Name + "Query",
+		ListAfterConst: "list" + source.Name + r.Name + "AfterQuery",
+		CountConst:     "count" + source.Name + r.Name + "Query",
 	}
 	for _, owner := range []*schema.Field{source.Owner(), target.Owner()} {
 		if owner != nil {
@@ -291,9 +301,11 @@ func newRelationView(d dialect.Dialect, source, target *schema.Entity, r *schema
 		add(rv.ExistsConst, rq.SourceExists)
 	}
 	add(rv.ListConst, rq.List)
+	add(rv.ListAfterConst, rq.ListAfter)
 	add(rv.CountConst, rq.Count)
 	rv.ExistsArgs = queryArgs(rq.SourceExists, rv.SourceIDVar)
 	rv.ListArgs = queryArgs(rq.List, rv.SourceIDVar)
+	rv.ListAfterArgs = queryArgs(rq.ListAfter, rv.SourceIDVar)
 	rv.CountArgs = queryArgs(rq.Count, rv.SourceIDVar)
 	if rq.Link != nil {
 		add(rv.LinkConst, *rq.Link)

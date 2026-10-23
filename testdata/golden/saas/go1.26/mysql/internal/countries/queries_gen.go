@@ -19,5 +19,13 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `code`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `code`,\n" +
+	"    `name`\n" +
+	"FROM `countries`\n" +
+	"WHERE `code` > ?\n" +
+	"ORDER BY `code`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `countries`"

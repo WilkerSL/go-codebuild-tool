@@ -39,6 +39,26 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `org_id`,\n" +
+	"    `owner_id`,\n" +
+	"    `name`,\n" +
+	"    `budget`,\n" +
+	"    `priority`,\n" +
+	"    `archived`,\n" +
+	"    `logo`,\n" +
+	"    `due_at`,\n" +
+	"    `created_at`\n" +
+	"FROM `projects`\n" +
+	"WHERE EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `org_id` = ?)\n" +
+	"    AND (? IS NULL OR `owner_id` = ?)\n" +
+	"    AND (? IS NULL OR `archived` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `projects`\n" +
 	"WHERE EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
@@ -111,6 +131,26 @@ const listOrgProjectsQuery = "SELECT\n" +
 	"    AND (? IS NULL OR `archived` = ?)\n" +
 	"ORDER BY `created_at` DESC, `id` DESC\n" +
 	"LIMIT ? OFFSET ?"
+
+const listOrgProjectsAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `org_id`,\n" +
+	"    `owner_id`,\n" +
+	"    `name`,\n" +
+	"    `budget`,\n" +
+	"    `priority`,\n" +
+	"    `archived`,\n" +
+	"    `logo`,\n" +
+	"    `due_at`,\n" +
+	"    `created_at`\n" +
+	"FROM `projects`\n" +
+	"WHERE `org_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `orgs` WHERE `orgs`.`id` = `projects`.`org_id` AND `orgs`.`deleted_at` IS NULL)\n" +
+	"    AND (? IS NULL OR `owner_id` = ?)\n" +
+	"    AND (? IS NULL OR `archived` = ?)\n" +
+	"    AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?))\n" +
+	"ORDER BY `created_at` DESC, `id` DESC\n" +
+	"LIMIT ? OFFSET 0"
 
 const countOrgProjectsQuery = "SELECT COUNT(*)\n" +
 	"FROM `projects`\n" +

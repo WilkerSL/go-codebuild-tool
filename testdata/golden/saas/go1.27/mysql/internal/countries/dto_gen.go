@@ -5,4 +5,5 @@ package countries
 type ListParams struct {
 	Limit  int
 	Offset int
+	Cursor *Cursor
 }

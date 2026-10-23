@@ -63,6 +63,14 @@ func Pagination(q url.Values, errs *validation.Errors) (int, int) {
 	return limit, offset
 }
 
+func Cursor(q url.Values, errs *validation.Errors) string {
+	cursor := q.Get("cursor")
+	if cursor != "" && q.Has("offset") {
+		errs.Add("offset", "cannot be combined with cursor")
+	}
+	return cursor
+}
+
 func QueryString(q url.Values, name string) *string {
 	if !q.Has(name) {
 		return nil

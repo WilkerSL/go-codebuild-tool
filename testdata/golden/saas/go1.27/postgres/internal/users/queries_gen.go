@@ -37,6 +37,24 @@ WHERE "deleted_at" IS NULL
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $3 OFFSET $4`
 
+const listAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "email",
+    "role",
+    "bio",
+    "org_id",
+    "created_at",
+    "updated_at"
+FROM "users"
+WHERE "deleted_at" IS NULL
+    AND ($1::text IS NULL OR "email" = $1)
+    AND ($2::uuid IS NULL OR "org_id" = $2)
+    AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT $5 OFFSET 0`
+
 const countQuery = `
 SELECT COUNT(*)
 FROM "users"
@@ -126,6 +144,24 @@ WHERE "org_id" = $1
 ORDER BY "created_at" DESC, "id" DESC
 LIMIT $3 OFFSET $4`
 
+const listOrgUsersAfterQuery = `
+SELECT
+    "id",
+    "name",
+    "email",
+    "role",
+    "bio",
+    "org_id",
+    "created_at",
+    "updated_at"
+FROM "users"
+WHERE "org_id" = $1
+    AND "deleted_at" IS NULL
+    AND ($2::text IS NULL OR "email" = $2)
+    AND ("created_at" < $3 OR ("created_at" = $3 AND "id" < $4))
+ORDER BY "created_at" DESC, "id" DESC
+LIMIT $5 OFFSET 0`
+
 const countOrgUsersQuery = `
 SELECT COUNT(*)
 FROM "users"
@@ -156,6 +192,26 @@ WHERE "user_tags"."tag_id" = $1
     AND ($3::uuid IS NULL OR "users"."org_id" = $3)
 ORDER BY "users"."created_at" DESC, "users"."id" DESC
 LIMIT $4 OFFSET $5`
+
+const listTagUsersAfterQuery = `
+SELECT
+    "users"."id",
+    "users"."name",
+    "users"."email",
+    "users"."role",
+    "users"."bio",
+    "users"."org_id",
+    "users"."created_at",
+    "users"."updated_at"
+FROM "users"
+JOIN "user_tags" ON "user_tags"."user_id" = "users"."id"
+WHERE "user_tags"."tag_id" = $1
+    AND "users"."deleted_at" IS NULL
+    AND ($2::text IS NULL OR "users"."email" = $2)
+    AND ($3::uuid IS NULL OR "users"."org_id" = $3)
+    AND ("users"."created_at" < $4 OR ("users"."created_at" = $4 AND "users"."id" < $5))
+ORDER BY "users"."created_at" DESC, "users"."id" DESC
+LIMIT $6 OFFSET 0`
 
 const countTagUsersQuery = `
 SELECT COUNT(*)

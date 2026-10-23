@@ -20,6 +20,15 @@ const listQuery = "SELECT\n" +
 	"ORDER BY `id`\n" +
 	"LIMIT ? OFFSET ?"
 
+const listAfterQuery = "SELECT\n" +
+	"    `id`,\n" +
+	"    `name`\n" +
+	"FROM `categories`\n" +
+	"WHERE (? IS NULL OR `name` = ?)\n" +
+	"    AND `id` > ?\n" +
+	"ORDER BY `id`\n" +
+	"LIMIT ? OFFSET 0"
+
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `categories`\n" +
 	"WHERE (? IS NULL OR `name` = ?)"
