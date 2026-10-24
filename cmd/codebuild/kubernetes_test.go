@@ -49,7 +49,7 @@ func newCluster(t *testing.T, namespace string) cluster {
 		if t.Failed() {
 			out, _ := run("", nil, "", "kubectl", "-n", namespace, "get", "pods,jobs,events", "-o", "wide")
 			t.Logf("cluster state:\n%s", out)
-			logs, _ := run("", nil, "", "kubectl", "-n", namespace, "logs", "--all-containers", "--prefix", "-l", "app.kubernetes.io/managed-by=codebuild", "--tail", "50")
+			logs, _ := run("", nil, "", "kubectl", "-n", namespace, "logs", "--all-containers", "--prefix", "--max-log-requests", "20", "-l", "app.kubernetes.io/name", "--tail", "50")
 			t.Logf("logs:\n%s", logs)
 		}
 		run("", nil, "", "kubectl", "delete", "namespace", namespace, "--wait=false")
@@ -138,6 +138,11 @@ func (c cluster) forward(target string, port int) (client, func()) {
 	if err := cmd.Start(); err != nil {
 		c.t.Fatal(err)
 	}
+	c.t.Cleanup(func() {
+		if c.t.Failed() {
+			c.t.Logf("port-forward %s:\n%s", target, logs.String())
+		}
+	})
 	stop := func() {
 		cmd.Process.Kill()
 		cmd.Wait()
@@ -150,7 +155,7 @@ func (c cluster) forward(target string, port int) (client, func()) {
 
 func (c cluster) restarts() string {
 	c.t.Helper()
-	return c.kubectl("get", "pods", "-l", "app.kubernetes.io/managed-by=codebuild,app.kubernetes.io/component!=migration", "-o", "jsonpath={range .items[*]}{.metadata.name}={.status.containerStatuses[0].restartCount} {end}")
+	return c.kubectl("get", "pods", "-l", "app.kubernetes.io/name,app.kubernetes.io/component!=migration", "-o", "jsonpath={range .items[*]}{.metadata.name}={.status.containerStatuses[0].restartCount} {end}")
 }
 
 func buildImages(t *testing.T, dir string, images map[string]string) {
@@ -276,6 +281,9 @@ func kubernetesWorkspace(t *testing.T, bin string) {
 	time.Sleep(150 * time.Second)
 	c.kubectl("rollout", "restart", "deployment/catalog")
 	c.kubectl("rollout", "status", "deployment/catalog", "--timeout=180s")
+	// A fresh port-forward: kubectl may have dropped the first one while the
+	// gateway closed its idle connection during the wait.
+	gateway, _ = c.forward("svc/gateway", 8080)
 	for range 5 {
 		gateway.expect(http.MethodGet, "/categories", nil, http.StatusOK)
 	}
