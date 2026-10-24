@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-24
+
 ### Added
 
 - The observability stack is generated with the code. Workspaces get `deploy/observability`, with Jaeger 2 (traces, plus span metrics for its Monitor tab read back from Prometheus), Prometheus scraping every module with alert rules, and Grafana provisioned with both data sources and a dashboard of the project; `docker compose --profile observability up` starts it, and `docker-compose.yml` now sets `METRICS_ADDR` and `OTEL_EXPORTER_OTLP_ENDPOINT` on every module. Monoliths and workspaces get `deploy/kubernetes/components/observability`, a kustomize component with Jaeger, PodMonitors, a PrometheusRule and the dashboard as a ConfigMap for the Grafana sidecar; the production overlay of new projects includes it.
@@ -176,7 +178,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.6.0
 [0.5.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.5.0
 [0.4.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.4.0
 [0.3.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.3.0
