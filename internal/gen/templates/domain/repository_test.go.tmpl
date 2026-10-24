@@ -65,7 +65,7 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 }
 {{- range .TestHelpers}}
 
-func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.CreateInput {
+func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB{{if .InputOwner}}, owner {{.OwnerType}}{{end}}) {{.Package}}.CreateInput {
 	t.Helper()
 {{- range .Parents}}
 	{{.Var}} := {{.Call}}
@@ -79,7 +79,7 @@ func {{.InputFunc}}(t *testing.T, ctx context.Context, db *sql.DB) {{.Package}}.
 
 func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, owner {{.OwnerType}}{{end}}) {{.Package}}.{{.Entity.Name}} {
 	t.Helper()
-	item, err := {{.Package}}.NewRepository(db).Create(ctx, {{if .OwnerType}}owner, {{end}}{{.InputFunc}}(t, ctx, db))
+	item, err := {{.Package}}.NewRepository(db).Create(ctx, {{if .OwnerType}}owner, {{end}}{{.InputFunc}}(t, ctx, db{{if .InputOwner}}, owner{{end}}))
 	if err != nil {
 		t.Fatalf("create {{.Entity.Name}}: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestRepositoryWithTx(t *testing.T) {
 {{- if .Owned}}
 	{{.TestOwner}}
 {{- end}}
-	in := {{.OwnInputHelper}}(t, ctx, db)
+	in := {{.OwnInputHelper}}(t, ctx, db{{.InputOwnerSuffix}})
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -287,7 +287,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if _, err := repo.Get(ctx, {{.TestOwnerArg}}created.{{.PK.Name}}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("rolled back row is visible: %v", err)
 	}
-	next := {{.OwnInputHelper}}(t, ctx, db)
+	next := {{.OwnInputHelper}}(t, ctx, db{{.InputOwnerSuffix}})
 	var committed {{.Package}}.{{.Name}}
 	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
 		var err error
@@ -311,7 +311,7 @@ func TestRepositoryUniqueConflict(t *testing.T) {
 	{{.TestOwner}}
 {{- end}}
 	first := {{.OwnHelper}}(t, ctx, db{{.TestOwnerSuffix}})
-	in := {{.OwnInputHelper}}(t, ctx, db)
+	in := {{.OwnInputHelper}}(t, ctx, db{{.InputOwnerSuffix}})
 	in.{{.UniqueTestField.Name}} = first.{{.UniqueTestField.Name}}
 	_, err := {{.Package}}.NewRepository(db).Create(ctx, {{.TestOwnerArg}}in)
 	ce, ok := errors.AsType[*database.ConstraintError](err)
@@ -328,7 +328,7 @@ func TestRepositoryMissingReference(t *testing.T) {
 {{- if .Owned}}
 	{{.TestOwner}}
 {{- end}}
-	in := {{.OwnInputHelper}}(t, ctx, db)
+	in := {{.OwnInputHelper}}(t, ctx, db{{.InputOwnerSuffix}})
 	in.{{.MissingRefField.Name}} = {{.MissingRefValue}}
 	_, err := {{.Package}}.NewRepository(db).Create(ctx, {{.TestOwnerArg}}in)
 {{- if .MissingRefNamed}}
@@ -353,7 +353,7 @@ func TestRepository{{.Method}}(t *testing.T) {
 	{{$.TestOwner}}
 {{- end}}
 {{- if .TestCreate}}
-	in := {{$.OwnInputHelper}}(t, ctx, db)
+	in := {{$.OwnInputHelper}}(t, ctx, db{{$.InputOwnerSuffix}})
 {{- if .ExplicitParent}}
 	parent := {{.SourceCall}}
 	in.{{.FK.Name}} = {{if .FK.F.Nullable}}&{{end}}parent.{{.Source.PK.Name}}

@@ -28,7 +28,6 @@ func (p *parser) validateModel(m *schema.Model) {
 	}
 	p.checkJoinTables(m)
 	p.checkCycles(m)
-	p.checkAuthModel(m)
 	for _, e := range m.Entities {
 		for _, f := range e.Fields {
 			if f.Ref != nil {
@@ -36,6 +35,7 @@ func (p *parser) validateModel(m *schema.Model) {
 			}
 		}
 	}
+	p.checkAuthModel(m)
 	p.checkServices(m)
 }
 
@@ -65,6 +65,9 @@ func (p *parser) checkAuthModel(m *schema.Model) {
 			if auth == nil || f.Ref.Entity != auth.Name {
 				p.errorf(p.fieldPos(f, "owner"), CodeInvalidCombination, "", "owner %s.%s must reference the account entity (the entity with auth=)", e.Name, f.Name)
 			}
+		}
+		if ref := e.ScopeRef(); ref != nil && e.Public.Any() {
+			p.errorf(p.entityPos(e, "public"), CodeInvalidCombination, "", "%s belongs to the owner of its %s through %s, so its rows always belong to a caller and cannot be public", e.Name, ref.Ref.Target.Name, ref.Name)
 		}
 		if auth == nil {
 			for _, key := range []string{"public", "roles", "writeroles"} {

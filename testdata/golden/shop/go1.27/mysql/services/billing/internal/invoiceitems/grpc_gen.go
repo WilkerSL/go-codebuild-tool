@@ -81,11 +81,12 @@ func listParamsFrom(req *billingv1.InvoiceItemListRequest) (ListParams, error) {
 }
 
 func (s *GRPCServer) Get(ctx context.Context, req *billingv1.InvoiceItemGetRequest) (*billingv1.InvoiceItem, error) {
-	if _, err := grpcx.Authorize(ctx); err != nil {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
 		return nil, err
 	}
 	id := req.GetId()
-	item, err := s.svc.Get(ctx, id)
+	item, err := s.svc.Get(ctx, caller.ID, id)
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
@@ -93,14 +94,15 @@ func (s *GRPCServer) Get(ctx context.Context, req *billingv1.InvoiceItemGetReque
 }
 
 func (s *GRPCServer) List(ctx context.Context, req *billingv1.InvoiceItemListRequest) (*billingv1.InvoiceItemPage, error) {
-	if _, err := grpcx.Authorize(ctx); err != nil {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
 		return nil, err
 	}
 	p, err := listParamsFrom(req)
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
-	page, err := s.svc.List(ctx, p)
+	page, err := s.svc.List(ctx, caller.ID, p)
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
@@ -108,8 +110,12 @@ func (s *GRPCServer) List(ctx context.Context, req *billingv1.InvoiceItemListReq
 }
 
 func (s *GRPCServer) Exists(ctx context.Context, req *billingv1.InvoiceItemExistsRequest) (*commonv1.ExistsResponse, error) {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
+		return nil, err
+	}
 	id := req.GetId()
-	ok, err := s.svc.Exists(ctx, id)
+	ok, err := s.svc.Exists(ctx, caller.ID, id)
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
@@ -130,7 +136,8 @@ func createInputFrom(req *billingv1.InvoiceItemCreateRequest) (CreateInput, erro
 }
 
 func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceItemCreateRequest) (*billingv1.InvoiceItem, error) {
-	if _, err := grpcx.Authorize(ctx); err != nil {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
 		return nil, err
 	}
 	return grpcx.Idempotent(ctx, s.idem, s.logger, billingv1.InvoiceItemService_Create_FullMethodName, req, func() (*billingv1.InvoiceItem, error) {
@@ -143,7 +150,7 @@ func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceItemCreat
 		} else if !res.GetExists() {
 			return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
 		}
-		item, err := s.svc.Create(ctx, in)
+		item, err := s.svc.Create(ctx, caller.ID, in)
 		if err != nil {
 			return nil, s.fail(ctx, err)
 		}
@@ -165,7 +172,8 @@ func updateInputFrom(req *billingv1.InvoiceItemUpdateRequest) (UpdateInput, erro
 }
 
 func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceItemUpdateRequest) (*billingv1.InvoiceItem, error) {
-	if _, err := grpcx.Authorize(ctx); err != nil {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
 		return nil, err
 	}
 	id := req.GetId()
@@ -178,7 +186,7 @@ func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceItemUpdat
 	} else if !res.GetExists() {
 		return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
 	}
-	item, err := s.svc.Update(ctx, id, in)
+	item, err := s.svc.Update(ctx, caller.ID, id, in)
 	if err != nil {
 		return nil, s.fail(ctx, err)
 	}
@@ -186,11 +194,12 @@ func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceItemUpdat
 }
 
 func (s *GRPCServer) Delete(ctx context.Context, req *billingv1.InvoiceItemDeleteRequest) (*emptypb.Empty, error) {
-	if _, err := grpcx.Authorize(ctx); err != nil {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
 		return nil, err
 	}
 	id := req.GetId()
-	if err := s.svc.Delete(ctx, id); err != nil {
+	if err := s.svc.Delete(ctx, caller.ID, id); err != nil {
 		return nil, s.fail(ctx, err)
 	}
 	return &emptypb.Empty{}, nil

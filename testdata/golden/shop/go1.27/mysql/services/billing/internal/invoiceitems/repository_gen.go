@@ -37,8 +37,8 @@ func scanInvoiceItem(scan func(dest ...any) error) (InvoiceItem, error) {
 	return item, err
 }
 
-func (r *Repository) Get(ctx context.Context, id int64) (InvoiceItem, error) {
-	item, err := scanInvoiceItem(r.db.QueryRowContext(ctx, getQuery, id).Scan)
+func (r *Repository) Get(ctx context.Context, ownerID uuid.UUID, id int64) (InvoiceItem, error) {
+	item, err := scanInvoiceItem(r.db.QueryRowContext(ctx, getQuery, id, database.UUIDArg(ownerID)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return InvoiceItem{}, database.ErrNotFound
 	}
@@ -48,23 +48,23 @@ func (r *Repository) Get(ctx context.Context, id int64) (InvoiceItem, error) {
 	return item, nil
 }
 
-func (r *Repository) Exists(ctx context.Context, id int64) (bool, error) {
-	err := r.exists(ctx, existsQuery, id)
+func (r *Repository) Exists(ctx context.Context, ownerID uuid.UUID, id int64) (bool, error) {
+	err := r.exists(ctx, existsQuery, id, database.UUIDArg(ownerID))
 	if errors.Is(err, database.ErrNotFound) {
 		return false, nil
 	}
 	return err == nil, err
 }
 
-func (r *Repository) List(ctx context.Context, p ListParams) (Page, error) {
+func (r *Repository) List(ctx context.Context, ownerID uuid.UUID, p ListParams) (Page, error) {
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listAfterQuery, []any{database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID, p.Cursor.ID, p.Limit + 1})
+		return r.pageAfter(ctx, p, listAfterQuery, []any{database.UUIDArg(ownerID), database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID, p.Cursor.ID, p.Limit + 1})
 	}
-	return r.page(ctx, p, listQuery, []any{database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID, p.Limit, p.Offset}, countQuery, []any{database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID})
+	return r.page(ctx, p, listQuery, []any{database.UUIDArg(ownerID), database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID, p.Limit, p.Offset}, countQuery, []any{database.UUIDArg(ownerID), database.NullUUIDArg(p.InvoiceID), database.NullUUIDArg(p.InvoiceID), p.ProductID, p.ProductID})
 }
 
-func (r *Repository) Create(ctx context.Context, in CreateInput) (InvoiceItem, error) {
-	if err := r.reference(ctx, invoiceLiveQuery, "invoiceId", database.UUIDArg(in.InvoiceID)); err != nil {
+func (r *Repository) Create(ctx context.Context, ownerID uuid.UUID, in CreateInput) (InvoiceItem, error) {
+	if err := r.reference(ctx, invoiceExistsQuery, "invoiceId", database.UUIDArg(in.InvoiceID), database.UUIDArg(ownerID)); err != nil {
 		return InvoiceItem{}, err
 	}
 	var item InvoiceItem
@@ -78,7 +78,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (InvoiceItem, e
 			return fmt.Errorf("create invoice item: %w", err)
 		}
 		id := int64(lastID)
-		created, err := scanInvoiceItem(db.QueryRowContext(ctx, getQuery, id).Scan)
+		created, err := scanInvoiceItem(db.QueryRowContext(ctx, getQuery, id, database.UUIDArg(ownerID)).Scan)
 		if err != nil {
 			return fmt.Errorf("create invoice item: %w", err)
 		}
@@ -90,13 +90,13 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (InvoiceItem, e
 	return item, nil
 }
 
-func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (InvoiceItem, error) {
-	if err := r.reference(ctx, invoiceLiveQuery, "invoiceId", database.UUIDArg(in.InvoiceID)); err != nil {
+func (r *Repository) Update(ctx context.Context, ownerID uuid.UUID, id int64, in UpdateInput) (InvoiceItem, error) {
+	if err := r.reference(ctx, invoiceExistsQuery, "invoiceId", database.UUIDArg(in.InvoiceID), database.UUIDArg(ownerID)); err != nil {
 		return InvoiceItem{}, err
 	}
 	var item InvoiceItem
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
-		res, err := db.ExecContext(ctx, updateQuery, database.UUIDArg(in.InvoiceID), in.ProductID, in.Quantity, in.Price, id)
+		res, err := db.ExecContext(ctx, updateQuery, database.UUIDArg(in.InvoiceID), in.ProductID, in.Quantity, in.Price, id, database.UUIDArg(ownerID))
 		if err != nil {
 			return writeError("update invoice item", err)
 		}
@@ -107,7 +107,7 @@ func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (Invo
 		if n == 0 {
 			return database.ErrNotFound
 		}
-		updated, err := scanInvoiceItem(db.QueryRowContext(ctx, getQuery, id).Scan)
+		updated, err := scanInvoiceItem(db.QueryRowContext(ctx, getQuery, id, database.UUIDArg(ownerID)).Scan)
 		if err != nil {
 			return fmt.Errorf("update invoice item: %w", err)
 		}
@@ -119,8 +119,8 @@ func (r *Repository) Update(ctx context.Context, id int64, in UpdateInput) (Invo
 	return item, nil
 }
 
-func (r *Repository) Delete(ctx context.Context, id int64) error {
-	res, err := r.db.ExecContext(ctx, deleteQuery, id)
+func (r *Repository) Delete(ctx context.Context, ownerID uuid.UUID, id int64) error {
+	res, err := r.db.ExecContext(ctx, deleteQuery, id, database.UUIDArg(ownerID))
 	if err != nil {
 		if ce, ok := database.Constraint(err); ok && ce.Kind == database.ForeignKeyViolation {
 			return fmt.Errorf("delete invoice item: %w", database.ErrReferenced)
@@ -142,9 +142,9 @@ func (r *Repository) ListInvoiceItems(ctx context.Context, ownerID uuid.UUID, in
 		return Page{}, err
 	}
 	if p.Cursor != nil {
-		return r.pageAfter(ctx, p, listInvoiceItemsAfterQuery, []any{database.UUIDArg(invoiceID), p.ProductID, p.ProductID, p.Cursor.ID, p.Limit + 1})
+		return r.pageAfter(ctx, p, listInvoiceItemsAfterQuery, []any{database.UUIDArg(invoiceID), database.UUIDArg(ownerID), p.ProductID, p.ProductID, p.Cursor.ID, p.Limit + 1})
 	}
-	return r.page(ctx, p, listInvoiceItemsQuery, []any{database.UUIDArg(invoiceID), p.ProductID, p.ProductID, p.Limit, p.Offset}, countInvoiceItemsQuery, []any{database.UUIDArg(invoiceID), p.ProductID, p.ProductID})
+	return r.page(ctx, p, listInvoiceItemsQuery, []any{database.UUIDArg(invoiceID), database.UUIDArg(ownerID), p.ProductID, p.ProductID, p.Limit, p.Offset}, countInvoiceItemsQuery, []any{database.UUIDArg(invoiceID), database.UUIDArg(ownerID), p.ProductID, p.ProductID})
 }
 
 func (r *Repository) reference(ctx context.Context, query, field string, args ...any) error {

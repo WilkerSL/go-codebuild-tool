@@ -106,3 +106,15 @@ CREATE TABLE `note_labels` (
     CONSTRAINT `fk_note_labels_label_id` FOREIGN KEY (`label_id`) REFERENCES `labels` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_note_labels_note_id` FOREIGN KEY (`note_id`) REFERENCES `notes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `reminders` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `note_id` CHAR(36) NOT NULL,
+    `text` VARCHAR(200) NOT NULL,
+    `due_at` DATETIME(6) NOT NULL,
+    `done` BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT `pk_reminders` PRIMARY KEY (`id`),
+    INDEX `ix_reminders_note_id` (`note_id`),
+    INDEX `lx_reminders_note_id` (`note_id`, `id`),
+    CONSTRAINT `fk_reminders_note_id` FOREIGN KEY (`note_id`) REFERENCES `notes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

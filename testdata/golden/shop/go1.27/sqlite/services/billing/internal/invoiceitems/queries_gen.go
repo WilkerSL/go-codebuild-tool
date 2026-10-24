@@ -10,12 +10,12 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "invoice_items"
-WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -25,7 +25,8 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "invoice_id" = ?)
     AND (? IS NULL OR "product_id" = ?)
 ORDER BY "id"
@@ -39,7 +40,8 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "invoice_id" = ?)
     AND (? IS NULL OR "product_id" = ?)
     AND "id" > ?
@@ -49,7 +51,8 @@ LIMIT ? OFFSET 0`
 const countQuery = `
 SELECT COUNT(*)
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "invoice_id" = ?)
     AND (? IS NULL OR "product_id" = ?)`
 
@@ -79,7 +82,7 @@ SET
     "product_id" = ?,
     "quantity" = ?,
     "price" = ?
-WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
 RETURNING
     "id",
     "invoice_id",
@@ -89,12 +92,7 @@ RETURNING
 
 const deleteQuery = `
 DELETE FROM "invoice_items"
-WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
-
-const invoiceLiveQuery = `
-SELECT 1
-FROM "invoices"
-WHERE "id" = ? AND "deleted_at" IS NULL`
+WHERE "id" = ? AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const invoiceExistsQuery = `
 SELECT 1
@@ -110,6 +108,7 @@ SELECT
     "price"
 FROM "invoice_items"
 WHERE "invoice_id" = ?
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "product_id" = ?)
 ORDER BY "id"
@@ -124,6 +123,7 @@ SELECT
     "price"
 FROM "invoice_items"
 WHERE "invoice_id" = ?
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "product_id" = ?)
     AND "id" > ?
@@ -134,5 +134,6 @@ const countInvoiceItemsQuery = `
 SELECT COUNT(*)
 FROM "invoice_items"
 WHERE "invoice_id" = ?
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = ?)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
     AND (? IS NULL OR "product_id" = ?)`

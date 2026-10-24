@@ -181,6 +181,15 @@ func TestAuthDiagnostics(t *testing.T) {
 			want: []wantDiag{{file: "specs/notes.go", at: "public=read", code: CodeInvalidCombination}},
 		},
 		{
+			name: "rows scoped through a parent cannot be public",
+			files: map[string]string{
+				"specs/users.go": accountSpec("auth=session", credentials),
+				"specs/notes.go": ownedSpec("Note", "softdelete", "\tOwnerID uuid.UUID `gen:\"rel=belongs_to:User,owner\"`\n"),
+				"specs/items.go": header + "type Item struct {\n\t_      struct{} `gen:\"public=read\"`\n\tID     int64    `gen:\"pk,auto\"`\n\tNoteID int64    `gen:\"rel=belongs_to:Note\"`\n}\n",
+			},
+			want: []wantDiag{{file: "specs/items.go", at: "public=read", code: CodeInvalidCombination, contains: "belongs to the owner of its Note through NoteID"}},
+		},
+		{
 			name: "nullable owner",
 			files: map[string]string{
 				"specs/users.go": accountSpec("auth=session", credentials),

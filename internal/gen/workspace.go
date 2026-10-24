@@ -319,7 +319,7 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 		g.tag(dv.Package, "Service", "", "")
 		for _, method := range dv.ServiceMethods {
 			g.userGoFile(dir+method.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "Service", Method: method})
-			g.tag(dv.Package, "", "Service", method.Name)
+			g.tagMethod(dv.Package, "Service", method)
 		}
 		if dv.IsAuth {
 			g.goFile(dir+"auth_queries_gen.go", "domain/auth_queries.go.tmpl", dv)
@@ -334,7 +334,7 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 			g.tag(dv.Package, "AuthService", "", "")
 			for _, method := range dv.AuthMethods {
 				g.userGoFile(dir+method.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "AuthService", Method: method})
-				g.tag(dv.Package, "", "AuthService", method.Name)
+				g.tagMethod(dv.Package, "AuthService", method)
 			}
 			g.goFile("internal/app/accounts_gen.go", "project/accounts.go.tmpl", pv)
 			g.userGoFile("cmd/accounts/main.go", "project/accounts_main.go.tmpl", pv)

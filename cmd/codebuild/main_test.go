@@ -504,6 +504,22 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 		t.Fatalf("bob sees notes of ann: %v", page)
 	}
 	asBob.expect("POST", "/notes", map[string]any{"title": "Steal", "folderId": folder["id"]}, http.StatusUnprocessableEntity)
+	// A reminder belongs to the owner of its note, on its own routes too.
+	reminder := asAnn.expect("POST", "/reminders", map[string]any{"noteId": noteID, "text": "Call", "dueAt": "2030-01-01T09:00:00Z"}, http.StatusCreated)
+	reminderPath := fmt.Sprintf("/reminders/%v", reminder["id"])
+	asBob.expect("GET", reminderPath, nil, http.StatusNotFound)
+	asBob.expect("PUT", reminderPath, map[string]any{"noteId": noteID, "text": "Mine", "dueAt": "2030-01-01T09:00:00Z", "done": true}, http.StatusUnprocessableEntity)
+	bobNote := asBob.expect("POST", "/notes", map[string]any{"title": "Bob"}, http.StatusCreated)
+	asBob.expect("PUT", reminderPath, map[string]any{"noteId": bobNote["id"], "text": "Mine", "dueAt": "2030-01-01T09:00:00Z", "done": true}, http.StatusNotFound)
+	asBob.expect("DELETE", reminderPath, nil, http.StatusNotFound)
+	asBob.expect("POST", "/reminders", map[string]any{"noteId": noteID, "text": "Steal", "dueAt": "2030-01-01T09:00:00Z"}, http.StatusUnprocessableEntity)
+	if page := asBob.expect("GET", "/reminders", nil, http.StatusOK); page["total"].(float64) != 0 {
+		t.Fatalf("bob sees reminders of ann: %v", page)
+	}
+	if page := asAnn.expect("GET", "/notes/"+noteID+"/reminders", nil, http.StatusOK); page["total"].(float64) != 1 {
+		t.Fatalf("note reminders = %v", page)
+	}
+	asAnn.expect("GET", reminderPath, nil, http.StatusOK)
 
 	asAnn.expect("POST", "/labels", map[string]any{"name": "urgent"}, http.StatusForbidden)
 	asAnn.expect("GET", "/users", nil, http.StatusForbidden)

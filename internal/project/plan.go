@@ -70,18 +70,20 @@ const (
 )
 
 type FileChange struct {
-	Path     string `json:"path"`
-	Action   Action `json:"action"`
-	Owner    Owner  `json:"owner"`
-	Added    int    `json:"added,omitempty"`
-	Removed  int    `json:"removed,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-	content  []byte
-	old      []byte
-	domain   string
-	service  string
-	receiver string
-	method   string
+	Path      string `json:"path"`
+	Action    Action `json:"action"`
+	Owner     Owner  `json:"owner"`
+	Added     int    `json:"added,omitempty"`
+	Removed   int    `json:"removed,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	content   []byte
+	old       []byte
+	domain    string
+	service   string
+	receiver  string
+	method    string
+	signature string
+	params    int
 }
 
 type GoUpgrade struct {
@@ -635,6 +637,7 @@ func (p *planner) addGenerated(files []gen.File) {
 		p.add(f.Path, f.Content, owner)
 		last := &p.files[len(p.files)-1]
 		last.domain, last.service, last.receiver, last.method = f.Domain, f.ServiceType, f.Receiver, f.ServiceMethod
+		last.signature, last.params = f.ServiceSignature, f.ServiceParams
 	}
 }
 

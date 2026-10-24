@@ -9,11 +9,11 @@ const getQuery = "SELECT\n" +
 	"    `quantity`,\n" +
 	"    `price`\n" +
 	"FROM `invoice_items`\n" +
-	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?) AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
 
 const existsQuery = "SELECT 1\n" +
 	"FROM `invoice_items`\n" +
-	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?) AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
 
 const listQuery = "SELECT\n" +
 	"    `id`,\n" +
@@ -22,7 +22,8 @@ const listQuery = "SELECT\n" +
 	"    `quantity`,\n" +
 	"    `price`\n" +
 	"FROM `invoice_items`\n" +
-	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
+	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `invoice_id` = ?)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)\n" +
 	"ORDER BY `id`\n" +
@@ -35,7 +36,8 @@ const listAfterQuery = "SELECT\n" +
 	"    `quantity`,\n" +
 	"    `price`\n" +
 	"FROM `invoice_items`\n" +
-	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
+	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `invoice_id` = ?)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)\n" +
 	"    AND `id` > ?\n" +
@@ -44,7 +46,8 @@ const listAfterQuery = "SELECT\n" +
 
 const countQuery = "SELECT COUNT(*)\n" +
 	"FROM `invoice_items`\n" +
-	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
+	"WHERE EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `invoice_id` = ?)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)"
 
@@ -66,14 +69,10 @@ const updateQuery = "UPDATE `invoice_items`\n" +
 	"    `product_id` = ?,\n" +
 	"    `quantity` = ?,\n" +
 	"    `price` = ?\n" +
-	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?) AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
 
 const deleteQuery = "DELETE FROM `invoice_items`\n" +
-	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
-
-const invoiceLiveQuery = "SELECT 1\n" +
-	"FROM `invoices`\n" +
-	"WHERE `id` = ? AND `deleted_at` IS NULL"
+	"WHERE `id` = ? AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?) AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)"
 
 const invoiceExistsQuery = "SELECT 1\n" +
 	"FROM `invoices`\n" +
@@ -87,6 +86,7 @@ const listInvoiceItemsQuery = "SELECT\n" +
 	"    `price`\n" +
 	"FROM `invoice_items`\n" +
 	"WHERE `invoice_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
 	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)\n" +
 	"ORDER BY `id`\n" +
@@ -100,6 +100,7 @@ const listInvoiceItemsAfterQuery = "SELECT\n" +
 	"    `price`\n" +
 	"FROM `invoice_items`\n" +
 	"WHERE `invoice_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
 	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)\n" +
 	"    AND `id` > ?\n" +
@@ -109,5 +110,6 @@ const listInvoiceItemsAfterQuery = "SELECT\n" +
 const countInvoiceItemsQuery = "SELECT COUNT(*)\n" +
 	"FROM `invoice_items`\n" +
 	"WHERE `invoice_id` = ?\n" +
+	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`owner_id` = ?)\n" +
 	"    AND EXISTS (SELECT 1 FROM `invoices` WHERE `invoices`.`id` = `invoice_items`.`invoice_id` AND `invoices`.`deleted_at` IS NULL)\n" +
 	"    AND (? IS NULL OR `product_id` = ?)"

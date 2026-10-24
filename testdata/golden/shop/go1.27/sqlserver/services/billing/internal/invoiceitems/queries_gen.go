@@ -10,12 +10,12 @@ SELECT
     [quantity],
     [price]
 FROM [invoice_items]
-WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2) AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM [invoice_items]
-WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2) AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
 
 const listQuery = `
 SELECT
@@ -25,11 +25,12 @@ SELECT
     [quantity],
     [price]
 FROM [invoice_items]
-WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p1 IS NULL OR [invoice_id] = @p1)
-    AND (@p2 IS NULL OR [product_id] = @p2)
+WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p1)
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [invoice_id] = @p2)
+    AND (@p3 IS NULL OR [product_id] = @p3)
 ORDER BY [id]
-OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
+OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const listAfterQuery = `
@@ -40,20 +41,22 @@ SELECT
     [quantity],
     [price]
 FROM [invoice_items]
-WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p1 IS NULL OR [invoice_id] = @p1)
-    AND (@p2 IS NULL OR [product_id] = @p2)
-    AND [id] > @p3
+WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p1)
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [invoice_id] = @p2)
+    AND (@p3 IS NULL OR [product_id] = @p3)
+    AND [id] > @p4
 ORDER BY [id]
-OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
+OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countQuery = `
 SELECT COUNT(*)
 FROM [invoice_items]
-WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p1 IS NULL OR [invoice_id] = @p1)
-    AND (@p2 IS NULL OR [product_id] = @p2)
+WHERE EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p1)
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
+    AND (@p2 IS NULL OR [invoice_id] = @p2)
+    AND (@p3 IS NULL OR [product_id] = @p3)
 OPTION (RECOMPILE)`
 
 const createQuery = `
@@ -112,7 +115,7 @@ OUTPUT
     INSERTED.[quantity],
     INSERTED.[price]
 INTO @rows
-WHERE [id] = @p5 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL);
+WHERE [id] = @p5 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p6) AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL);
 SELECT
     [id],
     [invoice_id],
@@ -123,12 +126,7 @@ FROM @rows`
 
 const deleteQuery = `
 DELETE FROM [invoice_items]
-WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
-
-const invoiceLiveQuery = `
-SELECT 1
-FROM [invoices]
-WHERE [id] = @p1 AND [deleted_at] IS NULL`
+WHERE [id] = @p1 AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2) AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)`
 
 const invoiceExistsQuery = `
 SELECT 1
@@ -144,10 +142,11 @@ SELECT
     [price]
 FROM [invoice_items]
 WHERE [invoice_id] = @p1
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2)
     AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p2 IS NULL OR [product_id] = @p2)
+    AND (@p3 IS NULL OR [product_id] = @p3)
 ORDER BY [id]
-OFFSET @p3 ROWS FETCH NEXT @p4 ROWS ONLY
+OFFSET @p4 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const listInvoiceItemsAfterQuery = `
@@ -159,17 +158,19 @@ SELECT
     [price]
 FROM [invoice_items]
 WHERE [invoice_id] = @p1
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2)
     AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p2 IS NULL OR [product_id] = @p2)
-    AND [id] > @p3
+    AND (@p3 IS NULL OR [product_id] = @p3)
+    AND [id] > @p4
 ORDER BY [id]
-OFFSET 0 ROWS FETCH NEXT @p4 ROWS ONLY
+OFFSET 0 ROWS FETCH NEXT @p5 ROWS ONLY
 OPTION (RECOMPILE)`
 
 const countInvoiceItemsQuery = `
 SELECT COUNT(*)
 FROM [invoice_items]
 WHERE [invoice_id] = @p1
+    AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[owner_id] = @p2)
     AND EXISTS (SELECT 1 FROM [invoices] WHERE [invoices].[id] = [invoice_items].[invoice_id] AND [invoices].[deleted_at] IS NULL)
-    AND (@p2 IS NULL OR [product_id] = @p2)
+    AND (@p3 IS NULL OR [product_id] = @p3)
 OPTION (RECOMPILE)`

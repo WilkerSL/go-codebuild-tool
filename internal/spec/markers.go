@@ -333,7 +333,7 @@ var markerDefs = []markerDef{
 		doc: MarkerDoc{
 			Syntax:      "owner",
 			AppliesTo:   "non-pointer `rel=belongs_to:<account entity>` field",
-			Description: "Scopes every query of the entity to the authenticated caller: the field is filled from the caller on create, never accepted in requests, and rows of other owners answer 404. Repository and service methods take the owner as an explicit parameter.",
+			Description: "Scopes every query of the entity to the authenticated caller: the field is filled from the caller on create, never accepted in requests, and rows of other owners answer 404. Repository and service methods take the owner as an explicit parameter. Entities without an owner field that reference an owned entity through a required `belongs_to` in the same database inherit the scope on all their routes: an order item belongs to the customer of its order. They cannot be `public`.",
 			Example:     "OwnerID uuid.UUID `gen:\"rel=belongs_to:User,ondelete=cascade,owner\"`",
 			CommonError: "`owner` on a reference to an entity without `auth=` fails with invalid_combination.",
 		},

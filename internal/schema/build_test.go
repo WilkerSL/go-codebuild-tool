@@ -2,6 +2,7 @@ package schema_test
 
 import (
 	"bytes"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -460,5 +461,33 @@ func TestListIndexes(t *testing.T) {
 		"}\n"})
 	if schema.Build(wide).Table("docs").Index("lx_docs") != nil {
 		t.Error("a list index on a wide string key could exceed the index size limits")
+	}
+}
+
+func TestScopeFollowsRequiredReferences(t *testing.T) {
+	files := maps.Clone(notesSpecs)
+	files["specs/items.go"] = header + "type Item struct {\n" +
+		"\tID     int64 `gen:\"pk,auto\"`\n" +
+		"\tNoteID int64 `gen:\"rel=belongs_to:Note,ondelete=cascade\"`\n" +
+		"\tTagID  int64 `gen:\"rel=belongs_to:Tag\"`\n" +
+		"}\n"
+	files["specs/marks.go"] = header + "type Mark struct {\n" +
+		"\tID     int64  `gen:\"pk,auto\"`\n" +
+		"\tItemID int64  `gen:\"rel=belongs_to:Item,ondelete=cascade\"`\n" +
+		"\tNoteID *int64 `gen:\"rel=belongs_to:Note\"`\n" +
+		"}\n"
+	m := parse(t, files)
+	note, item, mark, tag := m.Entity("Note"), m.Entity("Item"), m.Entity("Mark"), m.Entity("Tag")
+	if note.ScopeRef() != nil || note.ScopeOwner() != note.Field("OwnerID") {
+		t.Fatalf("an owned entity is scoped by its own owner field: %v %v", note.ScopeRef(), note.ScopeOwner())
+	}
+	if item.ScopeRef() != item.Field("NoteID") || item.ScopeOwner() != note.Field("OwnerID") {
+		t.Fatalf("item scope = %v %v", item.ScopeRef(), item.ScopeOwner())
+	}
+	if mark.ScopeRef() != mark.Field("ItemID") || mark.ScopeOwner() != note.Field("OwnerID") {
+		t.Fatalf("a grandchild is scoped through its parent: %v %v", mark.ScopeRef(), mark.ScopeOwner())
+	}
+	if tag.ScopeRef() != nil || tag.ScopeOwner() != nil {
+		t.Fatal("an entity nobody owns has no scope")
 	}
 }

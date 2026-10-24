@@ -87,6 +87,15 @@ CREATE TABLE "note_labels" (
     CONSTRAINT "fk_note_labels_note_id" FOREIGN KEY ("note_id") REFERENCES "notes" ("id") ON DELETE CASCADE
 );
 
+CREATE TABLE "reminders" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "note_id" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "due_at" DATETIME NOT NULL,
+    "done" BOOLEAN NOT NULL DEFAULT 0,
+    CONSTRAINT "fk_reminders_note_id" FOREIGN KEY ("note_id") REFERENCES "notes" ("id") ON DELETE CASCADE
+);
+
 CREATE INDEX "ix_auth_rate_limits_reset_at" ON "auth_rate_limits" ("reset_at");
 
 CREATE INDEX "ix_idempotency_keys_expires_at" ON "idempotency_keys" ("expires_at");
@@ -122,3 +131,7 @@ CREATE INDEX "lx_notes_folder_id" ON "notes" ("folder_id", "created_at", "id");
 CREATE INDEX "lx_notes_owner_id" ON "notes" ("owner_id", "created_at", "id");
 
 CREATE INDEX "ix_note_labels_note_id" ON "note_labels" ("note_id");
+
+CREATE INDEX "ix_reminders_note_id" ON "reminders" ("note_id");
+
+CREATE INDEX "lx_reminders_note_id" ON "reminders" ("note_id", "id");

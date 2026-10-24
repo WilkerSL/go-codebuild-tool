@@ -68,6 +68,8 @@ func (s *Service) Get(ctx context.Context, ownerID uuid.UUID, id uuid.UUID) (Not
 
 Every repository query of the entity filters by the owner, so rows of other users answer 404 exactly like rows that do not exist. When an owned entity references another owned entity, for example a note inside a folder, create and update check that the referenced row belongs to the same caller.
 
+The scope follows required references inside one database. An entity without an `owner` field whose first required `belongs_to` points at an owned entity, such as the items of an owned order, belongs to the owner of that parent, through any number of levels: its queries check that the parent belongs to the caller, its repository and service methods take the owner too, a create or update that points at another user's parent answers 422 on that field, and every other route answers 404 for rows of other users. Such an entity cannot be `public`. A reference to an owned entity in another database cannot be checked in SQL, so give an entity in that position an `owner` field of its own.
+
 The service is yours. To let admins see every row, read the caller with `auth.FromContext(ctx)` and write an extra repository method in a file you own.
 
 ## Endpoints

@@ -14,28 +14,28 @@ func NewService(db *sql.DB) *Service {
 	return &Service{repo: NewRepository(db)}
 }
 
-func (s *Service) List(ctx context.Context, p ListParams) (Page, error) {
-	return s.repo.List(ctx, p)
+func (s *Service) List(ctx context.Context, ownerID uuid.UUID, p ListParams) (Page, error) {
+	return s.repo.List(ctx, ownerID, p)
 }
 
-func (s *Service) Get(ctx context.Context, id int64) (InvoiceItem, error) {
-	return s.repo.Get(ctx, id)
+func (s *Service) Get(ctx context.Context, ownerID uuid.UUID, id int64) (InvoiceItem, error) {
+	return s.repo.Get(ctx, ownerID, id)
 }
 
-func (s *Service) Exists(ctx context.Context, id int64) (bool, error) {
-	return s.repo.Exists(ctx, id)
+func (s *Service) Exists(ctx context.Context, ownerID uuid.UUID, id int64) (bool, error) {
+	return s.repo.Exists(ctx, ownerID, id)
 }
 
-func (s *Service) Create(ctx context.Context, in CreateInput) (InvoiceItem, error) {
-	return s.repo.Create(ctx, in)
+func (s *Service) Create(ctx context.Context, ownerID uuid.UUID, in CreateInput) (InvoiceItem, error) {
+	return s.repo.Create(ctx, ownerID, in)
 }
 
-func (s *Service) Update(ctx context.Context, id int64, in UpdateInput) (InvoiceItem, error) {
-	return s.repo.Update(ctx, id, in)
+func (s *Service) Update(ctx context.Context, ownerID uuid.UUID, id int64, in UpdateInput) (InvoiceItem, error) {
+	return s.repo.Update(ctx, ownerID, id, in)
 }
 
-func (s *Service) Delete(ctx context.Context, id int64) error {
-	return s.repo.Delete(ctx, id)
+func (s *Service) Delete(ctx context.Context, ownerID uuid.UUID, id int64) error {
+	return s.repo.Delete(ctx, ownerID, id)
 }
 
 func (s *Service) ListInvoiceItems(ctx context.Context, ownerID uuid.UUID, invoiceID uuid.UUID, p ListParams) (Page, error) {

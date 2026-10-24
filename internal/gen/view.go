@@ -178,14 +178,15 @@ type relationView struct {
 }
 
 type helperView struct {
-	Entity    *schema.Entity
-	Package   string
-	Qualifier string
-	Func      string
-	InputFunc string
-	Parents   []parentRef
-	Fields    []string
-	OwnerType string
+	Entity     *schema.Entity
+	Package    string
+	Qualifier  string
+	Func       string
+	InputFunc  string
+	Parents    []parentRef
+	Fields     []string
+	OwnerType  string
+	InputOwner bool
 }
 
 type parentRef struct {
@@ -267,6 +268,7 @@ type domainView struct {
 	TestOwner        string
 	TestOwnerArg     string
 	TestOwnerSuffix  string
+	InputOwnerSuffix string
 	MissingOwner     string
 	RefChecks        []refCheck
 	RowFixtures      []*rowFixture

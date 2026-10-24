@@ -1,3 +1,5 @@
+DROP TABLE [reminders];
+
 DROP TABLE [note_labels];
 
 DROP TABLE [notes];

@@ -59,7 +59,11 @@ type File struct {
 	ServiceType   string
 	Receiver      string
 	ServiceMethod string
-	Module        string
+	// ServiceSignature and ServiceParams describe the method the generated
+	// code calls, so the planner can tell an outdated user method apart.
+	ServiceSignature string
+	ServiceParams    int
+	Module           string
 }
 
 type Options struct {
@@ -193,7 +197,7 @@ func Generate(opts Options) ([]File, error) {
 		g.tag(dv.Package, "Service", "", "")
 		for _, m := range dv.ServiceMethods {
 			g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "Service", Method: m})
-			g.tag(dv.Package, "", "Service", m.Name)
+			g.tagMethod(dv.Package, "Service", m)
 		}
 	}
 	if authDomain != nil {
@@ -269,6 +273,16 @@ type serviceMethodView struct {
 	Method     serviceMethod
 }
 
+func (g *generator) tagMethod(domain, receiver string, m serviceMethod) {
+	g.tag(domain, "", receiver, m.Name)
+	if g.err != nil || len(g.files) == 0 {
+		return
+	}
+	last := &g.files[len(g.files)-1]
+	last.ServiceSignature = "func (s *" + receiver + ") " + m.Name + "(" + m.Params + ") " + m.Results
+	last.ServiceParams = strings.Count(m.Params, ",") + 1
+}
+
 func (g *generator) tag(domain, serviceType, receiver, method string) {
 	if g.err != nil || len(g.files) == 0 {
 		return
@@ -305,7 +319,7 @@ func (g *generator) authFiles(pv *projectView, dv *domainView) {
 	g.tag(dv.Package, "AuthService", "", "")
 	for _, m := range dv.AuthMethods {
 		g.userGoFile(dir+m.File, "domain/service_method.go.tmpl", serviceMethodView{Package: dv.Package, Module: dv.Module, UUIDImport: dv.UUIDImport, Receiver: "AuthService", Method: m})
-		g.tag(dv.Package, "", "AuthService", m.Name)
+		g.tagMethod(dv.Package, "AuthService", m)
 	}
 }
 

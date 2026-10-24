@@ -119,7 +119,12 @@ func (r *rowFixtures) fixture(x *schema.Entity) *rowFixture {
 				v += "Row"
 			}
 			taken[v] = true
-			fx.Parents = append(fx.Parents, parentRef{Var: v, Call: r.call(parent, "")})
+			owner := ""
+			if f == x.ScopeRef() {
+				fx.OwnerType = goBase(x.ScopeOwner().Kind)
+				owner = "owner"
+			}
+			fx.Parents = append(fx.Parents, parentRef{Var: v, Call: r.call(parent, owner)})
 			columns = append(columns, f.Column)
 			args = append(args, argExpr(nonNull(f), v+"."+parent.PK().Name))
 		case f.InCreate() || f.Password:

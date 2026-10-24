@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Security
+
+- Entities without an `owner` field that reference an owned entity through a required `belongs_to` in the same database, such as the items of an owned order or invoice, were not scoped on their own routes: any authenticated user could read, change or delete them by their ID, list them all, and attach new ones to another user's parent. They now inherit the owner of their parent, through any number of levels: every query checks that the parent belongs to the caller, other users get 404, and a create or update pointing at another user's parent answers 422. Such entities can no longer be `public`.
+
+### Changed
+
+- The repository and service methods of those entities take the owner as an explicit parameter, like owned entities. `service.go` is yours, so add `ownerID` as the second parameter of each of their methods and pass it to `s.repo`; `codebuild plan` now warns about every service method whose parameters no longer match what the generated code calls and prints the expected signature.
+
 ## [0.5.0] - 2026-10-24
 
 ### Added

@@ -178,7 +178,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 		Message: e.Name,
 		Page:    e.Name + "Page",
 	}
-	owned := e.Owner() != nil
+	owned := e.ScopeOwner() != nil
 	ownerArg := ""
 	if owned {
 		ownerArg = "caller.ID, "
@@ -296,7 +296,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 			break
 		}
 		list, link, _ := schema.RelationPolicies(rv.Source, e, schema.RelationKind(rv.Kind))
-		relOwned := owned || rv.Source.Owner() != nil
+		relOwned := owned || rv.Source.ScopeOwner() != nil
 		relOwner := ""
 		if rv.Owned {
 			relOwner = "caller.ID, "

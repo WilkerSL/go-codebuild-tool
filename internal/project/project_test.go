@@ -571,6 +571,18 @@ func TestServiceMethodScaffolds(t *testing.T) {
 	if plan.Migration == nil {
 		t.Error("expected a migration for the new tables")
 	}
+
+	moved := filepath.Join(dir, "internal", "users", "users_service.go")
+	source := readTestFile(t, moved)
+	writeTestFile(t, moved, strings.Replace(source, "func (s *Service) Get(ctx context.Context, id uuid.UUID) (User, error) {", "func (s *Service) Get(ctx context.Context, ownerID uuid.UUID, id uuid.UUID) (User, error) {", 1))
+	warned, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Service.Get in internal/users takes 3 parameters, but the generated code now calls it with 2; change it to func (s *Service) Get(ctx context.Context, id uuid.UUID) (User, error)"
+	if !slices.Contains(warned.Warnings, want) {
+		t.Fatalf("warnings = %q, want %q", warned.Warnings, want)
+	}
 }
 
 func TestAuthServiceScaffolds(t *testing.T) {

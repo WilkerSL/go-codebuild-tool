@@ -30,7 +30,7 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 		Guarded:     pv.Auth != nil,
 		IsAuth:      e.IsAuth(),
 	}
-	if owner := e.Owner(); owner != nil {
+	if owner := e.ScopeOwner(); owner != nil {
 		dv.Owned = true
 		dv.OwnerParam = "ownerID " + goBase(owner.Kind) + ", "
 		dv.OwnerArg = "ownerID, "
@@ -118,12 +118,12 @@ func newDomainView(pv *projectView, d dialect.Dialect, m *schema.Model, e *schem
 			var rq dialect.Query
 			ref := refCheck{Field: fv, Const: target.Var() + "ExistsQuery"}
 			switch {
-			case dv.Owned && target.Owner() != nil:
+			case dv.Owned && target.ScopeOwner() != nil:
 				rq = dialect.OwnedReferenceQuery(d, target)
-			case target.Owner() != nil && len(dialect.Visible(d, target, false)) > 0:
+			case target.ScopeOwner() != nil && len(dialect.Visible(d, target, false)) > 0:
 				rq = dialect.LiveReferenceQuery(d, target)
 				ref.Const = target.Var() + "LiveQuery"
-			case target.Owner() == nil && len(dialect.Visible(d, target, false)) > 0:
+			case target.ScopeOwner() == nil && len(dialect.Visible(d, target, false)) > 0:
 				rq = dialect.LiveReferenceQuery(d, target)
 			default:
 				continue
@@ -258,7 +258,7 @@ func newRelationView(d dialect.Dialect, source, target *schema.Entity, r *schema
 		ListAfterConst: "list" + source.Name + r.Name + "AfterQuery",
 		CountConst:     "count" + source.Name + r.Name + "Query",
 	}
-	for _, owner := range []*schema.Field{source.Owner(), target.Owner()} {
+	for _, owner := range []*schema.Field{source.ScopeOwner(), target.ScopeOwner()} {
 		if owner != nil {
 			rv.Owned = true
 			rv.OwnerParam = "ownerID " + goBase(owner.Kind) + ", "
@@ -391,7 +391,7 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 		if x.Service != e.Service {
 			return rows.call(x, owner)
 		}
-		if x.Owner() == nil {
+		if x.ScopeOwner() == nil {
 			return "fixture" + x.Name + "(t, ctx, db)"
 		}
 		if owner == "" {
@@ -409,9 +409,11 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 			Func:      "fixture" + x.Name,
 			InputFunc: "fixture" + x.Name + "Input",
 		}
-		if owner := x.Owner(); owner != nil {
+		if owner := x.ScopeOwner(); owner != nil {
 			h.OwnerType = goBase(owner.Kind)
 		}
+		scope := x.ScopeRef()
+		h.InputOwner = scope != nil
 		imports[x.Domain] = true
 		for _, f := range x.Fields {
 			if !f.InCreate() {
@@ -423,7 +425,11 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 			case f.Ref != nil && !f.Nullable:
 				parent := m.Entity(f.Ref.Entity)
 				v := parentVar(f, dv.TestImportNames())
-				h.Parents = append(h.Parents, parentRef{Var: v, Call: call(parent, "")})
+				owner := ""
+				if f == scope {
+					owner = "owner"
+				}
+				h.Parents = append(h.Parents, parentRef{Var: v, Call: call(parent, owner)})
 				h.Fields = append(h.Fields, fmt.Sprintf("%s: %s.%s,", f.Name, v, parent.PK().Name))
 			case f.Ref != nil || f.Nullable:
 			default:
@@ -433,10 +439,13 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 		dv.TestHelpers = append(dv.TestHelpers, h)
 	}
 	dv.TestOwner = "owner := " + ownerFixture
-	if owner := e.Owner(); owner != nil {
+	if owner := e.ScopeOwner(); owner != nil {
 		dv.TestOwnerArg = "owner, "
 		dv.TestOwnerSuffix = ", owner"
 		dv.MissingOwner = missingValue(owner)
+	}
+	if e.ScopeRef() != nil {
+		dv.InputOwnerSuffix = ", owner"
 	}
 	for _, rv := range dv.Relations {
 		if rv.Owned {
@@ -446,7 +455,7 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 			continue
 		}
 		rv.SourceCall = call(rv.Source, "owner")
-		if rv.FK != nil && !rv.FKIsOwner && (rv.FK.F.Nullable || rv.Source.Owner() != nil) {
+		if rv.FK != nil && !rv.FKIsOwner && (rv.FK.F.Nullable || rv.Source.ScopeOwner() != nil) {
 			rv.ExplicitParent = true
 		}
 	}

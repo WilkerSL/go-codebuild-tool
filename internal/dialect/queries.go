@@ -132,12 +132,21 @@ func visible(d Dialect, e *schema.Entity, qualified bool, chain map[*schema.Enti
 	return conds
 }
 
+// ownerCondition restricts e to the rows of the caller: on its owner column,
+// or, for an entity scoped through a parent, to rows whose parent belongs to
+// the caller, following the chain of parents up to the owner column.
 func ownerCondition(b *builder, e *schema.Entity, qualified bool) []string {
-	owner := e.Owner()
-	if owner == nil {
+	if owner := e.Owner(); owner != nil {
+		return []string{columnRef(b.d, e.Table, owner.Column, qualified) + " = " + b.param("owner", Arg{Kind: ArgOwner, Field: owner})}
+	}
+	ref := e.ScopeRef()
+	if ref == nil {
 		return nil
 	}
-	return []string{columnRef(b.d, e.Table, owner.Column, qualified) + " = " + b.param("owner", Arg{Kind: ArgOwner, Field: owner})}
+	parent := ref.Ref.Target
+	inner := ownerCondition(b, parent, true)
+	return []string{"EXISTS (SELECT 1 FROM " + b.d.Quote(parent.Table) + " WHERE " + columnRef(b.d, parent.Table, parent.PK().Column, true) + " = " +
+		columnRef(b.d, e.Table, ref.Column, true) + " AND " + strings.Join(inner, " AND ") + ")"}
 }
 
 func filterConditions(b *builder, e *schema.Entity, qualified bool, skip *schema.Field) []string {

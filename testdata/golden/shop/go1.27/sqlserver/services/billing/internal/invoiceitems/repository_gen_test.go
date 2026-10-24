@@ -72,9 +72,9 @@ func fixtureInvoice(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UU
 	return item
 }
 
-func fixtureInvoiceItemInput(t *testing.T, ctx context.Context, db *sql.DB) invoiceitems.CreateInput {
+func fixtureInvoiceItemInput(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUID) invoiceitems.CreateInput {
 	t.Helper()
-	invoice := fixtureInvoice(t, ctx, db, uuid.New())
+	invoice := fixtureInvoice(t, ctx, db, owner)
 	return invoiceitems.CreateInput{
 		InvoiceID: invoice.ID,
 		ProductID: fixtureInt[int64](1, 1<<30),
@@ -83,9 +83,9 @@ func fixtureInvoiceItemInput(t *testing.T, ctx context.Context, db *sql.DB) invo
 	}
 }
 
-func fixtureInvoiceItem(t *testing.T, ctx context.Context, db *sql.DB) invoiceitems.InvoiceItem {
+func fixtureInvoiceItem(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUID) invoiceitems.InvoiceItem {
 	t.Helper()
-	item, err := invoiceitems.NewRepository(db).Create(ctx, fixtureInvoiceItemInput(t, ctx, db))
+	item, err := invoiceitems.NewRepository(db).Create(ctx, owner, fixtureInvoiceItemInput(t, ctx, db, owner))
 	if err != nil {
 		t.Fatalf("create InvoiceItem: %v", err)
 	}
@@ -96,25 +96,29 @@ func TestRepositoryCRUD(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := invoiceitems.NewRepository(db)
-	created := fixtureInvoiceItem(t, ctx, db)
-	got, err := repo.Get(ctx, created.ID)
+	owner := uuid.New()
+	created := fixtureInvoiceItem(t, ctx, db, owner)
+	got, err := repo.Get(ctx, owner, created.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if got.ID != created.ID {
 		t.Fatalf("get returned %v, want %v", got.ID, created.ID)
 	}
-	if ok, err := repo.Exists(ctx, created.ID); err != nil || !ok {
+	if ok, err := repo.Exists(ctx, owner, created.ID); err != nil || !ok {
 		t.Fatalf("exists: %v %v", ok, err)
 	}
-	page, err := repo.List(ctx, invoiceitems.ListParams{Limit: 10})
+	if _, err := repo.Get(ctx, uuid.New(), created.ID); !errors.Is(err, database.ErrNotFound) {
+		t.Fatalf("get with another owner: %v", err)
+	}
+	page, err := repo.List(ctx, owner, invoiceitems.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if *page.Total < 1 || len(page.Items) < 1 {
 		t.Fatalf("list returned %d of %d items", len(page.Items), *page.Total)
 	}
-	updated, err := repo.Update(ctx, created.ID, invoiceitems.UpdateInput{
+	updated, err := repo.Update(ctx, owner, created.ID, invoiceitems.UpdateInput{
 		InvoiceID: created.InvoiceID,
 		ProductID: created.ProductID,
 		Quantity:  1,
@@ -126,7 +130,7 @@ func TestRepositoryCRUD(t *testing.T) {
 	if updated.ID != created.ID {
 		t.Fatalf("update returned %v, want %v", updated.ID, created.ID)
 	}
-	if _, err := repo.Update(ctx, -1, invoiceitems.UpdateInput{
+	if _, err := repo.Update(ctx, owner, -1, invoiceitems.UpdateInput{
 		InvoiceID: created.InvoiceID,
 		ProductID: created.ProductID,
 		Quantity:  1,
@@ -134,16 +138,16 @@ func TestRepositoryCRUD(t *testing.T) {
 	}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("update missing: %v", err)
 	}
-	if err := repo.Delete(ctx, created.ID); err != nil {
+	if err := repo.Delete(ctx, owner, created.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := repo.Get(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, owner, created.ID); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get after delete: %v", err)
 	}
-	if err := repo.Delete(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+	if err := repo.Delete(ctx, owner, created.ID); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("second delete: %v", err)
 	}
-	if _, err := repo.Get(ctx, -1); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, uuid.New(), -1); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("get missing: %v", err)
 	}
 }
@@ -152,11 +156,12 @@ func TestRepositoryCursor(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := invoiceitems.NewRepository(db)
+	owner := uuid.New()
 	want := map[int64]bool{}
 	for range 3 {
-		want[fixtureInvoiceItem(t, ctx, db).ID] = true
+		want[fixtureInvoiceItem(t, ctx, db, owner).ID] = true
 	}
-	first, err := repo.List(ctx, invoiceitems.ListParams{Limit: 1})
+	first, err := repo.List(ctx, owner, invoiceitems.ListParams{Limit: 1})
 	if err != nil || first.Total == nil || first.NextCursor == nil {
 		t.Fatalf("an offset page with more rows has no cursor: %+v %v", first, err)
 	}
@@ -166,7 +171,7 @@ func TestRepositoryCursor(t *testing.T) {
 		if pages > 10000 {
 			t.Fatal("cursor pagination does not end")
 		}
-		page, err := repo.List(ctx, p)
+		page, err := repo.List(ctx, owner, p)
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -204,37 +209,38 @@ func TestRepositoryWithTx(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
 	repo := invoiceitems.NewRepository(db)
-	in := fixtureInvoiceItemInput(t, ctx, db)
+	owner := uuid.New()
+	in := fixtureInvoiceItemInput(t, ctx, db, owner)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	created, err := repo.WithTx(tx).Create(ctx, in)
+	created, err := repo.WithTx(tx).Create(ctx, owner, in)
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("create in transaction: %v", err)
 	}
-	if _, err := repo.WithTx(tx).Get(ctx, created.ID); err != nil {
+	if _, err := repo.WithTx(tx).Get(ctx, owner, created.ID); err != nil {
 		tx.Rollback()
 		t.Fatalf("get in transaction: %v", err)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-	if _, err := repo.Get(ctx, created.ID); !errors.Is(err, database.ErrNotFound) {
+	if _, err := repo.Get(ctx, owner, created.ID); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("rolled back row is visible: %v", err)
 	}
-	next := fixtureInvoiceItemInput(t, ctx, db)
+	next := fixtureInvoiceItemInput(t, ctx, db, owner)
 	var committed invoiceitems.InvoiceItem
 	err = database.InTx(ctx, db, func(tx *sql.Tx) error {
 		var err error
-		committed, err = repo.WithTx(tx).Create(ctx, next)
+		committed, err = repo.WithTx(tx).Create(ctx, owner, next)
 		return err
 	})
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
-	if _, err := repo.Get(ctx, committed.ID); err != nil {
+	if _, err := repo.Get(ctx, owner, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
 }
@@ -242,9 +248,10 @@ func TestRepositoryWithTx(t *testing.T) {
 func TestRepositoryMissingReference(t *testing.T) {
 	db := openFixtureDB(t)
 	ctx := context.Background()
-	in := fixtureInvoiceItemInput(t, ctx, db)
+	owner := uuid.New()
+	in := fixtureInvoiceItemInput(t, ctx, db, owner)
 	in.InvoiceID = uuid.New()
-	_, err := invoiceitems.NewRepository(db).Create(ctx, in)
+	_, err := invoiceitems.NewRepository(db).Create(ctx, owner, in)
 	errs, ok := errors.AsType[validation.Errors](err)
 	if !ok || !errs.Has("invoiceId") {
 		t.Fatalf("expected a validation error for invoiceId, got %v", err)
@@ -256,10 +263,10 @@ func TestRepositoryListInvoiceItems(t *testing.T) {
 	ctx := context.Background()
 	repo := invoiceitems.NewRepository(db)
 	owner := uuid.New()
-	in := fixtureInvoiceItemInput(t, ctx, db)
+	in := fixtureInvoiceItemInput(t, ctx, db, owner)
 	parent := fixtureInvoice(t, ctx, db, owner)
 	in.InvoiceID = parent.ID
-	created, err := repo.Create(ctx, in)
+	created, err := repo.Create(ctx, owner, in)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}

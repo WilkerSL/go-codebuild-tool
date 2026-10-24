@@ -475,6 +475,71 @@
       ]
     },
     {
+      "name": "reminders",
+      "columns": [
+        {
+          "name": "id",
+          "kind": "int64",
+          "identity": true
+        },
+        {
+          "name": "note_id",
+          "kind": "uuid"
+        },
+        {
+          "name": "text",
+          "kind": "string",
+          "size": 200
+        },
+        {
+          "name": "due_at",
+          "kind": "time"
+        },
+        {
+          "name": "done",
+          "kind": "bool",
+          "default": {
+            "kind": "literal",
+            "value": "false"
+          }
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_reminders",
+        "columns": [
+          "id"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_reminders_note_id",
+          "columns": [
+            "note_id"
+          ]
+        },
+        {
+          "name": "lx_reminders_note_id",
+          "columns": [
+            "note_id",
+            "id"
+          ]
+        }
+      ],
+      "foreignKeys": [
+        {
+          "name": "fk_reminders_note_id",
+          "columns": [
+            "note_id"
+          ],
+          "refTable": "notes",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ]
+    },
+    {
       "name": "users",
       "columns": [
         {

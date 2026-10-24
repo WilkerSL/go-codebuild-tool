@@ -198,6 +198,48 @@ func (e *Entity) Owner() *Field {
 	return e.flagged(func(f *Field) bool { return f.Owner })
 }
 
+// ScopeRef returns the reference through which an entity without an owner
+// field belongs to a caller: its first required reference, inside its
+// database, to an entity that is scoped by an owner itself. Rows of an order
+// item, for example, belong to the customer of their order. It returns nil
+// for entities with an owner field and for entities nobody owns.
+func (e *Entity) ScopeRef() *Field {
+	return e.scopeRef(map[*Entity]bool{})
+}
+
+// ScopeOwner returns the owner field that scopes the entity: its own, or the
+// one its scope reference leads to.
+func (e *Entity) ScopeOwner() *Field {
+	return e.scopeOwner(map[*Entity]bool{})
+}
+
+func (e *Entity) scopeRef(seen map[*Entity]bool) *Field {
+	if e.Owner() != nil || seen[e] {
+		return nil
+	}
+	seen[e] = true
+	defer delete(seen, e)
+	for _, f := range e.Fields {
+		if f.Ref == nil || f.Nullable || f.Ref.Target == nil || f.Ref.Target.PK() == nil || f.External(e) {
+			continue
+		}
+		if f.Ref.Target.scopeOwner(seen) != nil {
+			return f
+		}
+	}
+	return nil
+}
+
+func (e *Entity) scopeOwner(seen map[*Entity]bool) *Field {
+	if owner := e.Owner(); owner != nil {
+		return owner
+	}
+	if ref := e.scopeRef(seen); ref != nil {
+		return ref.Ref.Target.scopeOwner(seen)
+	}
+	return nil
+}
+
 func (e *Entity) Policy(op Operation) Policy {
 	if e.Public.Has(op) {
 		return Policy{Public: true}

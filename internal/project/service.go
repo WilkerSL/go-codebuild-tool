@@ -15,13 +15,14 @@ import (
 )
 
 type serviceState struct {
-	types   map[string]bool
-	methods map[string]map[string]bool
+	types map[string]bool
+	// methods maps a receiver to its methods and their number of parameters.
+	methods map[string]map[string]int
 	err     error
 }
 
 func readServiceState(dir string) serviceState {
-	st := serviceState{types: map[string]bool{}, methods: map[string]map[string]bool{}}
+	st := serviceState{types: map[string]bool{}, methods: map[string]map[string]int{}}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return st
@@ -66,13 +67,22 @@ func readServiceState(dir string) serviceState {
 				}
 				recv := receiverName(d.Recv.List[0].Type)
 				if st.methods[recv] == nil {
-					st.methods[recv] = map[string]bool{}
+					st.methods[recv] = map[string]int{}
 				}
-				st.methods[recv][d.Name.Name] = true
+				params := 0
+				for _, field := range d.Type.Params.List {
+					params += max(1, len(field.Names))
+				}
+				st.methods[recv][d.Name.Name] = params
 			}
 		}
 	}
 	return st
+}
+
+func hasMethod(st serviceState, receiver, method string) bool {
+	_, ok := st.methods[receiver][method]
+	return ok
 }
 
 func receiverName(expr ast.Expr) string {
@@ -111,7 +121,13 @@ func (p *planner) resolveServices(context.Context) error {
 			if st.types[f.service] && !exists(full) {
 				continue
 			}
-		case st.err != nil || !st.types[f.receiver] || st.methods[f.receiver][f.method]:
+		case st.err != nil || !st.types[f.receiver]:
+			continue
+		case hasMethod(st, f.receiver, f.method):
+			if got := st.methods[f.receiver][f.method]; f.params > 0 && got != f.params {
+				p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(
+					"%s.%s in %s takes %d parameters, but the generated code now calls it with %d; change it to %s", f.receiver, f.method, path.Dir(f.Path), got, f.params, f.signature))
+			}
 			continue
 		case exists(full):
 			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf(

@@ -10,12 +10,12 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const existsQuery = `
 SELECT 1
 FROM "invoice_items"
-WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const listQuery = `
 SELECT
@@ -25,11 +25,12 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($1::uuid IS NULL OR "invoice_id" = $1)
-    AND ($2::bigint IS NULL OR "product_id" = $2)
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $1)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+    AND ($2::uuid IS NULL OR "invoice_id" = $2)
+    AND ($3::bigint IS NULL OR "product_id" = $3)
 ORDER BY "id"
-LIMIT $3 OFFSET $4`
+LIMIT $4 OFFSET $5`
 
 const listAfterQuery = `
 SELECT
@@ -39,19 +40,21 @@ SELECT
     "quantity",
     "price"
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($1::uuid IS NULL OR "invoice_id" = $1)
-    AND ($2::bigint IS NULL OR "product_id" = $2)
-    AND "id" > $3
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $1)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+    AND ($2::uuid IS NULL OR "invoice_id" = $2)
+    AND ($3::bigint IS NULL OR "product_id" = $3)
+    AND "id" > $4
 ORDER BY "id"
-LIMIT $4 OFFSET 0`
+LIMIT $5 OFFSET 0`
 
 const countQuery = `
 SELECT COUNT(*)
 FROM "invoice_items"
-WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($1::uuid IS NULL OR "invoice_id" = $1)
-    AND ($2::bigint IS NULL OR "product_id" = $2)`
+WHERE EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $1)
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+    AND ($2::uuid IS NULL OR "invoice_id" = $2)
+    AND ($3::bigint IS NULL OR "product_id" = $3)`
 
 const createQuery = `
 INSERT INTO "invoice_items" (
@@ -79,7 +82,7 @@ SET
     "product_id" = $2,
     "quantity" = $3,
     "price" = $4
-WHERE "id" = $5 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
+WHERE "id" = $5 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $6) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
 RETURNING
     "id",
     "invoice_id",
@@ -89,12 +92,7 @@ RETURNING
 
 const deleteQuery = `
 DELETE FROM "invoice_items"
-WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
-
-const invoiceLiveQuery = `
-SELECT 1
-FROM "invoices"
-WHERE "id" = $1 AND "deleted_at" IS NULL`
+WHERE "id" = $1 AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2) AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)`
 
 const invoiceExistsQuery = `
 SELECT 1
@@ -110,10 +108,11 @@ SELECT
     "price"
 FROM "invoice_items"
 WHERE "invoice_id" = $1
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($2::bigint IS NULL OR "product_id" = $2)
+    AND ($3::bigint IS NULL OR "product_id" = $3)
 ORDER BY "id"
-LIMIT $3 OFFSET $4`
+LIMIT $4 OFFSET $5`
 
 const listInvoiceItemsAfterQuery = `
 SELECT
@@ -124,15 +123,17 @@ SELECT
     "price"
 FROM "invoice_items"
 WHERE "invoice_id" = $1
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($2::bigint IS NULL OR "product_id" = $2)
-    AND "id" > $3
+    AND ($3::bigint IS NULL OR "product_id" = $3)
+    AND "id" > $4
 ORDER BY "id"
-LIMIT $4 OFFSET 0`
+LIMIT $5 OFFSET 0`
 
 const countInvoiceItemsQuery = `
 SELECT COUNT(*)
 FROM "invoice_items"
 WHERE "invoice_id" = $1
+    AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."owner_id" = $2)
     AND EXISTS (SELECT 1 FROM "invoices" WHERE "invoices"."id" = "invoice_items"."invoice_id" AND "invoices"."deleted_at" IS NULL)
-    AND ($2::bigint IS NULL OR "product_id" = $2)`
+    AND ($3::bigint IS NULL OR "product_id" = $3)`

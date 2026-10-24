@@ -375,7 +375,8 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 		t.Fatalf("invoice = %v", invoice)
 	}
 	invoiceID := invoice["id"].(string)
-	admin.expect(http.MethodPost, "/invoice-items", map[string]any{"invoiceId": invoiceID, "productId": productID, "quantity": 2, "price": 2.5}, http.StatusCreated)
+	item := admin.expect(http.MethodPost, "/invoice-items", map[string]any{"invoiceId": invoiceID, "productId": productID, "quantity": 2, "price": 2.5}, http.StatusCreated)
+	itemPath := "/invoice-items/" + strconv.FormatInt(int64(item["id"].(float64)), 10)
 	remote := admin.expect(http.MethodPost, "/invoice-items", map[string]any{"invoiceId": invoiceID, "productId": 424242, "quantity": 2, "price": 2.5}, http.StatusUnprocessableEntity)
 	if got := strings.Join(fieldErrors(remote), ","); got != "productId" {
 		t.Fatalf("invoice item with a product of another database = %v", remote)
@@ -393,7 +394,18 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 	c.expect(http.MethodPost, "/auth/register", map[string]any{"email": "bob@example.com", "name": "Bob", "password": "supersecret2"}, http.StatusCreated)
 	bob := login("bob@example.com", "supersecret2")
 	bob.expect(http.MethodGet, "/invoices/"+invoiceID, nil, http.StatusNotFound)
-	if page := bob.expect(http.MethodGet, "/invoices", nil, http.StatusOK); page["total"].(float64) != 0 {
+	// Invoice items belong to the owner of their invoice, on their own routes too.
+	bob.expect(http.MethodGet, itemPath, nil, http.StatusNotFound)
+	bob.expect(http.MethodPut, itemPath, map[string]any{"invoiceId": invoiceID, "productId": productID, "quantity": 9, "price": 0.1}, http.StatusUnprocessableEntity)
+	bobInvoice := bob.expect(http.MethodPost, "/invoices", map[string]any{"number": "INV-BOB"}, http.StatusCreated)
+	bob.expect(http.MethodPut, itemPath, map[string]any{"invoiceId": bobInvoice["id"], "productId": productID, "quantity": 9, "price": 0.1}, http.StatusNotFound)
+	bob.expect(http.MethodDelete, itemPath, nil, http.StatusNotFound)
+	bob.expect(http.MethodPost, "/invoice-items", map[string]any{"invoiceId": invoiceID, "productId": productID, "quantity": 1, "price": 1}, http.StatusUnprocessableEntity)
+	if page := bob.expect(http.MethodGet, "/invoice-items", nil, http.StatusOK); page["total"].(float64) != 0 {
+		t.Fatalf("bob sees invoice items of another owner: %v", page)
+	}
+	admin.expect(http.MethodGet, itemPath, nil, http.StatusOK)
+	if page := bob.expect(http.MethodGet, "/invoices", nil, http.StatusOK); page["total"].(float64) != 1 {
 		t.Fatalf("bob sees invoices of another owner: %v", page)
 	}
 	bob.expect(http.MethodPost, "/auth/logout", nil, http.StatusNoContent)
