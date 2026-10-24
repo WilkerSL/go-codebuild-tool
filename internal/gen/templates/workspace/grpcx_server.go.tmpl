@@ -43,9 +43,7 @@ func NewServer(cfg TLSConfig, verifier *auth.Verifier, logger *slog.Logger) (*gr
 		grpc.ChainUnaryInterceptor(observeCalls, recoverer(logger), requestID, logCalls(logger), authenticate(verifier, cfg){{if .Auth}}, gatewayOnly(cfg.Gateway){{end}}),
 		grpc.ChainStreamInterceptor(recoverStream(logger), authenticateStream(verifier, cfg){{if .Auth}}, gatewayOnlyStream(cfg.Gateway){{end}}),
 	)
-	hs := health.NewServer()
-	healthpb.RegisterHealthServer(s, hs)
-	httpx.OnDrain(hs.Shutdown)
+	healthpb.RegisterHealthServer(s, health.NewServer())
 	return s, nil
 }
 

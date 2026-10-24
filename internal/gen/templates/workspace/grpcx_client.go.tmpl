@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	_ "google.golang.org/grpc/health"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/resolver/dns"
@@ -119,7 +118,7 @@ func init() {
 	dns.SetMinResolutionInterval(2 * time.Second)
 }
 
-const serviceConfig = `{"loadBalancingConfig":[{"round_robin":{}}],"healthCheckConfig":{"serviceName":""}}`
+const serviceConfig = `{"loadBalancingConfig":[{"round_robin":{}}]}`
 
 var safeMethods = map[string]bool{
 {{- range .Workspace.SafeMethods}}
