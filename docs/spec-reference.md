@@ -303,7 +303,7 @@ Rules:
 
 - Syntax: `role`
 - Applies to: `string` field with `enum=` on the account entity
-- Effect: The role checked by `roles=` and `writeroles=`. Write operations on the account entity must then be restricted with `roles=` or `writeroles=`, otherwise any user could promote themselves.
+- Effect: The role checked by `roles=` and `writeroles=`. Write operations on the account entity must then be restricted with `roles=` or `writeroles=`, otherwise any user could promote themselves. It also lets the API, or the gateway of a workspace, serve Jaeger, Grafana and Prometheus under `/_ops/` to the roles in `OPS_ROLES` (`admin` by default); without it the panels stay off the API.
 - Example: `Role string `gen:"enum=admin|member,default=member,role"``
 - Common error: `role` without `enum=` fails with invalid_combination.
 
