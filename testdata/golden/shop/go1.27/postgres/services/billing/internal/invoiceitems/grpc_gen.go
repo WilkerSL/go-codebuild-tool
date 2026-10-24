@@ -131,7 +131,7 @@ func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceItemCreat
 		return nil, s.fail(ctx, err)
 	}
 	if res, err := s.productClient.Exists(ctx, &catalogv1.ProductExistsRequest{Id: in.ProductID}); err != nil {
-		return nil, err
+		return nil, grpcx.Peer(ctx, s.logger, err)
 	} else if !res.GetExists() {
 		return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
 	}
@@ -165,7 +165,7 @@ func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceItemUpdat
 		return nil, s.fail(ctx, err)
 	}
 	if res, err := s.productClient.Exists(ctx, &catalogv1.ProductExistsRequest{Id: in.ProductID}); err != nil {
-		return nil, err
+		return nil, grpcx.Peer(ctx, s.logger, err)
 	} else if !res.GetExists() {
 		return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
 	}

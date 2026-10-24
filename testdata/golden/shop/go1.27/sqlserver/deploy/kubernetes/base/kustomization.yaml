@@ -13,6 +13,7 @@ resources:
   - identity-migrate.yaml
   - identity.yaml
   - inventory.yaml
+  - network.yaml
   - shared-migrate.yaml
 configMapGenerator:
   - name: billing-config
@@ -28,8 +29,11 @@ configMapGenerator:
       - "TLS_CA_FILE=/etc/tls/ca.crt"
       - "TLS_CERT_FILE=/etc/tls/tls.crt"
       - "TLS_KEY_FILE=/etc/tls/tls.key"
+      - "DB_MAX_OPEN_CONNS=10"
+      - "DB_MAX_IDLE_CONNS=10"
       - "INTERNAL_TOKEN_PUBLIC_KEY_FILE=/etc/internal-token/public.pem"
       - "CATALOG_GRPC_ADDR=catalog:9000"
+      - "GOMEMLIMIT=230MiB"
   - name: catalog-config
     options:
       labels:
@@ -43,7 +47,10 @@ configMapGenerator:
       - "TLS_CA_FILE=/etc/tls/ca.crt"
       - "TLS_CERT_FILE=/etc/tls/tls.crt"
       - "TLS_KEY_FILE=/etc/tls/tls.key"
+      - "DB_MAX_OPEN_CONNS=10"
+      - "DB_MAX_IDLE_CONNS=10"
       - "INTERNAL_TOKEN_PUBLIC_KEY_FILE=/etc/internal-token/public.pem"
+      - "GOMEMLIMIT=230MiB"
   - name: gateway-config
     options:
       labels:
@@ -62,6 +69,7 @@ configMapGenerator:
       - "CATALOG_GRPC_ADDR=catalog:9000"
       - "IDENTITY_GRPC_ADDR=identity:9000"
       - "INVENTORY_GRPC_ADDR=inventory:9000"
+      - "GOMEMLIMIT=230MiB"
   - name: identity-config
     options:
       labels:
@@ -75,7 +83,10 @@ configMapGenerator:
       - "TLS_CA_FILE=/etc/tls/ca.crt"
       - "TLS_CERT_FILE=/etc/tls/tls.crt"
       - "TLS_KEY_FILE=/etc/tls/tls.key"
+      - "DB_MAX_OPEN_CONNS=10"
+      - "DB_MAX_IDLE_CONNS=10"
       - "INTERNAL_TOKEN_PUBLIC_KEY_FILE=/etc/internal-token/public.pem"
+      - "GOMEMLIMIT=230MiB"
   - name: inventory-config
     options:
       labels:
@@ -89,4 +100,7 @@ configMapGenerator:
       - "TLS_CA_FILE=/etc/tls/ca.crt"
       - "TLS_CERT_FILE=/etc/tls/tls.crt"
       - "TLS_KEY_FILE=/etc/tls/tls.key"
+      - "DB_MAX_OPEN_CONNS=10"
+      - "DB_MAX_IDLE_CONNS=10"
       - "INTERNAL_TOKEN_PUBLIC_KEY_FILE=/etc/internal-token/public.pem"
+      - "GOMEMLIMIT=230MiB"

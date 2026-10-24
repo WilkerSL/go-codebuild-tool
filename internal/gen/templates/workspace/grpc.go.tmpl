@@ -98,7 +98,7 @@ func (s *GRPCServer) Exists(ctx context.Context, req *{{$g.Alias}}.{{$g.Exists.R
 	if in.{{.Field}} != nil {
 		res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}})
 		if err != nil {
-			return nil, err
+			return nil, grpcx.Peer(ctx, s.logger, err)
 		}
 		if !res.GetExists() {
 			return nil, s.fail(ctx, validation.Errors{ {Field: "{{.JSON}}", Message: "references a record that does not exist"} })
@@ -106,7 +106,7 @@ func (s *GRPCServer) Exists(ctx context.Context, req *{{$g.Alias}}.{{$g.Exists.R
 	}
 {{- else}}
 	if res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}}); err != nil {
-		return nil, err
+		return nil, grpcx.Peer(ctx, s.logger, err)
 	} else if !res.GetExists() {
 		return nil, s.fail(ctx, validation.Errors{ {Field: "{{.JSON}}", Message: "references a record that does not exist"} })
 	}
@@ -186,7 +186,7 @@ func (s *GRPCServer) {{.List.Name}}(ctx context.Context, req *{{$g.Alias}}.{{.Li
 	{{.SourceParse}}
 {{- with .SourceCheck}}
 	if res, err := s.{{.Client}}.Exists(ctx, &{{.Alias}}.{{.Request}}{Id: {{.Value}}}); err != nil {
-		return nil, err
+		return nil, grpcx.Peer(ctx, s.logger, err)
 	} else if !res.GetExists() {
 		return nil, grpcx.Problem(codes.NotFound, http.StatusNotFound, "the requested resource does not exist", nil)
 	}

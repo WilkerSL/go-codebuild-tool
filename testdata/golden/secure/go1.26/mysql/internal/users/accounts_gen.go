@@ -126,8 +126,6 @@ func (s *LimitStore) Reset(ctx context.Context, key string) error {
 	return nil
 }
 
-// cleanup starts a purge at most once a minute. It runs apart from the
-// request, so a client that hangs up cannot cancel it.
 func (s *LimitStore) cleanup(now time.Time) {
 	last := s.cleaned.Load()
 	if now.UnixNano()-last < int64(rateLimitCleanup) || !s.cleaned.CompareAndSwap(last, now.UnixNano()) {
@@ -140,10 +138,6 @@ func (s *LimitStore) cleanup(now time.Time) {
 	}()
 }
 
-// purge deletes the expired counters in batches, so it never locks the table
-// for long. Above maxRateLimitRows it also drops the counters of a single
-// attempt: a flood of distinct keys consists of those, and losing one only
-// grants one more attempt, while the counters that block a client are kept.
 func (s *LimitStore) purge(ctx context.Context, now time.Time) error {
 	if err := s.deleteBatches(ctx, deleteExpiredLimitsQuery, database.TimeArg(now)); err != nil {
 		return fmt.Errorf("rate limit cleanup: %w", err)
@@ -253,14 +247,10 @@ func (a *Accounts) setPassword(ctx context.Context, db database.DBTX, id uuid.UU
 	return nil
 }
 
-// replacePassword stores hash only while current is still the stored hash, so
-// the hash a caller verified cannot overwrite a password changed meanwhile.
 func (a *Accounts) replacePassword(ctx context.Context, db database.DBTX, id uuid.UUID, current, hash string) error {
 	return a.expectRow(ctx, db, auth.ErrInvalidCredentials, "change password", replacePasswordQuery, hash, database.UUIDArg(id), current)
 }
 
-// expectRow runs a statement that must touch one row and returns missing when
-// it touched none.
 func (a *Accounts) expectRow(ctx context.Context, db database.DBTX, missing error, action, query string, args ...any) error {
 	res, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -276,9 +266,6 @@ func (a *Accounts) expectRow(ctx context.Context, db database.DBTX, missing erro
 	return nil
 }
 
-// Issue holds the account row while it stores the new credential, and only if
-// the password is still the one the caller verified: a login that raced a
-// password change cannot outlive it.
 func (a *Accounts) Issue(ctx context.Context, user User) (auth.Tokens, error) {
 	issued := authNow()
 	var tokens auth.Tokens
@@ -361,8 +348,6 @@ func (a *Accounts) ChangePassword(ctx context.Context, caller auth.Principal, in
 	if err != nil {
 		return err
 	}
-	// The new password and the revocations commit together, and the locked
-	// account row keeps logins and new API keys out until they do.
 	return database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
 		tx := database.Traced(sqlTx)
 		err := a.replacePassword(ctx, tx, caller.ID, item.PasswordHash, hash)
@@ -441,8 +426,6 @@ func (a *Accounts) revokeAll(ctx context.Context, db database.DBTX, id uuid.UUID
 	return nil
 }
 
-// revokeRows repeats a delete until it finds nothing: a refresh committing
-// meanwhile can add the successor of a token the previous pass removed.
 func revokeRows(ctx context.Context, db database.DBTX, query string, args ...any) error {
 	for range maxRevokePasses {
 		res, err := db.ExecContext(ctx, query, args...)
@@ -474,9 +457,6 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 		expires := in.ExpiresAt.UTC().Truncate(time.Microsecond)
 		item.ExpiresAt = &expires
 	}
-	// The key is stored under the account lock and only while the credential
-	// that asks for it still exists, so a password change or a revocation
-	// that ran first is never outlived by a key created with the old login.
 	err := database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
 		tx := database.Traced(sqlTx)
 		if err := a.expectRow(ctx, tx, auth.ErrInvalidToken, "create API key", lockAccountQuery, database.UUIDArg(caller.ID)); err != nil {
@@ -503,8 +483,6 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 	return item, nil
 }
 
-// stillValid checks again, inside the caller's transaction, the login
-// credential that authenticated the request.
 func (a *Accounts) stillValid(ctx context.Context, db database.DBTX, caller auth.Principal) error {
 	switch caller.Method {
 	case auth.MethodSession:

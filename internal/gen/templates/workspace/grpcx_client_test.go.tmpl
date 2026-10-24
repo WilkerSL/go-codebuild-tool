@@ -27,10 +27,10 @@ import (
 
 func TestLoadCallPolicy(t *testing.T) {
 	p, err := LoadCallPolicy(func(string) string { return "" })
-	if err != nil || p.Timeout != CallTimeout || p.RetryAttempts != 3 || p.BreakerFailures != 5 {
+	if err != nil || p.Timeout != CallTimeout || p.RetryAttempts != 3 || p.BreakerFailures != 5 || p.MaxMessageBytes != DefaultMaxMessageBytes {
 		t.Fatalf("defaults = %+v %v", p, err)
 	}
-	env := map[string]string{"GRPC_CALL_TIMEOUT": "soon", "GRPC_RETRY_ATTEMPTS": "0", "GRPC_RETRY_BACKOFF": "-1s", "GRPC_BREAKER_FAILURES": "x", "GRPC_BREAKER_COOLDOWN": "0s"}
+	env := map[string]string{"GRPC_CALL_TIMEOUT": "soon", "GRPC_RETRY_ATTEMPTS": "0", "GRPC_RETRY_BACKOFF": "-1s", "GRPC_BREAKER_FAILURES": "x", "GRPC_BREAKER_COOLDOWN": "0s", "GRPC_MAX_MESSAGE_BYTES": "1024"}
 	_, err = LoadCallPolicy(func(k string) string { return env[k] })
 	for key := range env {
 		if err == nil || !strings.Contains(err.Error(), key) {
@@ -44,42 +44,64 @@ func TestBreaker(t *testing.T) {
 	b := newBreaker("billing:9000", 2, time.Minute)
 	b.now = func() time.Time { return now }
 	unavailable := status.Error(codes.Unavailable, "down")
-	for range 2 {
-		if !b.allow() {
-			t.Fatal("a closed breaker rejected a call")
-		}
-		b.record(unavailable)
+	allow := func() bool {
+		_, ok := b.allow()
+		return ok
 	}
-	if b.allow() {
+	for range 2 {
+		probe, ok := b.allow()
+		if !ok || probe {
+			t.Fatal("a closed breaker rejected a call or called it a probe")
+		}
+		b.record(unavailable, false, true)
+	}
+	if allow() {
 		t.Fatal("the breaker stayed closed after the failure threshold")
 	}
+	b.record(nil, false, true)
+	if allow() {
+		t.Fatal("a call that started before the breaker opened closed it")
+	}
 	now = now.Add(time.Minute)
-	if !b.allow() {
+	probe, ok := b.allow()
+	if !ok || !probe {
 		t.Fatal("the breaker did not let a probe through after the cooldown")
 	}
-	if b.allow() {
+	if allow() {
 		t.Fatal("the breaker let a second call through while probing")
 	}
-	b.record(unavailable)
-	if b.allow() {
+	b.record(unavailable, true, true)
+	if allow() {
 		t.Fatal("a failed probe did not open the breaker again")
 	}
 	now = now.Add(time.Minute)
-	if !b.allow() {
+	if probe, ok = b.allow(); !ok || !probe {
 		t.Fatal("no probe after the second cooldown")
 	}
-	b.record(status.Error(codes.NotFound, "missing"))
-	if !b.allow() || !b.allow() {
+	b.record(status.Error(codes.NotFound, "missing"), true, true)
+	if !allow() || !allow() {
 		t.Fatal("an answer from the backend did not close the breaker")
 	}
-	if !newBreaker("x", 0, time.Minute).allow() {
+	for range 3 {
+		b.record(status.Error(codes.DeadlineExceeded, "late"), false, false)
+	}
+	if !allow() {
+		t.Fatal("deadlines of calls that started without a fair budget opened the breaker")
+	}
+	if _, ok := newBreaker("x", 0, time.Minute).allow(); !ok {
 		t.Fatal("a zero threshold must disable the breaker")
 	}
 }
 
 func TestResilientRetriesSafeCalls(t *testing.T) {
-	policy := CallPolicy{RetryAttempts: 3, RetryBackoff: time.Millisecond, BreakerCooldown: time.Minute}
-	call := func(ctx context.Context, method string, failures int, code codes.Code) (int, error) {
+	safeMethods["/test.v1.ThingService/Get"] = true
+	safeMethods["/test.v1.ThingService/ListThings"] = true
+	t.Cleanup(func() {
+		delete(safeMethods, "/test.v1.ThingService/Get")
+		delete(safeMethods, "/test.v1.ThingService/ListThings")
+	})
+	policy := CallPolicy{Timeout: time.Second, RetryAttempts: 3, RetryBackoff: time.Millisecond, BreakerCooldown: time.Minute}
+	call := func(ctx context.Context, b *breaker, method string, failures int, code codes.Code) (int, error) {
 		calls := 0
 		invoker := func(context.Context, string, any, any, *grpc.ClientConn, ...grpc.CallOption) error {
 			calls++
@@ -88,35 +110,43 @@ func TestResilientRetriesSafeCalls(t *testing.T) {
 			}
 			return nil
 		}
-		err := resilient("billing:9000", policy, newBreaker("billing:9000", 0, 0))(ctx, method, nil, nil, nil, invoker)
+		err := resilient("test:9000", policy, b)(ctx, method, nil, nil, nil, invoker)
 		return calls, err
 	}
+	off := newBreaker("test:9000", 0, 0)
 	ctx := context.Background()
-	if calls, err := call(ctx, "/billing.v1.InvoiceService/Get", 2, codes.Unavailable); err != nil || calls != 3 {
+	if calls, err := call(ctx, off, "/test.v1.ThingService/Get", 2, codes.Unavailable); err != nil || calls != 3 {
 		t.Fatalf("Get = %d calls, %v", calls, err)
 	}
-	if calls, err := call(ctx, "/billing.v1.InvoiceService/ListInvoiceItems", 5, codes.Unavailable); status.Code(err) != codes.Unavailable || calls != 3 {
+	if calls, err := call(ctx, off, "/test.v1.ThingService/ListThings", 5, codes.Unavailable); status.Code(err) != codes.Unavailable || calls != 3 {
 		t.Fatalf("List = %d calls, %v", calls, err)
 	}
-	if calls, err := call(ctx, "/billing.v1.InvoiceService/Create", 1, codes.Unavailable); status.Code(err) != codes.Unavailable || calls != 1 {
-		t.Fatalf("Create was retried: %d calls", calls)
+	for _, method := range []string{"/test.v1.ThingService/Create", "/test.v1.ThingService/Listen", "/test.v1.ThingService/GetOrCreate"} {
+		if calls, err := call(ctx, off, method, 1, codes.Unavailable); status.Code(err) != codes.Unavailable || calls != 1 {
+			t.Fatalf("%s was retried: %d calls", method, calls)
+		}
 	}
-	if calls, _ := call(ctx, "/billing.v1.InvoiceService/Get", 1, codes.NotFound); calls != 1 {
+	if calls, _ := call(ctx, off, "/test.v1.ThingService/Get", 1, codes.NotFound); calls != 1 {
 		t.Fatalf("an answer from the backend was retried: %d calls", calls)
 	}
 	short, cancel := context.WithTimeout(ctx, time.Microsecond)
 	defer cancel()
-	if calls, _ := call(short, "/billing.v1.InvoiceService/Get", 2, codes.Unavailable); calls != 1 {
+	if calls, _ := call(short, off, "/test.v1.ThingService/Get", 2, codes.Unavailable); calls > 1 {
 		t.Fatalf("a retry went past the deadline: %d calls", calls)
 	}
-	breaker := newBreaker("billing:9000", 1, time.Minute)
-	breaker.record(status.Error(codes.Unavailable, "down"))
-	calls := 0
-	err := resilient("billing:9000", policy, breaker)(ctx, "/billing.v1.InvoiceService/Get", nil, nil, nil, func(context.Context, string, any, any, *grpc.ClientConn, ...grpc.CallOption) error {
-		calls++
-		return nil
-	})
-	if status.Code(err) != codes.Unavailable || calls != 0 {
+
+	b := newBreaker("test:9000", 2, time.Minute)
+	call(ctx, b, "/test.v1.ThingService/Get", 5, codes.Unavailable)
+	if _, ok := b.allow(); !ok {
+		t.Fatal("the retries of one call counted as several failures")
+	}
+	done, stop := context.WithCancel(ctx)
+	stop()
+	if calls, err := call(done, b, "/test.v1.ThingService/Get", 0, codes.OK); calls != 0 || status.Code(err) != codes.Canceled {
+		t.Fatalf("a call whose caller had given up = %d calls, %v", calls, err)
+	}
+	call(ctx, b, "/test.v1.ThingService/Create", 1, codes.Unavailable)
+	if calls, err := call(ctx, b, "/test.v1.ThingService/Get", 0, codes.OK); status.Code(err) != codes.Unavailable || calls != 0 {
 		t.Fatalf("an open breaker let the call through: %d calls, %v", calls, err)
 	}
 }

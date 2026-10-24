@@ -50,8 +50,28 @@ func Error(ctx context.Context, logger *slog.Logger, err error) error {
 		return status.Error(codes.Canceled, "the call was canceled")
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Error(codes.DeadlineExceeded, "the call timed out")
+	case database.Unavailable(err):
+		logger.WarnContext(ctx, "the database is unavailable", slog.Any("error", err))
+		return Problem(codes.Unavailable, http.StatusServiceUnavailable, "the database is unavailable", nil)
 	}
 	logger.ErrorContext(ctx, "call failed", slog.Any("error", err))
+	return Problem(codes.Internal, http.StatusInternalServerError, "an unexpected error occurred", nil)
+}
+
+func Peer(ctx context.Context, logger *slog.Logger, err error) error {
+	st, ok := status.FromError(err)
+	if !ok {
+		return Error(ctx, logger, err)
+	}
+	switch st.Code() {
+	case codes.Canceled:
+		return err
+	case codes.Unavailable:
+		return Problem(codes.Unavailable, http.StatusServiceUnavailable, "a service this call depends on is unavailable", nil)
+	case codes.DeadlineExceeded:
+		return Problem(codes.DeadlineExceeded, http.StatusGatewayTimeout, "a service this call depends on did not answer in time", nil)
+	}
+	logger.ErrorContext(ctx, "a call to another service failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
 	return Problem(codes.Internal, http.StatusInternalServerError, "an unexpected error occurred", nil)
 }
 

@@ -39,7 +39,24 @@ spec:
 {{- end}}
     spec:
       automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 35
+      terminationGracePeriodSeconds: {{.Grace}}
+{{- if gt .Replicas 1}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{.Name}}
+              app.kubernetes.io/part-of: {{.Project}}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{.Name}}
+              app.kubernetes.io/part-of: {{.Project}}
+{{- end}}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -92,7 +109,7 @@ spec:
               port: {{.Probe}}
             periodSeconds: 5
             timeoutSeconds: 2
-            failureThreshold: 2
+            failureThreshold: {{.ReadyFailures}}
           resources:
             requests:
               cpu: 100m
@@ -146,6 +163,9 @@ metadata:
     app.kubernetes.io/component: {{.Component}}
     app.kubernetes.io/part-of: {{.Project}}
 spec:
+{{- if .Headless}}
+  clusterIP: None
+{{- end}}
   selector:
     app.kubernetes.io/name: {{.Name}}
     app.kubernetes.io/part-of: {{.Project}}

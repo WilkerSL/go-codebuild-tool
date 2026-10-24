@@ -31,8 +31,6 @@ func Authenticator(client identityv1.AuthServiceClient, logger *slog.Logger) aut
 	}
 }
 
-// LimitStore keeps the counters in the account service. Its errors stay gRPC
-// errors: the handler converts them once, like every other call.
 type LimitStore struct {
 	client identityv1.AuthServiceClient
 }
@@ -185,8 +183,6 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(client identityv1.AuthServiceClient, guard *auth.Guard, cfg auth.Config, logger *slog.Logger, store auth.LimitStore) *AuthHandler {
-	// In memory each limiter gets its own store, so a flood of new identities
-	// cannot evict the per-client counters that stop it.
 	clients := store
 	if _, ok := store.(*auth.MemoryStore); ok {
 		clients = auth.NewMemoryStore()

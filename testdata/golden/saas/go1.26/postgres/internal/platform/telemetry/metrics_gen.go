@@ -66,6 +66,8 @@ type registry struct {
 	open      map[string]bool
 	inFlight  atomic.Int64
 	dropped   atomic.Uint64
+	tlsErrors atomic.Uint64
+	certUntil atomic.Int64
 	db        atomic.Pointer[sql.DB]
 	started   time.Time
 }
@@ -123,6 +125,14 @@ func ObserveBreakerRejection(target string) {
 	registered.mu.Lock()
 	defer registered.mu.Unlock()
 	registered.rejected[target]++
+}
+
+func ObserveTLSReloadError() {
+	registered.tlsErrors.Add(1)
+}
+
+func ObserveCertificate(notAfter time.Time) {
+	registered.certUntil.Store(notAfter.Unix())
 }
 
 func ObserveDB(db *sql.DB) {
@@ -187,6 +197,12 @@ func (m *registry) write(w io.Writer) {
 		}
 	}
 	m.mu.Unlock()
+	if until := m.certUntil.Load(); until != 0 {
+		family(&b, "tls_certificate_expiry_timestamp_seconds", "gauge", "When the certificate in use expires, as a Unix time.")
+		sample(&b, "tls_certificate_expiry_timestamp_seconds", "", float64(until))
+		family(&b, "tls_reload_errors_total", "counter", "Failed reloads of the certificate files; the last working certificate stays in use.")
+		sample(&b, "tls_reload_errors_total", "", float64(m.tlsErrors.Load()))
+	}
 	family(&b, "http_server_requests_in_flight", "gauge", "HTTP requests being served.")
 	sample(&b, "http_server_requests_in_flight", "", float64(m.inFlight.Load()))
 	if db := m.db.Load(); db != nil {

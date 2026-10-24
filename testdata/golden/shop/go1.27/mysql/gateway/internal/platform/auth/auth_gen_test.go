@@ -6,11 +6,15 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -52,9 +56,55 @@ func TestSignerRoundTrip(t *testing.T) {
 	if _, err := verifier.Claims(expired); err == nil {
 		t.Fatal("an expired token was accepted")
 	}
-	rotated := NewVerifier(other.key.Public().(ed25519.PublicKey), verifier.keys[0])
+	rotated := NewVerifier(other.key().Public().(ed25519.PublicKey), verifier.keys()[0])
 	if _, err := rotated.Claims(token); err != nil {
 		t.Fatalf("a verifier holding the old and the new key rejected the old one: %v", err)
+	}
+}
+
+func TestWatchKeyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.pem")
+	write := func(data []byte) {
+		t.Helper()
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	encode := func() []byte {
+		t.Helper()
+		public, _, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		der, err := x509.MarshalPKIXPublicKey(public)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
+	}
+	first := encode()
+	write(first)
+	f, err := watchKeyFile(path, LoadPublicKeys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	f.now = func() time.Time { return now }
+	write(append(first, encode()...))
+	if keys := f.current(); len(keys) != 1 {
+		t.Fatal("the key file was read again before the interval")
+	}
+	now = now.Add(keyReloadInterval)
+	if keys := f.current(); len(keys) != 2 {
+		t.Fatalf("the appended key was not loaded: %d keys", len(keys))
+	}
+	write([]byte("not a key"))
+	now = now.Add(keyReloadInterval)
+	if keys := f.current(); len(keys) != 2 {
+		t.Fatal("a broken file replaced the working keys")
+	}
+	if _, err := watchKeyFile(filepath.Join(t.TempDir(), "missing.pem"), LoadPublicKeys); err == nil {
+		t.Fatal("a missing key file was accepted at startup")
 	}
 }
 

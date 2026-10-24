@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 )
@@ -13,6 +14,12 @@ const (
 	KubeOverlayDir = "deploy/kubernetes/overlays/production"
 	kubeCertsPath  = "/etc/tls"
 	kubeTokenPath  = "/etc/internal-token"
+	// kubeMemoryLimit leaves the Go runtime room below the 256Mi container
+	// limit of the manifests; patch both together in the overlay.
+	kubeMemoryLimit = "230MiB"
+	// kubeServicePool keeps replicas times services sharing a database below
+	// the default connection limit of PostgreSQL and MySQL.
+	kubeServicePool = "10"
 )
 
 type kubePort struct {
@@ -53,6 +60,14 @@ type kubeWorkload struct {
 	Recreate   bool
 	Command    []string
 	Metrics    bool
+	// Headless Services publish every ready replica in DNS, so gRPC clients
+	// balance their calls over them instead of pinning one connection.
+	Headless bool
+	// Grace covers SHUTDOWN_DELAY and SHUTDOWN_TIMEOUT with a margin.
+	Grace int
+	// ReadyFailures tolerates short database outages before a replica
+	// leaves the endpoints.
+	ReadyFailures int
 }
 
 type kubeView struct {
@@ -63,6 +78,7 @@ type kubeView struct {
 	Claims     []string
 	Resources  []string
 	Images     []string
+	Services   bool
 }
 
 func (w *kubeWorkload) File() string {
@@ -78,6 +94,12 @@ func (kv *kubeView) finish() {
 		w.YAMLHeader, w.Project = kv.YAMLHeader, kv.Project
 	}
 	for _, w := range kv.Workloads {
+		w.Grace = cmp.Or(w.Grace, 35)
+		w.ReadyFailures = cmp.Or(w.ReadyFailures, 2)
+		w.Config = append(w.Config, [2]string{"GOMEMLIMIT", kubeMemoryLimit})
+		kv.Services = kv.Services || w.Component == "service"
+	}
+	for _, w := range kv.Workloads {
 		kv.Resources = append(kv.Resources, w.File())
 	}
 	for _, j := range kv.Jobs {
@@ -85,6 +107,9 @@ func (kv *kubeView) finish() {
 	}
 	if len(kv.Claims) > 0 {
 		kv.Resources = append(kv.Resources, "data.yaml")
+	}
+	if kv.Services {
+		kv.Resources = append(kv.Resources, "network.yaml")
 	}
 	slices.Sort(kv.Resources)
 	for _, w := range append(slices.Clone(kv.Workloads), kv.Jobs...) {
@@ -105,6 +130,9 @@ func (g *generator) kubernetes(kv *kubeView) {
 	}
 	if len(kv.Claims) > 0 {
 		g.generatedFile(KubeBaseDir+"/data.yaml", "kubernetes/data.yaml.tmpl", kv)
+	}
+	if kv.Services {
+		g.generatedFile(KubeBaseDir+"/network.yaml", "kubernetes/network.yaml.tmpl", kv)
 	}
 	g.generatedFile(KubeBaseDir+"/kustomization.yaml", "kubernetes/kustomization.yaml.tmpl", kv)
 	g.userFile(KubeOverlayDir+"/kustomization.yaml", "kubernetes/overlay.yaml.tmpl", kv)
@@ -189,13 +217,16 @@ func workspaceKube(cv *composeView, wv *workspaceView, pv *projectView) *kubeVie
 	gateway.Volumes = append(gateway.Volumes, kubeVolume{Name: "internal-token", Path: kubeTokenPath, Secret: cv.Project + "-internal-token", Items: [][2]string{{"private.pem", "private.pem"}}, ReadOnly: true})
 	for _, sv := range wv.Services {
 		db := cv.database(sv.Database)
-		w := &kubeWorkload{Name: sv.Name, Component: "service", Image: cv.Project + "-" + sv.Name, Probe: "health", Replicas: 2, Metrics: true,
+		w := &kubeWorkload{Name: sv.Name, Component: "service", Image: cv.Project + "-" + sv.Name, Probe: "health", Replicas: 2, Metrics: true, Headless: true, Grace: 50, ReadyFailures: 6,
 			Ports:   []kubePort{{"grpc", 9000, "grpc"}, {"health", 8081, ""}, {"metrics", 9090, ""}},
 			Service: []kubePort{{"grpc", 9000, "grpc"}},
 			Config:  [][2]string{{"GRPC_ADDR", ":9000"}, {"HEALTH_ADDR", ":8081"}, {"METRICS_ADDR", ":9090"}, {"SHUTDOWN_DELAY", "5s"}},
 		}
 		database(w, db)
 		tls(w, sv.Name)
+		if !sqlite {
+			w.Config = append(w.Config, [2]string{"DB_MAX_OPEN_CONNS", kubeServicePool}, [2]string{"DB_MAX_IDLE_CONNS", kubeServicePool})
+		}
 		w.Config = append(w.Config, [2]string{"INTERNAL_TOKEN_PUBLIC_KEY_FILE", kubeTokenPath + "/public.pem"})
 		w.Volumes = append(w.Volumes, kubeVolume{Name: "internal-token", Path: kubeTokenPath, Secret: cv.Project + "-internal-token", Items: [][2]string{{"public.pem", "public.pem"}}, ReadOnly: true})
 		for _, peer := range sv.Peers {

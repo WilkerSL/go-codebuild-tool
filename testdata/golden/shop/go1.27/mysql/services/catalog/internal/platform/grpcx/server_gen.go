@@ -5,6 +5,7 @@ package grpcx
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -15,7 +16,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"example.com/shop/services/catalog/internal/platform/auth"
@@ -32,9 +35,17 @@ func NewServer(cfg TLSConfig, verifier *auth.Verifier, logger *slog.Logger) (*gr
 	}
 	s := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.ChainUnaryInterceptor(observeCalls, recoverer(logger), requestID, logCalls(logger), authenticate(verifier)),
+		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 5 * time.Minute, MaxConnectionAgeGrace: 30 * time.Second, Time: time.Minute, Timeout: 20 * time.Second}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: 20 * time.Second, PermitWithoutStream: true}),
+		grpc.MaxConcurrentStreams(1000),
+		grpc.ConnectionTimeout(10*time.Second),
+		grpc.MaxRecvMsgSize(DefaultMaxMessageBytes),
+		grpc.ChainUnaryInterceptor(observeCalls, recoverer(logger), requestID, logCalls(logger), authenticate(verifier, cfg)),
+		grpc.ChainStreamInterceptor(recoverStream(logger), authenticateStream(verifier, cfg)),
 	)
-	healthpb.RegisterHealthServer(s, health.NewServer())
+	hs := health.NewServer()
+	healthpb.RegisterHealthServer(s, hs)
+	httpx.OnDrain(hs.Shutdown)
 	return s, nil
 }
 
@@ -70,26 +81,39 @@ func observeCalls(ctx context.Context, req any, info *grpc.UnaryServerInfo, hand
 
 func recoverer(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-		defer func() {
-			if v := recover(); v != nil {
-				logger.ErrorContext(ctx, "panic while serving a call",
-					slog.String("method", info.FullMethod),
-					slog.Any("panic", v),
-					slog.String("stack", string(debug.Stack())),
-				)
-				err = status.Error(codes.Internal, "an unexpected error occurred")
-			}
-		}()
+		defer recoverCall(ctx, logger, info.FullMethod, &err)
 		return handler(ctx, req)
 	}
 }
 
+func recoverStream(logger *slog.Logger) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+		defer recoverCall(ss.Context(), logger, info.FullMethod, &err)
+		return handler(srv, ss)
+	}
+}
+
+func recoverCall(ctx context.Context, logger *slog.Logger, method string, err *error) {
+	if v := recover(); v != nil {
+		logger.ErrorContext(ctx, "panic while serving a call",
+			slog.String("method", method),
+			slog.Any("panic", v),
+			slog.String("stack", string(debug.Stack())),
+		)
+		*err = status.Error(codes.Internal, "an unexpected error occurred")
+	}
+}
+
 func requestID(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return handler(withRequestID(ctx), req)
+}
+
+func withRequestID(ctx context.Context) context.Context {
 	md, _ := metadata.FromIncomingContext(ctx)
 	if ids := md.Get(RequestIDHeader); len(ids) == 1 {
 		ctx = httpx.WithRequestID(ctx, ids[0])
 	}
-	return handler(ctx, req)
+	return ctx
 }
 
 func logCalls(logger *slog.Logger) grpc.UnaryServerInterceptor {
@@ -109,24 +133,67 @@ func logCalls(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
-func authenticate(verifier *auth.Verifier) grpc.UnaryServerInterceptor {
+func authenticate(verifier *auth.Verifier, cfg TLSConfig) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if strings.HasPrefix(info.FullMethod, healthPrefix) {
-			return handler(ctx, req)
-		}
-		md, _ := metadata.FromIncomingContext(ctx)
-		tokens := md.Get(TokenHeader)
-		if len(tokens) != 1 {
-			return nil, status.Error(codes.Unauthenticated, "the internal token is missing")
-		}
-		principal, ok, err := verifier.Verify(tokens[0])
+		ctx, err := admit(ctx, info.FullMethod, verifier, cfg)
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "the internal token is invalid or expired")
-		}
-		ctx = WithToken(ctx, tokens[0])
-		if ok {
-			ctx = auth.WithPrincipal(ctx, principal)
+			return nil, err
 		}
 		return handler(ctx, req)
 	}
+}
+
+func authenticateStream(verifier *auth.Verifier, cfg TLSConfig) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		ctx, err := admit(withRequestID(ss.Context()), info.FullMethod, verifier, cfg)
+		if err != nil {
+			return err
+		}
+		return handler(srv, &serverStream{ServerStream: ss, ctx: ctx})
+	}
+}
+
+type serverStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *serverStream) Context() context.Context {
+	return s.ctx
+}
+
+func admit(ctx context.Context, method string, verifier *auth.Verifier, cfg TLSConfig) (context.Context, error) {
+	if strings.HasPrefix(method, healthPrefix) {
+		return ctx, nil
+	}
+	if !safeMethods[method] && !fromPeer(ctx, cfg.Gateway) && !slices.ContainsFunc(cfg.TrustedCallers, func(name string) bool { return fromPeer(ctx, name) }) {
+		return ctx, Problem(codes.PermissionDenied, http.StatusInternalServerError, "only the gateway may call "+method+"; add the caller to TLS_TRUSTED_CALLERS to allow it", nil)
+	}
+	md, _ := metadata.FromIncomingContext(ctx)
+	tokens := md.Get(TokenHeader)
+	if len(tokens) != 1 {
+		return ctx, Problem(codes.Unauthenticated, http.StatusInternalServerError, "the internal token is missing", nil)
+	}
+	principal, ok, err := verifier.Verify(tokens[0])
+	if err != nil {
+		return ctx, Problem(codes.Unauthenticated, http.StatusInternalServerError, "the internal token is invalid or expired; check the clocks and the key rotation", nil)
+	}
+	ctx = WithToken(ctx, tokens[0])
+	if ok {
+		ctx = auth.WithPrincipal(ctx, principal)
+	}
+	return ctx, nil
+}
+
+func fromPeer(ctx context.Context, name string) bool {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return false
+	}
+	info, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(info.State.PeerCertificates) == 0 {
+		return false
+	}
+	cert := info.State.PeerCertificates[0]
+	return cert.Subject.CommonName == name || slices.Contains(cert.DNSNames, name)
 }

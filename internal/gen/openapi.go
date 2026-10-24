@@ -2,6 +2,7 @@ package gen
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"regexp"
 	"slices"
@@ -352,7 +353,7 @@ func (d *openAPIDoc) parameters() object {
 			set("name", "offset").
 			set("in", "query").
 			set("description", "Number of items to skip. Cannot be combined with cursor.").
-			set("schema", object{}.set("type", "integer").set("minimum", 0).set("default", 0))).
+			set("schema", object{}.set("type", "integer").set("minimum", 0).set("maximum", math.MaxInt32).set("default", 0))).
 		set("Cursor", object{}.
 			set("name", "cursor").
 			set("in", "query").

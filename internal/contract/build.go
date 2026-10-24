@@ -61,6 +61,8 @@ type Method struct {
 	Name   string
 	Input  string
 	Output string
+	// Safe marks a call without side effects, which clients may retry.
+	Safe bool
 }
 
 type Service struct {
@@ -271,8 +273,8 @@ func (f *File) entity(m *schema.Model, e *schema.Entity) {
 	exists := f.message(e.Name+"ExistsRequest", idField("id", pk))
 	svc := &Service{Name: e.Name + "Service"}
 	svc.Methods = append(svc.Methods,
-		&Method{Name: "Get", Input: get.FullName, Output: entity.FullName},
-		&Method{Name: "List", Input: list.FullName, Output: page.FullName},
+		&Method{Name: "Get", Input: get.FullName, Output: entity.FullName, Safe: true},
+		&Method{Name: "List", Input: list.FullName, Output: page.FullName, Safe: true},
 	)
 	if !e.ReadOnly {
 		var create []*Field
@@ -294,11 +296,11 @@ func (f *File) entity(m *schema.Model, e *schema.Entity) {
 		del := f.message(e.Name+"DeleteRequest", idField("id", pk))
 		svc.Methods = append(svc.Methods, &Method{Name: "Delete", Input: del.FullName, Output: Empty})
 	}
-	svc.Methods = append(svc.Methods, &Method{Name: "Exists", Input: exists.FullName, Output: ExistsResponse})
+	svc.Methods = append(svc.Methods, &Method{Name: "Exists", Input: exists.FullName, Output: ExistsResponse, Safe: true})
 	for _, rel := range Relations(m, e) {
 		fields := append([]*Field{idField("source_id", rel.Source.PK())}, filters(rel.FK)...)
 		req := f.message(rel.List+"Request", fields...)
-		svc.Methods = append(svc.Methods, &Method{Name: rel.List, Input: req.FullName, Output: page.FullName})
+		svc.Methods = append(svc.Methods, &Method{Name: rel.List, Input: req.FullName, Output: page.FullName, Safe: true})
 		if rel.Link != "" {
 			link := f.message(rel.Link+"Request", idField("source_id", rel.Source.PK()), idField("id", pk))
 			unlink := f.message(rel.Unlink+"Request", idField("source_id", rel.Source.PK()), idField("id", pk))
@@ -323,7 +325,7 @@ func (f *File) auth(e *schema.Entity) {
 	account := f.Message(e.Name)
 	svc := &Service{Name: "AuthService"}
 	svc.Methods = append(svc.Methods,
-		&Method{Name: "Authenticate", Input: authenticate.FullName, Output: principal.FullName},
+		&Method{Name: "Authenticate", Input: authenticate.FullName, Output: principal.FullName, Safe: true},
 		&Method{Name: "Login", Input: login.FullName, Output: tokens.FullName},
 	)
 	if e.Register {
@@ -335,7 +337,7 @@ func (f *File) auth(e *schema.Entity) {
 	}
 	svc.Methods = append(svc.Methods,
 		&Method{Name: "Logout", Input: Empty, Output: Empty},
-		&Method{Name: "Me", Input: Empty, Output: account.FullName},
+		&Method{Name: "Me", Input: Empty, Output: account.FullName, Safe: true},
 		&Method{Name: "ChangePassword", Input: change.FullName, Output: Empty},
 	)
 	limit := f.message("RateLimitRequest", field("key", TypeString), field("limit", TypeInt32), field("window_millis", TypeInt64))
@@ -358,7 +360,7 @@ func (f *File) auth(e *schema.Entity) {
 		deleteKey := f.message("APIKeyDeleteRequest", field("id", TypeString))
 		svc.Methods = append(svc.Methods,
 			&Method{Name: "CreateAPIKey", Input: createKey.FullName, Output: created.FullName},
-			&Method{Name: "ListAPIKeys", Input: Empty, Output: keyList.FullName},
+			&Method{Name: "ListAPIKeys", Input: Empty, Output: keyList.FullName, Safe: true},
 			&Method{Name: "DeleteAPIKey", Input: deleteKey.FullName, Output: Empty},
 		)
 	}
@@ -371,6 +373,23 @@ func (s *Set) All() []*File {
 
 func (s *Set) Registry() *Registry {
 	return s.registry
+}
+
+// SafeMethods returns the full names, such as /catalog.v1.ProductService/Get,
+// of every generated call without side effects, sorted.
+func (s *Set) SafeMethods() []string {
+	var names []string
+	for _, f := range s.All() {
+		for _, svc := range f.Services {
+			for _, m := range svc.Methods {
+				if m.Safe {
+					names = append(names, "/"+f.Package+"."+svc.Name+"/"+m.Name)
+				}
+			}
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 func sortedImports(imports []string) []string {

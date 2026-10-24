@@ -14,6 +14,7 @@ type Config struct {
 	ReadHeaderTimeout    time.Duration
 	ReadTimeout          time.Duration
 	WriteTimeout         time.Duration
+	RequestTimeout       time.Duration
 	IdleTimeout          time.Duration
 	ShutdownTimeout      time.Duration
 	ShutdownDelay        time.Duration
@@ -27,12 +28,16 @@ func Load(getenv func(string) string) (Config, error) {
 		ReadHeaderTimeout:    l.duration("HTTP_READ_HEADER_TIMEOUT", 5*time.Second),
 		ReadTimeout:          l.duration("HTTP_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:         l.duration("HTTP_WRITE_TIMEOUT", 15*time.Second),
+		RequestTimeout:       l.duration("HTTP_REQUEST_TIMEOUT", 12*time.Second),
 		IdleTimeout:          l.duration("HTTP_IDLE_TIMEOUT", 60*time.Second),
 		ShutdownTimeout:      l.duration("SHUTDOWN_TIMEOUT", 20*time.Second),
 		ShutdownDelay:        l.delay("SHUTDOWN_DELAY"),
 	}
 	if err := cfg.LogLevel.UnmarshalText([]byte(l.string("LOG_LEVEL", "info"))); err != nil {
 		l.errs = append(l.errs, fmt.Errorf("LOG_LEVEL: %w", err))
+	}
+	if cfg.RequestTimeout >= cfg.WriteTimeout {
+		l.errs = append(l.errs, fmt.Errorf("HTTP_REQUEST_TIMEOUT (%s) must be shorter than HTTP_WRITE_TIMEOUT (%s), so a slow request still gets its 504", cfg.RequestTimeout, cfg.WriteTimeout))
 	}
 	if cfg.InternalTokenKeyFile == "" {
 		l.errs = append(l.errs, errors.New("INTERNAL_TOKEN_PRIVATE_KEY_FILE is required: the gateway signs the internal token every service verifies; generate one with go run ./gateway/cmd/devcerts"))

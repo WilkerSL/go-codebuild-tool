@@ -39,15 +39,15 @@ func run() error {
 		return err
 	}
 	logger := slog.New(httpx.NewLogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})))
+	slog.SetDefault(logger)
 	tlsConfig, err := grpcx.LoadTLSConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
-	key, err := auth.LoadPrivateKey(cfg.InternalTokenKeyFile)
+	signer, err := auth.WatchPrivateKey(cfg.InternalTokenKeyFile)
 	if err != nil {
 		return err
 	}
-	signer := auth.NewSigner(key)
 	telemetryConfig, err := telemetry.LoadConfig(os.Getenv, "gateway")
 	if err != nil {
 		return err
@@ -82,6 +82,7 @@ func run() error {
 	handler = httpx.AccessLog(logger, handler)
 	handler = httpx.Recover(logger, handler)
 	handler = telemetry.HTTP(mux, handler, httpx.LivenessPath, httpx.ReadinessPath)
+	handler = httpx.Deadline(cfg.RequestTimeout, handler)
 	handler = httpx.RequestID(handler)
 
 	srv := &http.Server{

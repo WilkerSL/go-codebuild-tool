@@ -95,6 +95,9 @@ func WriteError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err
 		p.Status, p.Detail = http.StatusNotFound, "the requested resource does not exist"
 	case errors.Is(err, database.ErrReferenced):
 		p.Status, p.Detail = http.StatusConflict, "the resource is still referenced by other resources"
+	case database.Unavailable(err):
+		logger.WarnContext(r.Context(), "the database is unavailable", slog.String("method", r.Method), slog.String("path", r.URL.Path), slog.Any("error", err))
+		p.Status, p.Detail = http.StatusServiceUnavailable, "the database is unavailable; retry later"
 {{- end}}
 	case errors.Is(err, context.Canceled):
 		logger.DebugContext(r.Context(), "request canceled", slog.String("method", r.Method), slog.String("path", r.URL.Path))

@@ -41,11 +41,12 @@ func run() error {
 		return err
 	}
 	logger := slog.New(httpx.NewLogHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})))
+	slog.SetDefault(logger)
 	tlsConfig, err := grpcx.LoadTLSConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
-	keys, err := auth.LoadPublicKeys(cfg.InternalTokenKeyFile)
+	verifier, err := auth.WatchPublicKeys(cfg.InternalTokenKeyFile)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func run() error {
 	}
 	defer peers.Close()
 
-	server, err := grpcx.NewServer(tlsConfig, auth.NewVerifier(keys...), logger)
+	server, err := grpcx.NewServer(tlsConfig, verifier, logger)
 	if err != nil {
 		return err
 	}
@@ -117,6 +118,8 @@ func run() error {
 	logger.Info("shutting down", slog.Duration("delay", cfg.ShutdownDelay))
 	health.Drain()
 	time.Sleep(cfg.ShutdownDelay)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
 	stopped := make(chan struct{})
 	go func() {
 		server.GracefulStop()
@@ -124,11 +127,9 @@ func run() error {
 	}()
 	select {
 	case <-stopped:
-	case <-time.After(cfg.ShutdownTimeout):
+	case <-shutdownCtx.Done():
 		server.Stop()
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
-	defer cancel()
 	if err := healthServer.Shutdown(shutdownCtx); err != nil {
 		return err
 	}

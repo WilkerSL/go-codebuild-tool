@@ -29,12 +29,7 @@ func TestGoldenWorkspaces(t *testing.T) {
 			golden := filepath.Join(repoRoot(t), "testdata", "golden", "shop", "go1.27", name)
 			got := treeFiles(t, dir)
 			if *update {
-				if err := os.RemoveAll(golden); err != nil {
-					t.Fatal(err)
-				}
-				for rel, data := range got {
-					writeTestFile(t, filepath.Join(golden, filepath.FromSlash(rel)), string(data))
-				}
+				updateGolden(t, golden, got)
 				return
 			}
 			want := treeFiles(t, golden)
@@ -217,6 +212,23 @@ func TestEditedKubernetesManifestIsAConflict(t *testing.T) {
 	for _, f := range plan.Files {
 		if f.Path == "deploy/kubernetes/overlays/production/kustomization.yaml" && f.Action != ActionSkip {
 			t.Fatalf("the user overlay was planned as %s", f.Action)
+		}
+	}
+}
+
+// TestGoldenCodeHasNoComments keeps the generated Go code free of comments in
+// every golden project, monoliths with authentication and workspaces included.
+func TestGoldenCodeHasNoComments(t *testing.T) {
+	golden := filepath.Join(repoRoot(t), "testdata", "golden")
+	for rel, data := range treeFiles(t, golden) {
+		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, ".pb.go") {
+			continue
+		}
+		for line := range strings.Lines(string(data)) {
+			if text := strings.TrimSpace(line); strings.HasPrefix(text, "//") && !strings.HasPrefix(text, "//go:") && !strings.HasPrefix(text, "// Code generated") {
+				t.Errorf("%s contains a comment: %s", rel, text)
+				break
+			}
 		}
 	}
 }

@@ -19,3 +19,4 @@ configMapGenerator:
       - "METRICS_ADDR=:9090"
       - "SHUTDOWN_DELAY=5s"
       - "AUTH_LIMIT_STORE=database"
+      - "GOMEMLIMIT=230MiB"

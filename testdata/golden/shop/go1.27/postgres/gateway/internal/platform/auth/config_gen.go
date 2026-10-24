@@ -50,7 +50,6 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	}
 	if v := getenv("AUTH_LOGIN_WINDOW"); v != "" {
 		d, err := time.ParseDuration(v)
-		// The account service keeps database counters for at most a day.
 		if err != nil || d <= 0 || d > 24*time.Hour {
 			errs = append(errs, fmt.Errorf("AUTH_LOGIN_WINDOW must be a positive duration of at most 24h such as 15m, got %q", v))
 		} else {

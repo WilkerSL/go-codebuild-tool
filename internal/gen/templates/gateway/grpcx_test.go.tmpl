@@ -41,6 +41,10 @@ func TestHTTPError(t *testing.T) {
 		{name: "plain not found", err: status.Error(codes.NotFound, "row 9 missing in db"), status: http.StatusNotFound, detail: "the requested resource does not exist"},
 		{name: "unavailable", err: status.Error(codes.Unavailable, "dial tcp 10.0.0.5:9000: connection refused"), status: http.StatusServiceUnavailable, detail: "a backend service is unavailable"},
 		{name: "deadline", err: status.Error(codes.DeadlineExceeded, "context deadline exceeded"), status: http.StatusGatewayTimeout},
+		{name: "internal token rejected", err: problem(codes.Unauthenticated, http.StatusInternalServerError, "the internal token is invalid or expired"), status: http.StatusInternalServerError, detail: "an unexpected error occurred"},
+		{name: "message too large", err: status.Error(codes.ResourceExhausted, "grpc: received message larger than max"), status: http.StatusBadGateway},
+		{name: "older backend", err: status.Error(codes.Unimplemented, "unknown method ListThings"), status: http.StatusServiceUnavailable},
+		{name: "rate limited", err: problem(codes.ResourceExhausted, http.StatusTooManyRequests, "too many attempts"), status: http.StatusTooManyRequests},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

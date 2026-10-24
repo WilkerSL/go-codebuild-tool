@@ -18,3 +18,4 @@ configMapGenerator:
       - "HTTP_ADDR=:8080"
       - "METRICS_ADDR=:9090"
       - "SHUTDOWN_DELAY=5s"
+      - "GOMEMLIMIT=230MiB"

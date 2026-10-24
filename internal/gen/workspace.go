@@ -69,11 +69,12 @@ type serviceView struct {
 }
 
 type workspaceView struct {
-	Module    string
-	Contracts string
-	Services  []*serviceView
-	Shared    bool
-	SharedDir string
+	Module      string
+	Contracts   string
+	Services    []*serviceView
+	Shared      bool
+	SharedDir   string
+	SafeMethods []string
 }
 
 func principalView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView {
@@ -92,7 +93,7 @@ func GenerateWorkspace(opts WorkspaceOptions) (*Workspace, error) {
 	for _, out := range contracts {
 		ws.Files = append(ws.Files, File{Path: contract.ContractsDir + "/" + out.Path, Content: out.Content, Owner: OwnerGenerated, Module: contract.ContractsDir})
 	}
-	wv := &workspaceView{Module: opts.Module, Contracts: opts.Module + "/" + contract.ContractsDir, SharedDir: SharedDir}
+	wv := &workspaceView{Module: opts.Module, Contracts: opts.Module + "/" + contract.ContractsDir, SharedDir: SharedDir, SafeMethods: opts.Contracts.SafeMethods()}
 	for i, s := range opts.Model.Services {
 		file := opts.Contracts.File(s.Name)
 		sv := &serviceView{

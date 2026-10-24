@@ -32,7 +32,22 @@ spec:
         prometheus.io/path: /metrics
     spec:
       automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 35
+      terminationGracePeriodSeconds: 50
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: catalog
+              app.kubernetes.io/part-of: shop
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: catalog
+              app.kubernetes.io/part-of: shop
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -82,7 +97,7 @@ spec:
               port: health
             periodSeconds: 5
             timeoutSeconds: 2
-            failureThreshold: 2
+            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
@@ -128,6 +143,7 @@ metadata:
     app.kubernetes.io/component: service
     app.kubernetes.io/part-of: shop
 spec:
+  clusterIP: None
   selector:
     app.kubernetes.io/name: catalog
     app.kubernetes.io/part-of: shop

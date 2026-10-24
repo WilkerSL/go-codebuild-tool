@@ -14,8 +14,11 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/health"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -24,10 +27,11 @@ import (
 )
 
 const (
-	TokenHeader     = "x-internal-token"
-	RequestIDHeader = "x-request-id"
-	CallTimeout     = 10 * time.Second
-	maxRetryBackoff = time.Second
+	TokenHeader            = "x-internal-token"
+	RequestIDHeader        = "x-request-id"
+	CallTimeout            = 10 * time.Second
+	maxRetryBackoff        = time.Second
+	DefaultMaxMessageBytes = 4 << 20
 )
 
 type tokenKey struct{}
@@ -47,6 +51,7 @@ type CallPolicy struct {
 	RetryBackoff    time.Duration
 	BreakerFailures int
 	BreakerCooldown time.Duration
+	MaxMessageBytes int
 }
 
 func LoadCallPolicy(getenv func(string) string) (CallPolicy, error) {
@@ -81,8 +86,45 @@ func LoadCallPolicy(getenv func(string) string) (CallPolicy, error) {
 		RetryBackoff:    duration("GRPC_RETRY_BACKOFF", 50*time.Millisecond),
 		BreakerFailures: count("GRPC_BREAKER_FAILURES", 5, 0),
 		BreakerCooldown: duration("GRPC_BREAKER_COOLDOWN", 10*time.Second),
+		MaxMessageBytes: DefaultMaxMessageBytes,
+	}
+	if v := getenv("GRPC_MAX_MESSAGE_BYTES"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1<<20 || n > 1<<30 {
+			errs = append(errs, fmt.Errorf("GRPC_MAX_MESSAGE_BYTES must be an integer between 1048576 (1 MiB) and 1073741824 (1 GiB), got %q", v))
+		} else {
+			p.MaxMessageBytes = n
+		}
 	}
 	return p, errors.Join(errs...)
+}
+
+const serviceConfig = `{"loadBalancingConfig":[{"round_robin":{}}],"healthCheckConfig":{"serviceName":""}}`
+
+var safeMethods = map[string]bool{
+	"/billing.v1.InvoiceItemService/Exists":           true,
+	"/billing.v1.InvoiceItemService/Get":              true,
+	"/billing.v1.InvoiceItemService/List":             true,
+	"/billing.v1.InvoiceItemService/ListInvoiceItems": true,
+	"/billing.v1.InvoiceService/Exists":               true,
+	"/billing.v1.InvoiceService/Get":                  true,
+	"/billing.v1.InvoiceService/List":                 true,
+	"/catalog.v1.CategoryService/Exists":              true,
+	"/catalog.v1.CategoryService/Get":                 true,
+	"/catalog.v1.CategoryService/List":                true,
+	"/catalog.v1.ProductService/Exists":               true,
+	"/catalog.v1.ProductService/Get":                  true,
+	"/catalog.v1.ProductService/List":                 true,
+	"/catalog.v1.ProductService/ListCategoryProducts": true,
+	"/identity.v1.AuthService/Authenticate":           true,
+	"/identity.v1.AuthService/ListAPIKeys":            true,
+	"/identity.v1.AuthService/Me":                     true,
+	"/identity.v1.UserService/Exists":                 true,
+	"/identity.v1.UserService/Get":                    true,
+	"/identity.v1.UserService/List":                   true,
+	"/inventory.v1.StockService/Exists":               true,
+	"/inventory.v1.StockService/Get":                  true,
+	"/inventory.v1.StockService/List":                 true,
 }
 
 func Dial(addr string, cfg TLSConfig, policy CallPolicy) (*grpc.ClientConn, error) {
@@ -97,7 +139,15 @@ func Dial(addr string, cfg TLSConfig, policy CallPolicy) (*grpc.ClientConn, erro
 	b := newBreaker(addr, policy.BreakerFailures, policy.BreakerCooldown)
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithDefaultServiceConfig(serviceConfig),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 30 * time.Second, Timeout: 10 * time.Second, PermitWithoutStream: true}),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff:           backoff.Config{BaseDelay: 100 * time.Millisecond, Multiplier: 1.6, Jitter: 0.2, MaxDelay: 5 * time.Second},
+			MinConnectTimeout: 5 * time.Second,
+		}),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(policy.MaxMessageBytes), grpc.MaxCallSendMsgSize(policy.MaxMessageBytes)),
 		grpc.WithChainUnaryInterceptor(deadline(policy.Timeout), propagate, resilient(addr, policy, b)),
+		grpc.WithChainStreamInterceptor(propagateStream),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("grpcx: dial %s: %w", addr, err)
@@ -116,46 +166,48 @@ func deadline(timeout time.Duration) grpc.UnaryClientInterceptor {
 	}
 }
 
-func safeMethod(method string) bool {
-	name := method[strings.LastIndex(method, "/")+1:]
-	switch name {
-	case "Get", "Exists", "Authenticate", "Me":
-		return true
-	}
-	return strings.HasPrefix(name, "List")
-}
-
 func resilient(target string, p CallPolicy, b *breaker) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if err := ctx.Err(); err != nil {
+			return status.FromContextError(err).Err()
+		}
+		probe, ok := b.allow()
+		if !ok {
+			telemetry.ObserveBreakerRejection(target)
+			return status.Errorf(codes.Unavailable, "grpcx: %s is failing; calls are paused for %s", target, p.BreakerCooldown)
+		}
+		budget := p.Timeout
+		if until, ok := ctx.Deadline(); ok {
+			budget = time.Until(until)
+		}
 		attempts := 1
-		if safeMethod(method) {
+		if safeMethods[method] {
 			attempts = p.RetryAttempts
 		}
 		backoff := p.RetryBackoff
+		var err error
+	retry:
 		for attempt := 1; ; attempt++ {
-			if !b.allow() {
-				telemetry.ObserveBreakerRejection(target)
-				return status.Errorf(codes.Unavailable, "grpcx: %s is failing; calls are paused for %s", target, p.BreakerCooldown)
-			}
-			err := invoker(ctx, method, req, reply, cc, opts...)
-			b.record(err)
+			err = invoker(ctx, method, req, reply, cc, opts...)
 			if err == nil || attempt >= attempts || status.Code(err) != codes.Unavailable {
-				return err
+				break
 			}
 			wait := rand.N(backoff) + time.Millisecond
 			if until, ok := ctx.Deadline(); ok && time.Until(until) <= wait {
-				return err
+				break
 			}
 			timer := time.NewTimer(wait)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
-				return err
+				break retry
 			case <-timer.C:
 			}
 			telemetry.ObserveRetry(target)
 			backoff = min(backoff*2, maxRetryBackoff)
 		}
+		b.record(err, probe, budget >= p.Timeout/10)
+		return err
 	}
 }
 
@@ -174,34 +226,39 @@ func newBreaker(target string, threshold int, cooldown time.Duration) *breaker {
 	return &breaker{target: target, threshold: threshold, cooldown: cooldown, now: time.Now}
 }
 
-func (b *breaker) allow() bool {
+func (b *breaker) allow() (probe, ok bool) {
 	if b.threshold <= 0 {
-		return true
+		return false, true
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.failures < b.threshold {
-		return true
+		return false, true
 	}
 	if b.probing || b.now().Before(b.openUntil) {
-		return false
+		return false, false
 	}
 	b.probing = true
-	return true
+	return true, true
 }
 
-func (b *breaker) record(err error) {
+func (b *breaker) record(err error, probe, fairBudget bool) {
 	if b.threshold <= 0 {
 		return
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	open := b.failures >= b.threshold
-	b.probing = false
-	switch status.Code(err) {
-	case codes.Canceled:
+	if probe {
+		b.probing = false
+	} else if open {
 		return
-	case codes.Unavailable, codes.DeadlineExceeded:
+	}
+	code := status.Code(err)
+	switch {
+	case code == codes.Canceled, code == codes.DeadlineExceeded && !fairBudget:
+		return
+	case code == codes.Unavailable, code == codes.DeadlineExceeded:
 		b.failures++
 		if b.failures >= b.threshold {
 			b.openUntil = b.now().Add(b.cooldown)
@@ -219,6 +276,16 @@ func (b *breaker) record(err error) {
 
 func propagate(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	ctx, span := telemetry.StartSpan(ctx, strings.TrimPrefix(method, "/"), telemetry.SpanKindClient, telemetry.SpanContext{})
+	err := invoker(outgoing(ctx), method, req, reply, cc, opts...)
+	endRPCSpan(span, method, status.Code(err))
+	return err
+}
+
+func propagateStream(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	return streamer(outgoing(ctx), desc, cc, method, opts...)
+}
+
+func outgoing(ctx context.Context) context.Context {
 	var pairs []string
 	if token := TokenFrom(ctx); token != "" {
 		pairs = append(pairs, TokenHeader, token)
@@ -232,12 +299,10 @@ func propagate(ctx context.Context, method string, req, reply any, cc *grpc.Clie
 			pairs = append(pairs, telemetry.TracestateHeader, sc.State)
 		}
 	}
-	if len(pairs) > 0 {
-		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+	if len(pairs) == 0 {
+		return ctx
 	}
-	err := invoker(ctx, method, req, reply, cc, opts...)
-	endRPCSpan(span, method, status.Code(err))
-	return err
+	return metadata.AppendToOutgoingContext(ctx, pairs...)
 }
 
 func endRPCSpan(span *telemetry.Span, method string, code codes.Code) {

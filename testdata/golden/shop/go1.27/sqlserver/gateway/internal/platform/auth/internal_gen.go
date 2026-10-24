@@ -10,9 +10,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -44,12 +46,20 @@ func SignInternal(key ed25519.PrivateKey, c InternalClaims) (string, error) {
 }
 
 type Verifier struct {
-	keys []ed25519.PublicKey
+	keys func() []ed25519.PublicKey
 	now  func() time.Time
 }
 
 func NewVerifier(keys ...ed25519.PublicKey) *Verifier {
-	return &Verifier{keys: keys, now: time.Now}
+	return &Verifier{keys: func() []ed25519.PublicKey { return keys }, now: time.Now}
+}
+
+func WatchPublicKeys(path string) (*Verifier, error) {
+	f, err := watchKeyFile(path, LoadPublicKeys)
+	if err != nil {
+		return nil, err
+	}
+	return &Verifier{keys: f.current, now: time.Now}, nil
 }
 
 func (v *Verifier) Claims(token string) (InternalClaims, error) {
@@ -62,7 +72,7 @@ func (v *Verifier) Claims(token string) (InternalClaims, error) {
 		return InternalClaims{}, errInternalToken
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(signature)
-	if err != nil || !slices.ContainsFunc(v.keys, func(key ed25519.PublicKey) bool { return ed25519.Verify(key, []byte(header+"."+payload), sig) }) {
+	if err != nil || !slices.ContainsFunc(v.keys(), func(key ed25519.PublicKey) bool { return ed25519.Verify(key, []byte(header+"."+payload), sig) }) {
 		return InternalClaims{}, errInternalToken
 	}
 	data, err := base64.RawURLEncoding.DecodeString(payload)
@@ -153,6 +163,47 @@ func LoadPublicKeys(path string) ([]ed25519.PublicKey, error) {
 		return nil, fmt.Errorf("auth: %s is not PEM encoded", path)
 	}
 	return keys, nil
+}
+
+const keyReloadInterval = 30 * time.Second
+
+type keyFile[T any] struct {
+	path    string
+	parse   func(string) (T, error)
+	now     func() time.Time
+	mu      sync.Mutex
+	checked time.Time
+	failing bool
+	value   T
+}
+
+func watchKeyFile[T any](path string, parse func(string) (T, error)) (*keyFile[T], error) {
+	value, err := parse(path)
+	if err != nil {
+		return nil, err
+	}
+	return &keyFile[T]{path: path, parse: parse, now: time.Now, checked: time.Now(), value: value}, nil
+}
+
+func (f *keyFile[T]) current() T {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	if now.Sub(f.checked) < keyReloadInterval {
+		return f.value
+	}
+	f.checked = now
+	value, err := f.parse(f.path)
+	if err != nil {
+		if !f.failing {
+			slog.Warn("reloading the internal token key failed; the previous key stays in use", slog.Any("error", err))
+		}
+		f.failing = true
+		return f.value
+	}
+	f.failing = false
+	f.value = value
+	return value
 }
 
 func readPEM(path string) (*pem.Block, error) {

@@ -87,6 +87,17 @@ func (h contextLogHandler) WithGroup(name string) slog.Handler {
 	return contextLogHandler{Handler: h.Handler.WithGroup(name)}
 }
 
+func Deadline(timeout time.Duration, next http.Handler) http.Handler {
+	if timeout <= 0 {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func Recover(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

@@ -9,23 +9,33 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
+
+	"example.com/shop/gateway/internal/platform/telemetry"
 )
 
 const reloadInterval = 30 * time.Second
 
 type TLSConfig struct {
-	CAFile   string
-	CertFile string
-	KeyFile  string
-	Gateway  string
-	files    *tlsFiles
+	CAFile         string
+	CertFile       string
+	KeyFile        string
+	Gateway        string
+	TrustedCallers []string
+	files          *tlsFiles
 }
 
 func LoadTLSConfig(getenv func(string) string) (TLSConfig, error) {
 	cfg := TLSConfig{CAFile: getenv("TLS_CA_FILE"), CertFile: getenv("TLS_CERT_FILE"), KeyFile: getenv("TLS_KEY_FILE"), Gateway: cmp.Or(getenv("TLS_GATEWAY_NAME"), "gateway")}
+	for name := range strings.SplitSeq(getenv("TLS_TRUSTED_CALLERS"), ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			cfg.TrustedCallers = append(cfg.TrustedCallers, name)
+		}
+	}
 	var errs []error
 	for _, v := range []struct{ key, value string }{{"TLS_CA_FILE", cfg.CAFile}, {"TLS_CERT_FILE", cfg.CertFile}, {"TLS_KEY_FILE", cfg.KeyFile}} {
 		if v.value == "" {
@@ -44,6 +54,7 @@ type tlsFiles struct {
 	now           func() time.Time
 	mu            sync.Mutex
 	checked       time.Time
+	failing       bool
 	raw           [3][]byte
 	certificate   *tls.Certificate
 	pool          *x509.CertPool
@@ -59,12 +70,24 @@ func (f *tlsFiles) current() (*tls.Certificate, *x509.CertPool, error) {
 	f.checked = now
 	certificate, pool, raw, err := f.read()
 	if err != nil {
-		if f.certificate != nil {
-			return f.certificate, f.pool, nil
+		if f.certificate == nil {
+			return nil, nil, err
 		}
-		return nil, nil, err
+		telemetry.ObserveTLSReloadError()
+		if !f.failing {
+			slog.Warn("reloading the TLS files failed; the previous certificate stays in use", slog.Any("error", err))
+		}
+		f.failing = true
+		return f.certificate, f.pool, nil
 	}
+	if f.failing {
+		slog.Info("the TLS files load again")
+	}
+	f.failing = false
 	f.certificate, f.pool, f.raw = certificate, pool, raw
+	if certificate.Leaf != nil {
+		telemetry.ObserveCertificate(certificate.Leaf.NotAfter)
+	}
 	return f.certificate, f.pool, nil
 }
 

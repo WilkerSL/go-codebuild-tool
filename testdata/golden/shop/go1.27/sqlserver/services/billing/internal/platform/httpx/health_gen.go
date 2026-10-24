@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -31,8 +32,24 @@ func (h *Health) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+ReadinessPath, h.ready)
 }
 
+var drainHooks struct {
+	mu    sync.Mutex
+	hooks []func()
+}
+
+func OnDrain(hook func()) {
+	drainHooks.mu.Lock()
+	defer drainHooks.mu.Unlock()
+	drainHooks.hooks = append(drainHooks.hooks, hook)
+}
+
 func (h *Health) Drain() {
 	h.draining.Store(true)
+	drainHooks.mu.Lock()
+	defer drainHooks.mu.Unlock()
+	for _, hook := range drainHooks.hooks {
+		hook()
+	}
 }
 
 func (h *Health) live(w http.ResponseWriter, _ *http.Request) {

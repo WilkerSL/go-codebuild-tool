@@ -3112,6 +3112,7 @@ var openAPIDocument = []byte(`{
         "schema": {
           "type": "integer",
           "minimum": 0,
+          "maximum": 2147483647,
           "default": 0
         }
       },

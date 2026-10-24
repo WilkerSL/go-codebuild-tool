@@ -29,7 +29,7 @@ spec:
         prometheus.io/path: /metrics
     spec:
       automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 35
+      terminationGracePeriodSeconds: 50
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -73,7 +73,7 @@ spec:
               port: health
             periodSeconds: 5
             timeoutSeconds: 2
-            failureThreshold: 2
+            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
@@ -124,6 +124,7 @@ metadata:
     app.kubernetes.io/component: service
     app.kubernetes.io/part-of: shop
 spec:
+  clusterIP: None
   selector:
     app.kubernetes.io/name: inventory
     app.kubernetes.io/part-of: shop

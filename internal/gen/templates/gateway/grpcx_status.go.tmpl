@@ -30,7 +30,8 @@ var fallbacks = map[codes.Code]struct {
 	codes.NotFound:           {http.StatusNotFound, "the requested resource does not exist"},
 	codes.AlreadyExists:      {http.StatusConflict, "a resource with the same unique value already exists"},
 	codes.FailedPrecondition: {http.StatusConflict, "the request conflicts with the current state of the resource"},
-	codes.ResourceExhausted:  {http.StatusTooManyRequests, "too many requests"},
+	codes.ResourceExhausted:  {http.StatusBadGateway, "a backend service could not handle the call"},
+	codes.Unimplemented:      {http.StatusServiceUnavailable, "a backend service does not support this call yet"},
 	codes.Unavailable:        {http.StatusServiceUnavailable, "a backend service is unavailable"},
 	codes.DeadlineExceeded:   {http.StatusGatewayTimeout, "a backend service did not answer in time"},
 }
@@ -58,7 +59,11 @@ func HTTPError(ctx context.Context, logger *slog.Logger, err error) error {
 		if e.Status == http.StatusUnauthorized {
 			e.Header = bearer
 		}
-		if e.Status >= http.StatusInternalServerError {
+		switch {
+		case e.Status == http.StatusInternalServerError:
+			logger.ErrorContext(ctx, "backend call failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
+			e.Detail = "an unexpected error occurred"
+		case e.Status > http.StatusInternalServerError:
 			logger.WarnContext(ctx, "backend call failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
 		}
 		return e

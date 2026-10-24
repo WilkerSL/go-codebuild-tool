@@ -68,6 +68,45 @@ func writeTestFile(t *testing.T, path, content string) {
 	}
 }
 
+// updateGolden rewrites only the golden files that changed and removes the
+// ones no longer generated. Rewriting everything made file sync tools such as
+// OneDrive lock files mid-update, so each change is also retried briefly.
+func updateGolden(t *testing.T, golden string, got map[string][]byte) {
+	t.Helper()
+	want := map[string][]byte{}
+	if _, err := os.Stat(golden); err == nil {
+		want = treeFiles(t, golden)
+	}
+	retry := func(change func() error) {
+		t.Helper()
+		var err error
+		for range 40 {
+			if err = change(); err == nil {
+				return
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		t.Fatal(err)
+	}
+	for rel := range want {
+		if _, ok := got[rel]; !ok {
+			retry(func() error { return os.Remove(filepath.Join(golden, filepath.FromSlash(rel))) })
+		}
+	}
+	for rel, data := range got {
+		if w, ok := want[rel]; ok && bytes.Equal(w, data) {
+			continue
+		}
+		path := filepath.Join(golden, filepath.FromSlash(rel))
+		retry(func() error {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				return err
+			}
+			return os.WriteFile(path, data, 0o644)
+		})
+	}
+}
+
 func readTestFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -153,12 +192,7 @@ func TestGoldenProjects(t *testing.T) {
 					golden := filepath.Join(repoRoot(t), "testdata", "golden", project.name, "go"+release, name)
 					got := treeFiles(t, dir)
 					if *update {
-						if err := os.RemoveAll(golden); err != nil {
-							t.Fatal(err)
-						}
-						for rel, data := range got {
-							writeTestFile(t, filepath.Join(golden, filepath.FromSlash(rel)), string(data))
-						}
+						updateGolden(t, golden, got)
 						return
 					}
 					want := treeFiles(t, golden)

@@ -3,8 +3,11 @@
 package database
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 
@@ -15,6 +18,14 @@ var (
 	ErrNotFound   = errors.New("database: record not found")
 	ErrReferenced = errors.New("database: record is referenced by other records")
 )
+
+func Unavailable(err error) bool {
+	if errors.Is(err, driver.ErrBadConn) || errors.Is(err, sql.ErrConnDone) {
+		return true
+	}
+	_, ok := errors.AsType[net.Error](err)
+	return ok
+}
 
 type ConstraintKind int
 

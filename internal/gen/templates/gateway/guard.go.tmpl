@@ -16,17 +16,25 @@ import (
 )
 
 type Signer struct {
-	key ed25519.PrivateKey
+	key func() ed25519.PrivateKey
 	now func() time.Time
 }
 
 func NewSigner(key ed25519.PrivateKey) *Signer {
-	return &Signer{key: key, now: time.Now}
+	return &Signer{key: func() ed25519.PrivateKey { return key }, now: time.Now}
+}
+
+func WatchPrivateKey(path string) (*Signer, error) {
+	f, err := watchKeyFile(path, LoadPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	return &Signer{key: f.current, now: time.Now}, nil
 }
 
 func (s *Signer) Sign(p Principal) (string, error) {
 	now := s.now()
-	return SignInternal(s.key, InternalClaims{
+	return SignInternal(s.key(), InternalClaims{
 		Subject:    p.ID,
 {{- if .Identity.Role}}
 		Role:       p.Role,
@@ -38,14 +46,22 @@ func (s *Signer) Sign(p Principal) (string, error) {
 	})
 }
 
+const DefaultRequestTimeout = 12 * time.Second
+
 func Anonymous(signer *Signer, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if _, ok := ctx.Deadline(); !ok {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, DefaultRequestTimeout)
+			defer cancel()
+		}
 		token, err := signer.Sign(Principal{})
 		if err != nil {
 			httpx.WriteError(w, r, logger, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(grpcx.WithToken(r.Context(), token)))
+		next.ServeHTTP(w, r.WithContext(grpcx.WithToken(ctx, token)))
 	})
 }
 

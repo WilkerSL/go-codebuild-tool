@@ -1,0 +1,29 @@
+{{.YAMLHeader}}
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.Project}}-services
+  labels:
+    app.kubernetes.io/component: service
+    app.kubernetes.io/part-of: {{.Project}}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: service
+      app.kubernetes.io/part-of: {{.Project}}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: {{.Project}}
+      ports:
+        - port: grpc
+          protocol: TCP
+    - ports:
+        - port: health
+          protocol: TCP
+        - port: metrics
+          protocol: TCP

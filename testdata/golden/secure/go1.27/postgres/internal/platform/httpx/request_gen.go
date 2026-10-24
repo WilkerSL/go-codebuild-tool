@@ -4,6 +4,7 @@ package httpx
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -53,8 +54,8 @@ func Pagination(q url.Values, errs *validation.Errors) (int, int) {
 	}
 	if raw := q.Get("offset"); raw != "" {
 		n, err := strconv.Atoi(raw)
-		if err != nil || n < 0 {
-			errs.Add("offset", "must be a non-negative integer")
+		if err != nil || n < 0 || n > math.MaxInt32 {
+			errs.Add("offset", fmt.Sprintf("must be an integer between 0 and %d", math.MaxInt32))
 		} else {
 			offset = n
 		}

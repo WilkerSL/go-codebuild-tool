@@ -22,8 +22,6 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(svc *AuthService, guard *auth.Guard, cfg auth.Config, logger *slog.Logger, store auth.LimitStore) *AuthHandler {
-	// In memory each limiter gets its own store, so a flood of new identities
-	// cannot evict the per-client counters that stop it.
 	clients := store
 	if _, ok := store.(*auth.MemoryStore); ok {
 		clients = auth.NewMemoryStore()
