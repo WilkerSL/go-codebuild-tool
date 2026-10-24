@@ -134,6 +134,9 @@ func (p *planner) generateWorkspace() error {
 		return newError(KindInternal, "read_contracts", err.Error())
 	}
 	set := contract.Build(p.plan.Module, p.model, registry)
+	for _, change := range registry.Renumbered {
+		p.plan.Warnings = append(p.plan.Warnings, "contracts: "+change+"; old clients ignore the field until they are rebuilt, so deploy the services before the gateway")
+	}
 	ws, err := gen.GenerateWorkspace(gen.WorkspaceOptions{
 		Module:     p.plan.Module,
 		GoVersion:  p.plan.Target.GoVersion,

@@ -165,10 +165,11 @@ func field(name string, t FieldType) *Field {
 func (f *File) message(name string, fields ...*Field) *Message {
 	full := "." + f.Package + "." + name
 	names := make([]string, len(fields))
+	types := make([]string, len(fields))
 	for i, fd := range fields {
-		names[i] = fd.Name
+		names[i], types[i] = fd.Name, wireType(fd)
 	}
-	numbers, reserved := f.registry.assign(strings.TrimPrefix(full, "."), names)
+	numbers, reserved := f.registry.assign(strings.TrimPrefix(full, "."), names, types)
 	for _, fd := range fields {
 		fd.Number = numbers[fd.Name]
 	}
@@ -176,6 +177,19 @@ func (f *File) message(name string, fields ...*Field) *Message {
 	f.Messages = append(f.Messages, msg)
 	f.byName[name] = msg
 	return msg
+}
+
+// wireType names what a field looks like on the wire; optional does not count,
+// because proto3 encodes optional and plain fields the same way.
+func wireType(f *Field) string {
+	t := strings.ToLower(strings.TrimPrefix(f.Type.String(), "TYPE_"))
+	if f.Type == TypeMessage {
+		t = strings.TrimPrefix(f.TypeName, ".")
+	}
+	if f.Repeated {
+		t = "repeated " + t
+	}
+	return t
 }
 
 func ProtoName(goName string) string {

@@ -12,11 +12,14 @@ All notable changes to this project are documented in this file. The format foll
 - `tls_certificate_expiry_timestamp_seconds` and `tls_reload_errors_total` on `/metrics`, and a warning in the log, when the certificate files of a module stop loading and the previous certificate stays in use.
 - The Kubernetes base spreads replicas over nodes and zones, sets `GOMEMLIMIT` below the memory limit, gives services 50 seconds to shut down and a connection pool of 10 per replica, so the services sharing a database stay under its default connection limit, tolerates 30 seconds of database outage before a service replica leaves its endpoints, and adds a NetworkPolicy that lets only the pods of the workspace reach the gRPC ports of the services.
 
+- Generated CI workflows check dependencies for known vulnerabilities with `govulncheck`.
+
 ### Changed
 
 - The circuit breaker of a workspace client counts one outcome per call, after its retries, so one failing replica no longer stops the calls to the whole backend; it ignores calls that start with less than a tenth of `GRPC_CALL_TIMEOUT` left, whose deadline is the caller's, and only its probe can close it again. Only the generated reads are retried, from an explicit list, instead of every method whose name starts with `Get` or `List`.
 - Backend answers the gateway cannot map: a bare `ResourceExhausted`, such as a message over the size limit, is 502 instead of 429, and `Unimplemented`, which a newer gateway gets from an older service during a rollout, is 503. A failed call from one service to another is 503 or 504 when the other service is unavailable or slow and 500 otherwise, instead of passing its status through. Monoliths and services answer 503 when the database cannot be reached.
 - `offset` accepts at most 2147483647; larger values wrapped around in workspaces.
+- A contract field whose wire type changes, such as a string that becomes an integer, now gets a new number and its old number is reserved, so clients built before the change ignore it instead of failing to parse every message; `codebuild plan` warns about it. `codebuild.contracts.json` records the type of every field from now on.
 - The Kubernetes Services of workspace services are headless (`clusterIP: None`). Kubernetes cannot change that in place: delete those Services once before applying the new base.
 - `main.go` of new services runs the whole shutdown within `SHUTDOWN_TIMEOUT` after `SHUTDOWN_DELAY`, and new gateways and services set their logger as the default `slog` logger.
 

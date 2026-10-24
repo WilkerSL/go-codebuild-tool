@@ -9,6 +9,14 @@
         "number": 3,
         "owner_id": 2,
         "status": 4
+      },
+      "types": {
+        "created_at": "google.protobuf.Timestamp",
+        "id": "string",
+        "notes": "string",
+        "number": "string",
+        "owner_id": "string",
+        "status": "string"
       }
     },
     "billing.v1.InvoiceCreateRequest": {
@@ -16,21 +24,35 @@
         "notes": 3,
         "number": 1,
         "status": 2
+      },
+      "types": {
+        "notes": "string",
+        "number": "string",
+        "status": "string"
       }
     },
     "billing.v1.InvoiceDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "billing.v1.InvoiceExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "billing.v1.InvoiceGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "billing.v1.InvoiceItem": {
@@ -40,6 +62,13 @@
         "price": 5,
         "product_id": 3,
         "quantity": 4
+      },
+      "types": {
+        "id": "int64",
+        "invoice_id": "string",
+        "price": "double",
+        "product_id": "int64",
+        "quantity": "int32"
       }
     },
     "billing.v1.InvoiceItemCreateRequest": {
@@ -48,21 +77,36 @@
         "price": 4,
         "product_id": 2,
         "quantity": 3
+      },
+      "types": {
+        "invoice_id": "string",
+        "price": "double",
+        "product_id": "int64",
+        "quantity": "int32"
       }
     },
     "billing.v1.InvoiceItemDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "billing.v1.InvoiceItemExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "billing.v1.InvoiceItemGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "billing.v1.InvoiceItemListRequest": {
@@ -72,6 +116,13 @@
         "limit": 1,
         "offset": 2,
         "product_id": 4
+      },
+      "types": {
+        "cursor": "string",
+        "invoice_id": "string",
+        "limit": "int32",
+        "offset": "int32",
+        "product_id": "int64"
       }
     },
     "billing.v1.InvoiceItemPage": {
@@ -81,6 +132,13 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated billing.v1.InvoiceItem",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "billing.v1.InvoiceItemUpdateRequest": {
@@ -90,6 +148,13 @@
         "price": 5,
         "product_id": 3,
         "quantity": 4
+      },
+      "types": {
+        "id": "int64",
+        "invoice_id": "string",
+        "price": "double",
+        "product_id": "int64",
+        "quantity": "int32"
       }
     },
     "billing.v1.InvoiceListRequest": {
@@ -99,6 +164,13 @@
         "number": 3,
         "offset": 2,
         "status": 4
+      },
+      "types": {
+        "cursor": "string",
+        "limit": "int32",
+        "number": "string",
+        "offset": "int32",
+        "status": "string"
       }
     },
     "billing.v1.InvoicePage": {
@@ -108,6 +180,13 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated billing.v1.Invoice",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "billing.v1.InvoiceUpdateRequest": {
@@ -116,6 +195,12 @@
         "notes": 4,
         "number": 2,
         "status": 3
+      },
+      "types": {
+        "id": "string",
+        "notes": "string",
+        "number": "string",
+        "status": "string"
       }
     },
     "billing.v1.ListInvoiceItemsRequest": {
@@ -125,32 +210,55 @@
         "offset": 3,
         "product_id": 4,
         "source_id": 1
+      },
+      "types": {
+        "cursor": "string",
+        "limit": "int32",
+        "offset": "int32",
+        "product_id": "int64",
+        "source_id": "string"
       }
     },
     "catalog.v1.Category": {
       "fields": {
         "id": 1,
         "name": 2
+      },
+      "types": {
+        "id": "int64",
+        "name": "string"
       }
     },
     "catalog.v1.CategoryCreateRequest": {
       "fields": {
         "name": 1
+      },
+      "types": {
+        "name": "string"
       }
     },
     "catalog.v1.CategoryDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.CategoryExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.CategoryGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.CategoryListRequest": {
@@ -159,6 +267,12 @@
         "limit": 1,
         "name": 3,
         "offset": 2
+      },
+      "types": {
+        "cursor": "string",
+        "limit": "int32",
+        "name": "string",
+        "offset": "int32"
       }
     },
     "catalog.v1.CategoryPage": {
@@ -168,12 +282,23 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated catalog.v1.Category",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "catalog.v1.CategoryUpdateRequest": {
       "fields": {
         "id": 1,
         "name": 2
+      },
+      "types": {
+        "id": "int64",
+        "name": "string"
       }
     },
     "catalog.v1.ListCategoryProductsRequest": {
@@ -182,6 +307,12 @@
         "limit": 2,
         "offset": 3,
         "source_id": 1
+      },
+      "types": {
+        "cursor": "string",
+        "limit": "int32",
+        "offset": "int32",
+        "source_id": "int64"
       }
     },
     "catalog.v1.Product": {
@@ -190,6 +321,12 @@
         "id": 1,
         "name": 3,
         "price": 4
+      },
+      "types": {
+        "category_id": "int64",
+        "id": "int64",
+        "name": "string",
+        "price": "double"
       }
     },
     "catalog.v1.ProductCreateRequest": {
@@ -197,21 +334,35 @@
         "category_id": 1,
         "name": 2,
         "price": 3
+      },
+      "types": {
+        "category_id": "int64",
+        "name": "string",
+        "price": "double"
       }
     },
     "catalog.v1.ProductDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.ProductExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.ProductGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "catalog.v1.ProductListRequest": {
@@ -220,6 +371,12 @@
         "cursor": 4,
         "limit": 1,
         "offset": 2
+      },
+      "types": {
+        "category_id": "int64",
+        "cursor": "string",
+        "limit": "int32",
+        "offset": "int32"
       }
     },
     "catalog.v1.ProductPage": {
@@ -229,6 +386,13 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated catalog.v1.Product",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "catalog.v1.ProductUpdateRequest": {
@@ -237,23 +401,40 @@
         "id": 1,
         "name": 3,
         "price": 4
+      },
+      "types": {
+        "category_id": "int64",
+        "id": "int64",
+        "name": "string",
+        "price": "double"
       }
     },
     "common.v1.ExistsResponse": {
       "fields": {
         "exists": 1
+      },
+      "types": {
+        "exists": "bool"
       }
     },
     "common.v1.FieldViolation": {
       "fields": {
         "field": 1,
         "message": 2
+      },
+      "types": {
+        "field": "string",
+        "message": "string"
       }
     },
     "common.v1.Problem": {
       "fields": {
         "errors": 2,
         "status": 1
+      },
+      "types": {
+        "errors": "repeated common.v1.FieldViolation",
+        "status": "int32"
       }
     },
     "identity.v1.APIKey": {
@@ -263,33 +444,57 @@
         "id": 1,
         "name": 2,
         "prefix": 3
+      },
+      "types": {
+        "created_at": "google.protobuf.Timestamp",
+        "expires_at": "google.protobuf.Timestamp",
+        "id": "string",
+        "name": "string",
+        "prefix": "string"
       }
     },
     "identity.v1.APIKeyCreateRequest": {
       "fields": {
         "expires_at": 2,
         "name": 1
+      },
+      "types": {
+        "expires_at": "google.protobuf.Timestamp",
+        "name": "string"
       }
     },
     "identity.v1.APIKeyDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "identity.v1.APIKeyList": {
       "fields": {
         "items": 1
+      },
+      "types": {
+        "items": "repeated identity.v1.APIKey"
       }
     },
     "identity.v1.AuthenticateRequest": {
       "fields": {
         "token": 1
+      },
+      "types": {
+        "token": "string"
       }
     },
     "identity.v1.ChangePasswordRequest": {
       "fields": {
         "current_password": 1,
         "new_password": 2
+      },
+      "types": {
+        "current_password": "string",
+        "new_password": "string"
       }
     },
     "identity.v1.CreatedAPIKey": {
@@ -300,12 +505,24 @@
         "key": 6,
         "name": 2,
         "prefix": 3
+      },
+      "types": {
+        "created_at": "google.protobuf.Timestamp",
+        "expires_at": "google.protobuf.Timestamp",
+        "id": "string",
+        "key": "string",
+        "name": "string",
+        "prefix": "string"
       }
     },
     "identity.v1.LoginRequest": {
       "fields": {
         "identity": 1,
         "password": 2
+      },
+      "types": {
+        "identity": "string",
+        "password": "string"
       }
     },
     "identity.v1.Principal": {
@@ -314,6 +531,12 @@
         "id": 1,
         "method": 3,
         "role": 2
+      },
+      "types": {
+        "credential_id": "string",
+        "id": "string",
+        "method": "string",
+        "role": "string"
       }
     },
     "identity.v1.RateLimitRequest": {
@@ -321,16 +544,27 @@
         "key": 1,
         "limit": 2,
         "window_millis": 3
+      },
+      "types": {
+        "key": "string",
+        "limit": "int32",
+        "window_millis": "int64"
       }
     },
     "identity.v1.RateLimitResetRequest": {
       "fields": {
         "key": 1
+      },
+      "types": {
+        "key": "string"
       }
     },
     "identity.v1.RateLimitResponse": {
       "fields": {
         "retry_after_millis": 1
+      },
+      "types": {
+        "retry_after_millis": "int64"
       }
     },
     "identity.v1.Tokens": {
@@ -338,6 +572,11 @@
         "access_token": 1,
         "expires_at": 3,
         "token_type": 2
+      },
+      "types": {
+        "access_token": "string",
+        "expires_at": "google.protobuf.Timestamp",
+        "token_type": "string"
       }
     },
     "identity.v1.User": {
@@ -348,6 +587,14 @@
         "name": 3,
         "role": 4,
         "updated_at": 6
+      },
+      "types": {
+        "created_at": "google.protobuf.Timestamp",
+        "email": "string",
+        "id": "string",
+        "name": "string",
+        "role": "string",
+        "updated_at": "google.protobuf.Timestamp"
       }
     },
     "identity.v1.UserCreateRequest": {
@@ -356,21 +603,36 @@
         "name": 2,
         "password": 3,
         "role": 4
+      },
+      "types": {
+        "email": "string",
+        "name": "string",
+        "password": "string",
+        "role": "string"
       }
     },
     "identity.v1.UserDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "identity.v1.UserExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "identity.v1.UserGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "string"
       }
     },
     "identity.v1.UserListRequest": {
@@ -379,6 +641,12 @@
         "email": 3,
         "limit": 1,
         "offset": 2
+      },
+      "types": {
+        "cursor": "string",
+        "email": "string",
+        "limit": "int32",
+        "offset": "int32"
       }
     },
     "identity.v1.UserPage": {
@@ -388,6 +656,13 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated identity.v1.User",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "identity.v1.UserUpdateRequest": {
@@ -396,6 +671,12 @@
         "id": 1,
         "name": 3,
         "role": 4
+      },
+      "types": {
+        "email": "string",
+        "id": "string",
+        "name": "string",
+        "role": "string"
       }
     },
     "inventory.v1.Stock": {
@@ -403,27 +684,45 @@
         "id": 1,
         "product_id": 2,
         "quantity": 3
+      },
+      "types": {
+        "id": "int64",
+        "product_id": "int64",
+        "quantity": "int32"
       }
     },
     "inventory.v1.StockCreateRequest": {
       "fields": {
         "product_id": 1,
         "quantity": 2
+      },
+      "types": {
+        "product_id": "int64",
+        "quantity": "int32"
       }
     },
     "inventory.v1.StockDeleteRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "inventory.v1.StockExistsRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "inventory.v1.StockGetRequest": {
       "fields": {
         "id": 1
+      },
+      "types": {
+        "id": "int64"
       }
     },
     "inventory.v1.StockListRequest": {
@@ -432,6 +731,12 @@
         "limit": 1,
         "offset": 2,
         "product_id": 3
+      },
+      "types": {
+        "cursor": "string",
+        "limit": "int32",
+        "offset": "int32",
+        "product_id": "int64"
       }
     },
     "inventory.v1.StockPage": {
@@ -441,6 +746,13 @@
         "next_cursor": 5,
         "offset": 3,
         "total": 4
+      },
+      "types": {
+        "items": "repeated inventory.v1.Stock",
+        "limit": "int32",
+        "next_cursor": "string",
+        "offset": "int32",
+        "total": "int64"
       }
     },
     "inventory.v1.StockUpdateRequest": {
@@ -448,6 +760,11 @@
         "id": 1,
         "product_id": 2,
         "quantity": 3
+      },
+      "types": {
+        "id": "int64",
+        "product_id": "int64",
+        "quantity": "int32"
       }
     }
   }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -106,5 +107,33 @@ func TestFieldNumbersAreStable(t *testing.T) {
 	}
 	if !strings.Contains(string(set.File("billing").Proto()), "reserved ") {
 		t.Fatal("the removed field number is not reserved")
+	}
+}
+
+func TestChangedFieldTypeGetsNewNumber(t *testing.T) {
+	model := shop(t)
+	registry := NewRegistry()
+	Build("example.com/shop", model, registry)
+	before := registry.Messages["billing.v1.Invoice"].Fields["number"]
+	data, err := registry.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := UnmarshalRegistry(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.Entity("Invoice").Field("Number").Kind = schema.KindInt64
+	set := Build("example.com/shop", model, reloaded)
+	msg := set.File("billing").Message("Invoice")
+	if got := msg.Field("number").Number; got == before || !slices.Contains(msg.Reserved, before) {
+		t.Fatalf("number kept %d (now %d) with reserved %v after changing from string to int64", before, got, msg.Reserved)
+	}
+	if len(reloaded.Renumbered) == 0 || !strings.Contains(reloaded.Renumbered[0], "billing.v1.Invoice.number changed from string to int64") {
+		t.Fatalf("renumbered = %v", reloaded.Renumbered)
+	}
+	again := Build("example.com/shop", model, reloaded)
+	if again.File("billing").Message("Invoice").Field("number").Number != msg.Field("number").Number {
+		t.Fatal("the new number is not stable")
 	}
 }

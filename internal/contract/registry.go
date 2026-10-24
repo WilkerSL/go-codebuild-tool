@@ -12,11 +12,15 @@ const RegistryVersion = 1
 type Registry struct {
 	Version  int                        `json:"version"`
 	Messages map[string]*MessageNumbers `json:"messages"`
+	// Renumbered describes the fields that changed type in this build and
+	// therefore received a new number.
+	Renumbered []string `json:"-"`
 }
 
 type MessageNumbers struct {
-	Fields   map[string]int32 `json:"fields"`
-	Reserved []int32          `json:"reserved,omitempty"`
+	Fields   map[string]int32  `json:"fields"`
+	Types    map[string]string `json:"types,omitempty"`
+	Reserved []int32           `json:"reserved,omitempty"`
 }
 
 func NewRegistry() *Registry {
@@ -49,12 +53,16 @@ func (r *Registry) Marshal() ([]byte, error) {
 
 // assign keeps field numbers stable: known fields keep their number, new ones take the
 // next free number and removed ones are reserved, so old clients can still read what
-// new servers send.
-func (r *Registry) assign(message string, names []string) (map[string]int32, []int32) {
+// new servers send. A field whose wire type changes is treated as removed and added
+// again: reusing its number would make old clients fail to parse, or misread, it.
+func (r *Registry) assign(message string, names, types []string) (map[string]int32, []int32) {
 	entry := r.Messages[message]
 	if entry == nil {
 		entry = &MessageNumbers{Fields: map[string]int32{}}
 		r.Messages[message] = entry
+	}
+	if entry.Types == nil {
+		entry.Types = map[string]string{}
 	}
 	var highest int32
 	for _, n := range entry.Fields {
@@ -64,17 +72,26 @@ func (r *Registry) assign(message string, names []string) (map[string]int32, []i
 		highest = max(highest, n)
 	}
 	for name, n := range entry.Fields {
-		if !slices.Contains(names, name) {
+		i := slices.Index(names, name)
+		old := entry.Types[name]
+		changed := i >= 0 && old != "" && old != types[i]
+		if i < 0 || changed {
 			delete(entry.Fields, name)
+			delete(entry.Types, name)
 			entry.Reserved = append(entry.Reserved, n)
 		}
+		if changed {
+			r.Renumbered = append(r.Renumbered, fmt.Sprintf("%s.%s changed from %s to %s; its number %d is now reserved", message, name, old, types[i], n))
+		}
 	}
-	for _, name := range names {
+	for i, name := range names {
 		if _, ok := entry.Fields[name]; !ok {
 			highest++
 			entry.Fields[name] = highest
 		}
+		entry.Types[name] = types[i]
 	}
+	slices.Sort(r.Renumbered)
 	slices.Sort(entry.Reserved)
 	entry.Reserved = slices.Compact(entry.Reserved)
 	return entry.Fields, slices.Clone(entry.Reserved)
