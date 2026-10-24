@@ -46,6 +46,7 @@ func TestGenerateShopWorkspace(t *testing.T) {
 		Pagination: Pagination{DefaultLimit: 50, MaxLimit: 200},
 		Contracts:  contract.Build("example.com/shop", model, nil),
 		Migrations: migrations,
+		Parts:      AllParts(),
 	})
 	if err != nil {
 		t.Fatal(err)

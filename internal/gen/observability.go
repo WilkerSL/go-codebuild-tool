@@ -241,7 +241,7 @@ const jaegerUI = `{
 }
 `
 
-func (g *generator) observability(ov *observabilityView, compose bool) {
+func (g *generator) observability(ov *observabilityView, compose, kube bool) {
 	if g.err != nil {
 		return
 	}
@@ -261,6 +261,9 @@ func (g *generator) observability(ov *observabilityView, compose bool) {
 		g.generatedFile(ObservabilityDir+"/grafana/provisioning/datasources/datasources.yml", "observability/datasources.yml.tmpl", ov)
 		g.generatedFile(ObservabilityDir+"/grafana/provisioning/dashboards/dashboards.yml", "observability/dashboards.yml.tmpl", ov)
 		raw(ObservabilityDir+"/grafana/dashboards/"+ov.Project+".json", board)
+	}
+	if !kube {
+		return
 	}
 	g.generatedFile(KubeObservabilityDir+"/kustomization.yaml", "observability/kustomization.yaml.tmpl", ov)
 	g.generatedFile(KubeObservabilityDir+"/jaeger.yaml", "observability/kube_jaeger.yaml.tmpl", ov)

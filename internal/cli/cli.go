@@ -79,6 +79,7 @@ Build and plan flags:
   --dialect name         postgres (default), sqlserver, mysql or sqlite
   --change-dialect       confirm switching the dialect of an existing project
   --prune                delete generated files that the specs no longer produce
+  --minimal              leave Kubernetes, observability and CI out of a new project
 
 Plan flags:
   --diff        print a unified diff of every change

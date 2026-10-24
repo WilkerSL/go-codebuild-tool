@@ -22,6 +22,7 @@ type Config struct {
 	Dialect      string         `json:"dialect"`
 	Pagination   gen.Pagination `json:"pagination"`
 	ManualWiring []string       `json:"manualWiring"`
+	Generate     gen.Parts      `json:"generate"`
 }
 
 func DefaultConfig(dialectName string) Config {
@@ -29,6 +30,7 @@ func DefaultConfig(dialectName string) Config {
 		Dialect:      dialectName,
 		Pagination:   gen.Pagination{DefaultLimit: 20, MaxLimit: 100},
 		ManualWiring: []string{},
+		Generate:     gen.AllParts(),
 	}
 }
 

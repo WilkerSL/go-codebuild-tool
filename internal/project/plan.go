@@ -42,6 +42,7 @@ type Options struct {
 	ChangeDialect bool
 	UpgradeGo     bool
 	Prune         bool
+	Minimal       bool
 	Confirm       func(question string) (bool, error)
 	Toolchain     func(ctx context.Context) (goversion.Toolchain, error)
 }
@@ -256,12 +257,18 @@ func (p *planner) loadConfig(context.Context) error {
 			return newError(KindConfig, "invalid_config", err.Error())
 		}
 		p.cfg, p.cfgExisted = cfg, true
+		if p.opts.Minimal {
+			return newError(KindUsage, "minimal_existing", "--minimal only shapes a new "+ConfigFile+"; to leave parts out of this project set them to false under \"generate\" in "+ConfigFile)
+		}
 	case errors.Is(err, fs.ErrNotExist):
 		name := p.opts.Dialect
 		if name == "" {
 			name = dialect.Default
 		}
 		p.cfg = DefaultConfig(name)
+		if p.opts.Minimal {
+			p.cfg.Generate = gen.Parts{}
+		}
 		if !p.opts.Starter {
 			p.plan.Warnings = append(p.plan.Warnings, fmt.Sprintf("%s was not found; it will be created with dialect %s", ConfigFile, name))
 		}
@@ -657,6 +664,7 @@ func (p *planner) generate(context.Context) error {
 		Pagination:    p.cfg.Pagination,
 		ManualWiring:  p.cfg.ManualWiring,
 		HasMigrations: p.hasSQL || p.plan.Migration != nil,
+		Parts:         p.cfg.Generate,
 	})
 	if err != nil {
 		return newError(KindInternal, "generate", err.Error())

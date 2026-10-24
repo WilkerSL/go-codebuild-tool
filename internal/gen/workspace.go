@@ -30,6 +30,7 @@ type WorkspaceOptions struct {
 	Pagination Pagination
 	Contracts  *contract.Set
 	Migrations map[string]bool
+	Parts      Parts
 }
 
 type Module struct {
@@ -184,6 +185,7 @@ func moduleProject(opts WorkspaceOptions, wv *workspaceView, module string) (*pr
 		Workspace:        wv,
 		MigrationsImport: module + "/migrations",
 		Idempotency:      idempotencyQueries(opts.Dialect),
+		Parts:            opts.Parts,
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {

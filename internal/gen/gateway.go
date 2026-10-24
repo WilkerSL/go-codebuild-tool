@@ -221,7 +221,9 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	}
 	pv.Gateway = true
 	pv.Auth = newAuthView(pv, d, m)
-	pv.Ops = newOpsView(pv.Auth)
+	if opts.Parts.Observability {
+		pv.Ops = newOpsView(pv.Auth)
+	}
 	identity := *pv.Auth
 	identity.IDType, identity.IDParse, identity.IDFormat = "string", "return s, nil", "id"
 	pv.Identity = &identity

@@ -64,7 +64,7 @@ func TestOpenAPIMatchesRoutes(t *testing.T) {
 		}
 		ws, err := GenerateWorkspace(WorkspaceOptions{
 			Module: opts.Module, GoVersion: opts.GoVersion, Caps: opts.Caps, Dialect: opts.Dialect, Model: opts.Model,
-			Pagination: opts.Pagination, Contracts: contract.Build(opts.Module, opts.Model, nil), Migrations: migrations,
+			Pagination: opts.Pagination, Contracts: contract.Build(opts.Module, opts.Model, nil), Migrations: migrations, Parts: opts.Parts,
 		})
 		if err != nil {
 			t.Fatal(err)

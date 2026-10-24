@@ -159,8 +159,10 @@ func newComposeView(pv *projectView, opts WorkspaceOptions, wv *workspaceView) *
 		gateway.DependsOn = append(gateway.DependsOn, [2]string{sv.Name, "service_healthy"})
 	}
 	cv.Modules = append(cv.Modules, gateway)
-	for _, m := range cv.Modules {
-		m.Env = append(m.Env, [2]string{"METRICS_ADDR", ":9090"}, [2]string{"OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4318"})
+	if pv.Parts.Observability {
+		for _, m := range cv.Modules {
+			m.Env = append(m.Env, [2]string{"METRICS_ADDR", ":9090"}, [2]string{"OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4318"})
+		}
 	}
 	if pv.Ops != nil {
 		gateway.Env = append(gateway.Env,
@@ -213,7 +215,9 @@ func generateInfra(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 		return nil, err
 	}
 	pv.Auth = newAuthView(pv, opts.Dialect, opts.Model)
-	pv.Ops = newOpsView(pv.Auth)
+	if opts.Parts.Observability {
+		pv.Ops = newOpsView(pv.Auth)
+	}
 	g := &generator{module: opts.Module}
 	g.userFile("AGENTS.md", "workspace/agents.md.tmpl", pv)
 	g.userFile(".gitignore", "workspace/gitignore.tmpl", pv)
@@ -224,13 +228,23 @@ func generateInfra(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	for _, sv := range wv.Services {
 		services = append(services, sv.Name)
 	}
-	cv.Observability = newObservabilityView(cv.Project, "gateway", true, pv.Ops, services)
+	if opts.Parts.Observability {
+		cv.Observability = newObservabilityView(cv.Project, "gateway", true, pv.Ops, services)
+	}
 	g.generatedFile("docker-compose.yml", "workspace/compose.yml.tmpl", cv)
-	g.kubernetes(workspaceKube(cv, wv, pv))
-	g.observability(cv.Observability, true)
-	g.userFile(".github/workflows/workspace.yml", "workspace/workspace_ci.yml.tmpl", pv)
+	if opts.Parts.Kubernetes {
+		g.kubernetes(workspaceKube(cv, wv, pv))
+	}
+	if opts.Parts.Observability {
+		g.observability(cv.Observability, true, opts.Parts.Kubernetes)
+	}
+	if opts.Parts.CI {
+		g.userFile(".github/workflows/workspace.yml", "workspace/workspace_ci.yml.tmpl", pv)
+	}
 	for _, m := range moduleViews(pv, opts, wv) {
-		g.userFile(".github/workflows/"+m.Slug+".yml", "workspace/ci.yml.tmpl", m)
+		if opts.Parts.CI {
+			g.userFile(".github/workflows/"+m.Slug+".yml", "workspace/ci.yml.tmpl", m)
+		}
 		if len(m.Binaries) > 0 {
 			g.userFile(m.Dir+"/Dockerfile", "workspace/dockerfile.tmpl", m)
 		}

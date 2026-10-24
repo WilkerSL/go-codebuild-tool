@@ -4,5 +4,10 @@
     "defaultLimit": 20,
     "maxLimit": 100
   },
-  "manualWiring": []
+  "manualWiring": [],
+  "generate": {
+    "kubernetes": true,
+    "observability": true,
+    "ci": true
+  }
 }

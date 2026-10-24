@@ -146,6 +146,7 @@ func (p *planner) generateWorkspace() error {
 		Pagination: p.cfg.Pagination,
 		Contracts:  set,
 		Migrations: p.databases,
+		Parts:      p.cfg.Generate,
 	})
 	if err != nil {
 		return newError(KindInternal, "generate", err.Error())

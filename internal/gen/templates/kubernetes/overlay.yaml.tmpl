@@ -3,8 +3,10 @@ kind: Kustomization
 namespace: {{.Project}}
 resources:
   - ../../base
+{{- if .Observability}}
 components:
   - ../../components/observability
+{{- end}}
 images:
 {{- range .Images}}
   - name: {{.}}
@@ -19,8 +21,10 @@ configMapGenerator:
     behavior: merge
     literals:
       - LOG_LEVEL=info
+{{- if $.Observability}}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
 {{- if and $.Ops (or (eq .Component "api") (eq .Component "gateway"))}}
       - OPS_JAEGER_URL=http://jaeger:16686
+{{- end}}
 {{- end}}
 {{- end}}

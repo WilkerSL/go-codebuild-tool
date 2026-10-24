@@ -131,7 +131,7 @@ curl -s --json '{"name":"","email":"nope"}' localhost:8080/users
 
 | Command | Purpose |
 |---|---|
-| `codebuild build --starter --module <path> [--dialect d]` | Create a project in the current directory. |
+| `codebuild build --starter --module <path> [--dialect d] [--minimal]` | Create a project in the current directory; `--minimal` leaves out Kubernetes, the observability stack and CI ([optional parts](docs/file-ownership.md#optional-parts)). |
 | `codebuild build` | Regenerate `*_gen.go`, create missing files, add a migration when the schema changed. |
 | `codebuild check` | Validate specs, configuration and the Go version without writing. |
 | `codebuild plan [--diff] [--exit-code]` | Dry run listing files to create, regenerate or skip, with a diff summary. |

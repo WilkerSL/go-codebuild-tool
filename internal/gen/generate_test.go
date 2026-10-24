@@ -40,6 +40,7 @@ func saasOptions(t *testing.T, version, dialectName string) Options {
 		Model:         model,
 		Pagination:    Pagination{DefaultLimit: 20, MaxLimit: 100},
 		HasMigrations: true,
+		Parts:         AllParts(),
 	}
 }
 

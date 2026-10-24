@@ -18,6 +18,7 @@ type buildFlags struct {
 	dialect       string
 	changeDialect bool
 	prune         bool
+	minimal       bool
 	diff          bool
 	exitCode      bool
 }
@@ -30,6 +31,7 @@ func (a *App) runBuild(ctx context.Context, g *globalFlags, command string, args
 		fs.StringVar(&bf.dialect, "dialect", "", "SQL dialect")
 		fs.BoolVar(&bf.changeDialect, "change-dialect", false, "confirm a dialect change")
 		fs.BoolVar(&bf.prune, "prune", false, "delete stale generated files")
+		fs.BoolVar(&bf.minimal, "minimal", false, "leave Kubernetes, observability and CI out of a new project")
 		if command == "plan" {
 			fs.BoolVar(&bf.diff, "diff", false, "print a unified diff")
 			fs.BoolVar(&bf.exitCode, "exit-code", false, "exit with 8 when there are changes")
@@ -46,6 +48,7 @@ func (a *App) runBuild(ctx context.Context, g *globalFlags, command string, args
 		ChangeDialect: bf.changeDialect,
 		UpgradeGo:     g.upgradeGo,
 		Prune:         bf.prune,
+		Minimal:       bf.minimal,
 		Toolchain:     a.Toolchain,
 	}
 	if command == "build" {

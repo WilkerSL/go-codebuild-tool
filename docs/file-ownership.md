@@ -36,6 +36,27 @@ A workspace ([microservices.md](microservices.md)) follows the same rules inside
 | `*/Dockerfile`, `.github/workflows/<module>.yml`, `.github/workflows/workspace.yml` | you | Created once per module. |
 | `go.work`, `*/go.mod` | you | codebuild adds missing `use` lines, requirements and `replace` directives for local modules, and never removes any. |
 
+## Optional parts
+
+The code of the API is always generated. The deployment files around it can be left out, per project, in `codebuild.json`:
+
+```json
+{
+  "dialect": "postgres",
+  "pagination": { "defaultLimit": 20, "maxLimit": 100 },
+  "manualWiring": [],
+  "generate": { "kubernetes": true, "observability": true, "ci": true }
+}
+```
+
+| Part | Files |
+|---|---|
+| `kubernetes` | `deploy/kubernetes/**`: the base, the production overlay and, with `observability`, its component. |
+| `observability` | `deploy/observability/**`, the Jaeger, Prometheus and Grafana services and the `METRICS_ADDR` and OTLP settings of `docker-compose.yml`, the Kubernetes component, and the `/_ops/` panels of the API or the gateway. The telemetry code itself stays: metrics and traces remain available through their environment variables. |
+| `ci` | `.github/workflows/*.yml`. |
+
+All three default to `true`, and a `codebuild.json` without `generate` keeps them on. `codebuild build --starter --minimal` creates a project with all three set to `false`. Turning a part off later makes its generated files stale, so `codebuild build --prune` deletes them; files that are yours, such as the overlay or the workflows, stay where they are.
+
 ## Plan actions
 
 | Action | Meaning |

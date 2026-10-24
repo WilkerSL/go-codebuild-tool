@@ -75,6 +75,7 @@ type Options struct {
 	Pagination    Pagination
 	ManualWiring  []string
 	HasMigrations bool
+	Parts         Parts
 }
 
 var errorImports = map[string][]string{
@@ -117,6 +118,7 @@ func Generate(opts Options) ([]File, error) {
 		CI:               newCIView(opts.Dialect.Name()),
 		MigrationsImport: opts.Module + "/migrations",
 		Idempotency:      idempotencyQueries(opts.Dialect),
+		Parts:            opts.Parts,
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {
@@ -126,7 +128,9 @@ func Generate(opts Options) ([]File, error) {
 		return nil, err
 	}
 	pv.Auth = newAuthView(pv, opts.Dialect, opts.Model)
-	pv.Ops = newOpsView(pv.Auth)
+	if opts.Parts.Observability {
+		pv.Ops = newOpsView(pv.Auth)
+	}
 	var authDomain *domainView
 	for _, e := range opts.Model.Entities {
 		dv := newDomainView(pv, opts.Dialect, opts.Model, e)
@@ -177,9 +181,15 @@ func Generate(opts Options) ([]File, error) {
 	g.userFile(".gitattributes", "project/gitattributes.tmpl", pv)
 	g.userFile(".dockerignore", "project/dockerignore.tmpl", pv)
 	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
-	g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
-	g.kubernetes(monolithKube(pv, opts.Module))
-	g.observability(newObservabilityView(composeProject(opts.Module), "api", false, pv.Ops, nil), false)
+	if opts.Parts.CI {
+		g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
+	}
+	if opts.Parts.Kubernetes {
+		g.kubernetes(monolithKube(pv, opts.Module))
+		if opts.Parts.Observability {
+			g.observability(newObservabilityView(composeProject(opts.Module), "api", false, pv.Ops, nil), false, true)
+		}
+	}
 	for _, dv := range pv.Domains {
 		dir := "internal/" + dv.Package + "/"
 		g.goFile(dir+"model_gen.go", "domain/model.go.tmpl", dv)

@@ -22,6 +22,19 @@ type Pagination struct {
 	MaxLimit     int `json:"maxLimit"`
 }
 
+// Parts are the optional outputs of a build. The code of the API is always
+// generated; these deployment files can be left out of projects that do not
+// use them.
+type Parts struct {
+	Kubernetes    bool `json:"kubernetes"`
+	Observability bool `json:"observability"`
+	CI            bool `json:"ci"`
+}
+
+func AllParts() Parts {
+	return Parts{Kubernetes: true, Observability: true, CI: true}
+}
+
 type projectView struct {
 	Header           string
 	Module           string
@@ -44,6 +57,7 @@ type projectView struct {
 	Gateway          bool
 	Edge             *edgeView
 	Ops              *opsView
+	Parts            Parts
 	Idempotency      []queryConst
 }
 

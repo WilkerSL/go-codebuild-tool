@@ -71,15 +71,16 @@ type kubeWorkload struct {
 }
 
 type kubeView struct {
-	YAMLHeader string
-	Project    string
-	Workloads  []*kubeWorkload
-	Jobs       []*kubeWorkload
-	Claims     []string
-	Resources  []string
-	Images     []string
-	Services   bool
-	Ops        bool
+	YAMLHeader    string
+	Project       string
+	Workloads     []*kubeWorkload
+	Jobs          []*kubeWorkload
+	Claims        []string
+	Resources     []string
+	Images        []string
+	Services      bool
+	Ops           bool
+	Observability bool
 }
 
 func (w *kubeWorkload) File() string {
@@ -143,7 +144,7 @@ func (g *generator) kubernetes(kv *kubeView) {
 func monolithKube(pv *projectView, module string) *kubeView {
 	project := composeProject(module)
 	kv := newKubeView(project)
-	kv.Ops = pv.Ops != nil
+	kv.Ops, kv.Observability = pv.Ops != nil, pv.Parts.Observability
 	sqlite := pv.Dialect.Embedded
 	api := &kubeWorkload{Name: "api", Component: "api", Image: project + "-api", Probe: "http", Replicas: 2, Metrics: true,
 		Ports:   []kubePort{{"http", 8080, ""}, {"metrics", 9090, ""}},
@@ -180,7 +181,7 @@ func monolithKube(pv *projectView, module string) *kubeView {
 
 func workspaceKube(cv *composeView, wv *workspaceView, pv *projectView) *kubeView {
 	kv := newKubeView(cv.Project)
-	kv.Ops = pv.Ops != nil
+	kv.Ops, kv.Observability = pv.Ops != nil, pv.Parts.Observability
 	sqlite := cv.Dialect.Name == "sqlite"
 	tls := func(w *kubeWorkload, module string) {
 		w.Config = append(w.Config,
