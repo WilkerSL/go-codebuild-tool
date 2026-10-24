@@ -31,26 +31,27 @@ func Authenticator(client identityv1.AuthServiceClient, logger *slog.Logger) aut
 	}
 }
 
+// LimitStore keeps the counters in the account service. Its errors stay gRPC
+// errors: the handler converts them once, like every other call.
 type LimitStore struct {
 	client identityv1.AuthServiceClient
-	logger *slog.Logger
 }
 
-func NewLimitStore(client identityv1.AuthServiceClient, logger *slog.Logger) *LimitStore {
-	return &LimitStore{client: client, logger: logger}
+func NewLimitStore(client identityv1.AuthServiceClient) *LimitStore {
+	return &LimitStore{client: client}
 }
 
 func (s *LimitStore) Hit(ctx context.Context, key string, limit int, window time.Duration) (time.Duration, error) {
 	res, err := s.client.HitRateLimit(ctx, &identityv1.RateLimitRequest{Key: key, Limit: int32(min(limit, math.MaxInt32)), WindowMillis: window.Milliseconds()})
 	if err != nil {
-		return 0, grpcx.HTTPError(ctx, s.logger, err)
+		return 0, err
 	}
 	return time.Duration(res.GetRetryAfterMillis()) * time.Millisecond, nil
 }
 
 func (s *LimitStore) Reset(ctx context.Context, key string) error {
 	if _, err := s.client.ResetRateLimit(ctx, &identityv1.RateLimitResetRequest{Key: key}); err != nil {
-		return grpcx.HTTPError(ctx, s.logger, err)
+		return err
 	}
 	return nil
 }
@@ -184,13 +185,19 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(client identityv1.AuthServiceClient, guard *auth.Guard, cfg auth.Config, logger *slog.Logger, store auth.LimitStore) *AuthHandler {
+	// In memory each limiter gets its own store, so a flood of new identities
+	// cannot evict the per-client counters that stop it.
+	clients := store
+	if _, ok := store.(*auth.MemoryStore); ok {
+		clients = auth.NewMemoryStore()
+	}
 	return &AuthHandler{
 		client:  client,
 		guard:   guard,
 		cfg:     cfg,
 		logger:  logger,
 		logins:  auth.NewLimiter("login", cfg.LoginLimit, cfg.LoginWindow, store),
-		clients: auth.NewLimiter("client", cfg.LoginLimit*10, cfg.LoginWindow, store),
+		clients: auth.NewLimiter("client", cfg.LoginLimit*10, cfg.LoginWindow, clients),
 	}
 }
 

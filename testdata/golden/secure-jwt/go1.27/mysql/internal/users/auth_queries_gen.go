@@ -19,6 +19,20 @@ const setPasswordQuery = "UPDATE `users`\n" +
 	"    `updated_at` = UTC_TIMESTAMP(6)\n" +
 	"WHERE `id` = ? AND `deleted_at` IS NULL"
 
+const replacePasswordQuery = "UPDATE `users`\n" +
+	"SET\n" +
+	"    `password_hash` = ?,\n" +
+	"    `updated_at` = UTC_TIMESTAMP(6)\n" +
+	"WHERE `id` = ? AND `password_hash` = ? AND `deleted_at` IS NULL"
+
+const lockAccountQuery = "UPDATE `users`\n" +
+	"SET `password_hash` = `password_hash`\n" +
+	"WHERE `id` = ? AND `deleted_at` IS NULL"
+
+const lockPasswordQuery = "UPDATE `users`\n" +
+	"SET `password_hash` = `password_hash`\n" +
+	"WHERE `id` = ? AND `password_hash` = ? AND `deleted_at` IS NULL"
+
 const setRoleQuery = "UPDATE `users`\n" +
 	"SET\n" +
 	"    `role` = ?,\n" +
@@ -106,7 +120,12 @@ const deleteRateLimitQuery = "DELETE FROM `auth_rate_limits`\n" +
 	"WHERE `key_hash` = ?"
 
 const deleteExpiredLimitsQuery = "DELETE FROM `auth_rate_limits`\n" +
-	"WHERE `reset_at` <= ?"
+	"WHERE `reset_at` <= ?\n" +
+	"LIMIT 1000"
+
+const deleteSingleLimitsQuery = "DELETE FROM `auth_rate_limits`\n" +
+	"WHERE `hits` = 1\n" +
+	"LIMIT 1000"
 
 const countRateLimitsQuery = "SELECT COUNT(*)\n" +
 	"FROM `auth_rate_limits`"

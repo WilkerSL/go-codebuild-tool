@@ -180,8 +180,9 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 	metricsAddr := freeAddr(t)
 	env = []string{"DATABASE_URL=" + dsn, "AUTH_COOKIE_SECURE=false", "AUTH_LOGIN_LIMIT=5", "AUTH_JWT_SECRET=" + e2eSecret, "AUTH_REFRESH_REUSE_GRACE=1ms",
 		"METRICS_ADDR=" + metricsAddr, "OTEL_EXPORTER_OTLP_ENDPOINT=" + spans.url, "CORS_ALLOWED_ORIGINS=https://app.example.com"}
-	if project.method == "jwt" {
-		// The JWT project runs with the optional settings so both modes are covered.
+	if project.method == "jwt" && dialect != "sqlite" {
+		// The JWT project runs with the optional settings on the server dialects
+		// and with the defaults on SQLite, so both modes are covered.
 		env = append(env, "AUTH_JWT_CONFIRM=true", "AUTH_LIMIT_STORE=database")
 	}
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
@@ -560,9 +561,14 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 		asFresh.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
 	} else {
 		c.expect("POST", "/auth/refresh", map[string]any{"refreshToken": fresh["refreshToken"]}, http.StatusUnauthorized)
-		// AUTH_JWT_CONFIRM=true: routes without roles stop accepting the access token at once.
-		asFresh.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
-		asFresh.expect("GET", "/notes", nil, http.StatusUnauthorized)
+		if slices.Contains(env, "AUTH_JWT_CONFIRM=true") {
+			// Routes without roles stop accepting the access token at once.
+			asFresh.expect("GET", "/auth/me", nil, http.StatusUnauthorized)
+			asFresh.expect("GET", "/notes", nil, http.StatusUnauthorized)
+		} else {
+			// By default the access token stays valid there until it expires.
+			asFresh.expect("GET", "/notes", nil, http.StatusOK)
+		}
 	}
 
 	var limited reply
@@ -572,8 +578,8 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	if limited.StatusCode != http.StatusTooManyRequests || limited.Header.Get("Retry-After") == "" {
 		t.Fatalf("login rate limit = %d %q", limited.StatusCode, limited.Header.Get("Retry-After"))
 	}
-	if method == "jwt" {
-		// AUTH_LIMIT_STORE=database: a second instance sees the counter of the first.
+	if slices.Contains(env, "AUTH_LIMIT_STORE=database") {
+		// A second instance sees the counter of the first.
 		other, stop := startAPI(t, dir, append(slices.Clone(env), "METRICS_ADDR=", "OTEL_EXPORTER_OTLP_ENDPOINT="))
 		if resp, _ := other.send("POST", "/auth/login", map[string]any{"email": bobEmail, "password": "bob password 1"}, nil); resp.StatusCode != http.StatusTooManyRequests {
 			t.Fatalf("login on a second instance = %d, want the shared limit", resp.StatusCode)

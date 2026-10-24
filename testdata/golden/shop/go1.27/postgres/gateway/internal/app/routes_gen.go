@@ -88,7 +88,7 @@ func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger
 	}
 	var limits auth.LimitStore = auth.NewMemoryStore()
 	if cfg.LimitStore == auth.LimitStoreDatabase {
-		limits = users.NewLimitStore(authClient, logger)
+		limits = users.NewLimitStore(authClient)
 	}
 	users.RegisterAuthRoutes(mux, users.NewAuthHandler(authClient, guard, cfg, logger, limits))
 	invoices.RegisterRoutes(mux, invoices.NewHandler(billingv1.NewInvoiceServiceClient(b.Billing), logger), guard)

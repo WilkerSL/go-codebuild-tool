@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Security
+
+- A password change, `accounts set-password` and `accounts revoke` now run in one transaction that holds the account row, and API key creation and logins take the same lock: a key requested with a session that the change revokes is refused instead of surviving it, a login whose password was verified just before a change no longer receives a session or refresh token, and a failure no longer leaves the new password in place with the old credentials still valid. A rehash on login only replaces the hash it verified, so it can no longer restore a password changed meanwhile.
+- With the default `AUTH_LIMIT_STORE=memory` the per-client limiter has its own store again, so a flood of new identities cannot evict the per-client counters that throttle it.
+- `AUTH_LIMIT_STORE=database` cleans up in the background and in batches of 1,000 rows, so clients that hang up cannot skip the cleanup and it never locks the table for long; under a flood it drops single-attempt counters instead of the counters that block a client. In workspaces the gateway reports limiter errors without gRPC details, rejects an `AUTH_LOGIN_WINDOW` above 24 hours at startup instead of answering 400 to every login, and the account service checks the window before converting it.
+
 ## [0.4.0] - 2026-10-23
 
 ### Added

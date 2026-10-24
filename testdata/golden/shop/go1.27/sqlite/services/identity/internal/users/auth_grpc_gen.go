@@ -117,10 +117,11 @@ func (s *AuthGRPCServer) ChangePassword(ctx context.Context, req *identityv1.Cha
 const maxRateLimitWindow = 24 * time.Hour
 
 func (s *AuthGRPCServer) HitRateLimit(ctx context.Context, req *identityv1.RateLimitRequest) (*identityv1.RateLimitResponse, error) {
-	window := time.Duration(req.GetWindowMillis()) * time.Millisecond
-	if len(req.GetKey()) != 64 || req.GetLimit() <= 0 || window <= 0 || window > maxRateLimitWindow {
+	millis := req.GetWindowMillis()
+	if len(req.GetKey()) != 64 || req.GetLimit() <= 0 || millis <= 0 || millis > maxRateLimitWindow.Milliseconds() {
 		return nil, s.fail(ctx, httpx.BadRequest("invalid rate limit request"))
 	}
+	window := time.Duration(millis) * time.Millisecond
 	wait, err := s.limits.Hit(ctx, req.GetKey(), int(req.GetLimit()), window)
 	if err != nil {
 		return nil, s.fail(ctx, err)

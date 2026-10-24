@@ -5,6 +5,7 @@ package users_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -137,6 +138,9 @@ func TestAccountsChangePassword(t *testing.T) {
 	if _, err := accounts.Authenticate(ctx, key.Key); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("an API key survived a password change: %v", err)
 	}
+	if _, err := accounts.Issue(ctx, user); !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("a login verified with the old password outlived the change: %v", err)
+	}
 }
 
 func TestLimitStore(t *testing.T) {
@@ -188,6 +192,23 @@ func TestLimitStore(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if err := short.Allow(ctx, key); err != nil {
 		t.Fatalf("the window did not expire: %v", err)
+	}
+	expired := auth.NewLimiter("expired", 1, time.Millisecond, store)
+	for i := range 3 {
+		if err := expired.Allow(ctx, key+"|"+strconv.Itoa(i)); err != nil {
+			t.Fatalf("attempt %d: %v", i, err)
+		}
+	}
+	time.Sleep(10 * time.Millisecond)
+	before, err := users.CountRateLimits(ctx, db)
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if err := store.Purge(ctx, time.Now()); err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+	if after, err := users.CountRateLimits(ctx, db); err != nil || after > before-3 {
+		t.Fatalf("purge kept expired counters: %d before, %d after, %v", before, after, err)
 	}
 }
 
@@ -264,5 +285,11 @@ func TestAccountsAPIKeys(t *testing.T) {
 	}
 	if _, err := accounts.Authenticate(ctx, created.Key); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("a deleted API key still authenticates: %v", err)
+	}
+	if err := accounts.Revoke(ctx, caller); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	if _, err := accounts.CreateAPIKey(ctx, caller, users.APIKeyInput{Name: "late"}); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("a revoked login created an API key: %v", err)
 	}
 }

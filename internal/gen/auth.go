@@ -120,6 +120,9 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 	}
 	add("userByIdentityQuery", q.UserByIdentity)
 	add("setPasswordQuery", q.SetPassword)
+	add("replacePasswordQuery", q.ReplacePassword)
+	add("lockAccountQuery", q.LockAccount)
+	add("lockPasswordQuery", q.LockPassword)
 	add("setRoleQuery", q.SetRole)
 	add("insertSessionQuery", q.InsertSession)
 	add("sessionPrincipalQuery", q.SessionPrincipal)
@@ -148,6 +151,7 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 	add("insertRateLimitQuery", q.InsertRateLimit)
 	add("deleteRateLimitQuery", q.DeleteRateLimit)
 	add("deleteExpiredLimitsQuery", q.DeleteExpiredLimits)
+	add("deleteSingleLimitsQuery", q.DeleteSingleLimits)
 	add("countRateLimitsQuery", q.CountRateLimits)
 	return av
 }

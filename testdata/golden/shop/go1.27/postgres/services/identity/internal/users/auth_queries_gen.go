@@ -21,6 +21,23 @@ SET
     "updated_at" = now()
 WHERE "id" = $2 AND "deleted_at" IS NULL`
 
+const replacePasswordQuery = `
+UPDATE "users"
+SET
+    "password_hash" = $1,
+    "updated_at" = now()
+WHERE "id" = $2 AND "password_hash" = $3 AND "deleted_at" IS NULL`
+
+const lockAccountQuery = `
+UPDATE "users"
+SET "password_hash" = "password_hash"
+WHERE "id" = $1 AND "deleted_at" IS NULL`
+
+const lockPasswordQuery = `
+UPDATE "users"
+SET "password_hash" = "password_hash"
+WHERE "id" = $1 AND "password_hash" = $2 AND "deleted_at" IS NULL`
+
 const setRoleQuery = `
 UPDATE "users"
 SET
@@ -112,7 +129,21 @@ WHERE "key_hash" = $1`
 
 const deleteExpiredLimitsQuery = `
 DELETE FROM "auth_rate_limits"
-WHERE "reset_at" <= $1`
+WHERE "key_hash" IN (
+    SELECT "key_hash"
+    FROM "auth_rate_limits"
+    WHERE "reset_at" <= $1
+    LIMIT 1000
+)`
+
+const deleteSingleLimitsQuery = `
+DELETE FROM "auth_rate_limits"
+WHERE "key_hash" IN (
+    SELECT "key_hash"
+    FROM "auth_rate_limits"
+    WHERE "hits" = 1
+    LIMIT 1000
+)`
 
 const countRateLimitsQuery = `
 SELECT COUNT(*)

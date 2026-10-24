@@ -5,8 +5,10 @@ package users
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"example.com/secure/internal/platform/auth"
+	"example.com/secure/internal/platform/database"
 )
 
 func (a *Accounts) RefreshInTx(ctx context.Context, tx *sql.Tx, token string) (auth.Tokens, error) {
@@ -18,4 +20,14 @@ func (a *Accounts) RefreshInTx(ctx context.Context, tx *sql.Tx, token string) (a
 	}
 	tokens, _, err := a.rotate(ctx, tx, row, hash, auth.NextRefreshToken(a.cfg.Secret, token), issued)
 	return tokens, err
+}
+
+func (s *LimitStore) Purge(ctx context.Context, now time.Time) error {
+	return s.purge(ctx, now)
+}
+
+func CountRateLimits(ctx context.Context, db database.DBTX) (int, error) {
+	var n int
+	err := db.QueryRowContext(ctx, countRateLimitsQuery).Scan(&n)
+	return n, err
 }

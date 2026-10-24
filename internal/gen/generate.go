@@ -293,9 +293,7 @@ func (g *generator) authFiles(pv *projectView, dv *domainView) {
 	g.goFile(dir+"auth_routes_gen.go", "domain/auth_routes.go.tmpl", dv)
 	if dv.Creatable {
 		g.goFile(dir+"accounts_gen_test.go", "domain/accounts_test.go.tmpl", dv)
-		if dv.Auth.JWT {
-			g.goFile(dir+"accounts_export_gen_test.go", "domain/accounts_export_test.go.tmpl", dv)
-		}
+		g.goFile(dir+"accounts_export_gen_test.go", "domain/accounts_export_test.go.tmpl", dv)
 	}
 	g.userGoFile(dir+"auth_service.go", "domain/auth_service.go.tmpl", dv)
 	g.tag(dv.Package, "AuthService", "", "")

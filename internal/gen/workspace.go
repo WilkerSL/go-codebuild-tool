@@ -320,9 +320,7 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 			g.goFile(dir+"auth_grpc_gen.go", "workspace/auth_grpc.go.tmpl", dv)
 			if dv.Creatable {
 				g.goFile(dir+"accounts_gen_test.go", "domain/accounts_test.go.tmpl", dv)
-				if dv.Auth.JWT {
-					g.goFile(dir+"accounts_export_gen_test.go", "domain/accounts_export_test.go.tmpl", dv)
-				}
+				g.goFile(dir+"accounts_export_gen_test.go", "domain/accounts_export_test.go.tmpl", dv)
 			}
 			g.userGoFile(dir+"auth_service.go", "domain/auth_service.go.tmpl", dv)
 			g.tag(dv.Package, "AuthService", "", "")

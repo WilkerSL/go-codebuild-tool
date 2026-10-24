@@ -21,6 +21,23 @@ SET
     [updated_at] = SYSUTCDATETIME()
 WHERE [id] = @p2 AND [deleted_at] IS NULL`
 
+const replacePasswordQuery = `
+UPDATE [users]
+SET
+    [password_hash] = @p1,
+    [updated_at] = SYSUTCDATETIME()
+WHERE [id] = @p2 AND [password_hash] = @p3 AND [deleted_at] IS NULL`
+
+const lockAccountQuery = `
+UPDATE [users]
+SET [password_hash] = [password_hash]
+WHERE [id] = @p1 AND [deleted_at] IS NULL`
+
+const lockPasswordQuery = `
+UPDATE [users]
+SET [password_hash] = [password_hash]
+WHERE [id] = @p1 AND [password_hash] = @p2 AND [deleted_at] IS NULL`
+
 const setRoleQuery = `
 UPDATE [users]
 SET
@@ -129,8 +146,12 @@ DELETE FROM [auth_rate_limits]
 WHERE [key_hash] = @p1`
 
 const deleteExpiredLimitsQuery = `
-DELETE FROM [auth_rate_limits]
+DELETE TOP (1000) FROM [auth_rate_limits]
 WHERE [reset_at] <= @p1`
+
+const deleteSingleLimitsQuery = `
+DELETE TOP (1000) FROM [auth_rate_limits]
+WHERE [hits] = 1`
 
 const countRateLimitsQuery = `
 SELECT COUNT(*)

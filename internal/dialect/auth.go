@@ -9,6 +9,9 @@ import (
 type AuthQueries struct {
 	UserByIdentity        string
 	SetPassword           string
+	ReplacePassword       string
+	LockAccount           string
+	LockPassword          string
 	SetRole               string
 	InsertSession         string
 	SessionPrincipal      string
@@ -37,6 +40,7 @@ type AuthQueries struct {
 	InsertRateLimit       string
 	DeleteRateLimit       string
 	DeleteExpiredLimits   string
+	DeleteSingleLimits    string
 	CountRateLimits       string
 }
 
@@ -97,6 +101,17 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 
 	p = newParams(d)
 	q.SetPassword = "UPDATE " + users + "\nSET\n    " + d.Quote(password.Column) + " = " + p.next("hash") + touch + "\nWHERE " + d.Quote(pk.Column) + " = " + p.next("id") + live(false)
+	p = newParams(d)
+	q.ReplacePassword = "UPDATE " + users + "\nSET\n    " + d.Quote(password.Column) + " = " + p.next("hash") + touch + "\nWHERE " + d.Quote(pk.Column) + " = " + p.next("id") + " AND " + d.Quote(password.Column) + " = " + p.next("current") + live(false)
+
+	// Writing the password column onto itself takes the row lock in every
+	// dialect (and the write lock in SQLite) without changing the row, so
+	// password changes, logins and new API keys of one account serialize.
+	unchanged := "UPDATE " + users + "\nSET " + d.Quote(password.Column) + " = " + d.Quote(password.Column) + "\nWHERE " + d.Quote(pk.Column) + " = "
+	p = newParams(d)
+	q.LockAccount = unchanged + p.next("id") + live(false)
+	p = newParams(d)
+	q.LockPassword = unchanged + p.next("id") + " AND " + d.Quote(password.Column) + " = " + p.next("current") + live(false)
 
 	if role != nil {
 		p = newParams(d)
@@ -182,8 +197,21 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 	q.InsertRateLimit = insert(schema.RateLimitsTable, []string{"key_hash", "hits", "reset_at"})
 	p = newParams(d)
 	q.DeleteRateLimit = "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " = " + p.next("key")
+	// Cleanup deletes in batches, so it never holds a long lock on the table.
+	batch := func(where string) string {
+		const size = "1000"
+		switch d.Name() {
+		case "sqlserver":
+			return "DELETE TOP (" + size + ") FROM " + limits + "\nWHERE " + where
+		case "mysql":
+			return "DELETE FROM " + limits + "\nWHERE " + where + "\nLIMIT " + size
+		}
+		return "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " IN (\n    SELECT " + d.Quote("key_hash") + "\n    FROM " + limits +
+			"\n    WHERE " + where + "\n    LIMIT " + size + "\n)"
+	}
 	p = newParams(d)
-	q.DeleteExpiredLimits = "DELETE FROM " + limits + "\nWHERE " + d.Quote("reset_at") + " <= " + p.next("before")
+	q.DeleteExpiredLimits = batch(d.Quote("reset_at") + " <= " + p.next("before"))
+	q.DeleteSingleLimits = batch(d.Quote("hits") + " = 1")
 	q.CountRateLimits = "SELECT COUNT(*)\nFROM " + limits
 	return q
 }

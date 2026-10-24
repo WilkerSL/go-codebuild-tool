@@ -65,9 +65,11 @@ type Accounts struct {
 }
 
 const (
-	maxRateLimitRows   = 100_000
-	maxRateLimitPasses = 3
-	rateLimitCleanup   = time.Minute
+	maxRateLimitRows    = 100_000
+	maxRateLimitPasses  = 3
+	maxRateLimitBatches = 200
+	rateLimitCleanup    = time.Minute
+	rateLimitPurgeTime  = 30 * time.Second
 )
 
 type LimitStore struct {
@@ -81,7 +83,7 @@ func NewLimitStore(db *sql.DB) *LimitStore {
 
 func (s *LimitStore) Hit(ctx context.Context, key string, limit int, window time.Duration) (time.Duration, error) {
 	now := authNow()
-	s.cleanup(ctx, now, window)
+	s.cleanup(now)
 	if _, err := s.q.ExecContext(ctx, expireRateLimitQuery, key, database.TimeArg(now)); err != nil {
 		return 0, fmt.Errorf("rate limit: %w", err)
 	}
@@ -123,17 +125,52 @@ func (s *LimitStore) Reset(ctx context.Context, key string) error {
 	return nil
 }
 
-func (s *LimitStore) cleanup(ctx context.Context, now time.Time, window time.Duration) {
+// cleanup starts a purge at most once a minute. It runs apart from the
+// request, so a client that hangs up cannot cancel it.
+func (s *LimitStore) cleanup(now time.Time) {
 	last := s.cleaned.Load()
 	if now.UnixNano()-last < int64(rateLimitCleanup) || !s.cleaned.CompareAndSwap(last, now.UnixNano()) {
 		return
 	}
-	before := now
-	var count int
-	if err := s.q.QueryRowContext(ctx, countRateLimitsQuery).Scan(&count); err == nil && count > maxRateLimitRows {
-		before = now.Add(window / 2)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), rateLimitPurgeTime)
+		defer cancel()
+		_ = s.purge(ctx, now)
+	}()
+}
+
+// purge deletes the expired counters in batches, so it never locks the table
+// for long. Above maxRateLimitRows it also drops the counters of a single
+// attempt: a flood of distinct keys consists of those, and losing one only
+// grants one more attempt, while the counters that block a client are kept.
+func (s *LimitStore) purge(ctx context.Context, now time.Time) error {
+	if err := s.deleteBatches(ctx, deleteExpiredLimitsQuery, database.TimeArg(now)); err != nil {
+		return fmt.Errorf("rate limit cleanup: %w", err)
 	}
-	_, _ = s.q.ExecContext(ctx, deleteExpiredLimitsQuery, database.TimeArg(before))
+	var count int
+	if err := s.q.QueryRowContext(ctx, countRateLimitsQuery).Scan(&count); err != nil {
+		return fmt.Errorf("rate limit cleanup: %w", err)
+	}
+	if count <= maxRateLimitRows {
+		return nil
+	}
+	if err := s.deleteBatches(ctx, deleteSingleLimitsQuery); err != nil {
+		return fmt.Errorf("rate limit cleanup: %w", err)
+	}
+	return nil
+}
+
+func (s *LimitStore) deleteBatches(ctx context.Context, query string, args ...any) error {
+	for range maxRateLimitBatches {
+		res, err := s.q.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		if n, err := res.RowsAffected(); err != nil || n == 0 {
+			return err
+		}
+	}
+	return nil
 }
 
 func NewAccounts(db *sql.DB, cfg auth.Config) *Accounts {
@@ -192,19 +229,24 @@ func (a *Accounts) VerifyPassword(ctx context.Context, identity, password string
 		return User{}, auth.ErrInvalidCredentials
 	}
 	if rehash {
-		if err := a.setPassword(ctx, item.ID, password); err != nil {
+		hash, err := auth.HashPassword(password)
+		if err != nil {
 			return User{}, err
 		}
+		if err := a.replacePassword(ctx, a.q, item.ID, item.PasswordHash, hash); err != nil {
+			return User{}, err
+		}
+		item.PasswordHash = hash
 	}
 	return item, nil
 }
 
-func (a *Accounts) setPassword(ctx context.Context, id uuid.UUID, password string) error {
+func (a *Accounts) setPassword(ctx context.Context, db database.DBTX, id uuid.UUID, password string) error {
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		return err
 	}
-	res, err := a.q.ExecContext(ctx, setPasswordQuery, hash, database.UUIDArg(id))
+	res, err := db.ExecContext(ctx, setPasswordQuery, hash, database.UUIDArg(id))
 	if err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
@@ -218,12 +260,51 @@ func (a *Accounts) setPassword(ctx context.Context, id uuid.UUID, password strin
 	return nil
 }
 
+// replacePassword stores hash only while current is still the stored hash, so
+// the hash a caller verified cannot overwrite a password changed meanwhile.
+func (a *Accounts) replacePassword(ctx context.Context, db database.DBTX, id uuid.UUID, current, hash string) error {
+	return a.expectRow(ctx, db, auth.ErrInvalidCredentials, "change password", replacePasswordQuery, hash, database.UUIDArg(id), current)
+}
+
+// expectRow runs a statement that must touch one row and returns missing when
+// it touched none.
+func (a *Accounts) expectRow(ctx context.Context, db database.DBTX, missing error, action, query string, args ...any) error {
+	res, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("%s: %w", action, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", action, err)
+	}
+	if n == 0 {
+		return missing
+	}
+	return nil
+}
+
+// Issue holds the account row while it stores the new credential, and only if
+// the password is still the one the caller verified: a login that raced a
+// password change cannot outlive it.
 func (a *Accounts) Issue(ctx context.Context, user User) (auth.Tokens, error) {
 	issued := authNow()
-	if _, err := a.q.ExecContext(ctx, deleteExpiredRefreshQuery, database.UUIDArg(user.ID), database.TimeArg(issued)); err != nil {
-		return auth.Tokens{}, fmt.Errorf("issue tokens: %w", err)
+	var tokens auth.Tokens
+	err := database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
+		tx := database.Traced(sqlTx)
+		if err := a.expectRow(ctx, tx, auth.ErrInvalidCredentials, "issue credentials", lockPasswordQuery, database.UUIDArg(user.ID), user.PasswordHash); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, deleteExpiredRefreshQuery, database.UUIDArg(user.ID), database.TimeArg(issued)); err != nil {
+			return fmt.Errorf("issue tokens: %w", err)
+		}
+		var err error
+		tokens, err = a.issueTokens(ctx, tx, user.ID, user.Role, auth.NewID(), auth.NewToken(auth.RefreshPrefix), issued)
+		return err
+	})
+	if err != nil {
+		return auth.Tokens{}, err
 	}
-	return a.issueTokens(ctx, a.q, user.ID, user.Role, auth.NewID(), auth.NewToken(auth.RefreshPrefix), issued)
+	return tokens, nil
 }
 
 func (a *Accounts) issueTokens(ctx context.Context, db database.DBTX, id uuid.UUID, role string, family, refresh string, issued time.Time) (auth.Tokens, error) {
@@ -293,7 +374,7 @@ func (a *Accounts) Refresh(ctx context.Context, token string) (auth.Tokens, erro
 		}
 	}
 	if reused {
-		if err := a.revokeRows(ctx, deleteFamilyQuery, row.family); err != nil {
+		if err := revokeRows(ctx, a.q, deleteFamilyQuery, row.family); err != nil {
 			return auth.Tokens{}, fmt.Errorf("revoke reused refresh token: %w", err)
 		}
 		return auth.Tokens{}, auth.ErrInvalidToken
@@ -329,8 +410,8 @@ func (a *Accounts) rotate(ctx context.Context, tx database.DBTX, row refreshRow,
 	return tokens, false, err
 }
 
-func (a *Accounts) confirm(ctx context.Context, p auth.Principal) (auth.Principal, error) {
-	err := a.q.QueryRowContext(ctx, jwtPrincipalQuery, database.UUIDArg(p.ID), p.CredentialID, database.TimeArg(authNow())).Scan(database.ScanUUID(&p.ID), &p.Role)
+func (a *Accounts) confirm(ctx context.Context, db database.DBTX, p auth.Principal) (auth.Principal, error) {
+	err := db.QueryRowContext(ctx, jwtPrincipalQuery, database.UUIDArg(p.ID), p.CredentialID, database.TimeArg(authNow())).Scan(database.ScanUUID(&p.ID), &p.Role)
 	return foundPrincipal(p, err)
 }
 
@@ -351,7 +432,7 @@ func (a *Accounts) Authenticate(ctx context.Context, token string) (auth.Princip
 		}
 		p := auth.Principal{ID: id, Role: claims.Role, Method: auth.MethodJWT, CredentialID: claims.Session}
 		if auth.ConfirmationRequired(ctx) {
-			return a.confirm(ctx, p)
+			return a.confirm(ctx, a.q, p)
 		}
 		return p, nil
 	}
@@ -371,7 +452,7 @@ func foundPrincipal(p auth.Principal, err error) (auth.Principal, error) {
 func (a *Accounts) Revoke(ctx context.Context, caller auth.Principal) error {
 	switch caller.Method {
 	case auth.MethodJWT:
-		if err := a.revokeRows(ctx, deleteFamilyQuery, caller.CredentialID); err != nil {
+		if err := revokeRows(ctx, a.q, deleteFamilyQuery, caller.CredentialID); err != nil {
 			return fmt.Errorf("revoke tokens: %w", err)
 		}
 	default:
@@ -397,16 +478,29 @@ func (a *Accounts) ChangePassword(ctx context.Context, caller auth.Principal, in
 	if err := checkNewPassword("newPassword", in.New); err != nil {
 		return err
 	}
-	if err := a.setPassword(ctx, caller.ID, in.New); err != nil {
+	hash, err := auth.HashPassword(in.New)
+	if err != nil {
 		return err
 	}
-	if err := a.revokeRows(ctx, deleteOtherFamiliesQuery, database.UUIDArg(caller.ID), caller.CredentialID); err != nil {
-		return fmt.Errorf("revoke other refresh tokens: %w", err)
-	}
-	if err := a.revokeRows(ctx, deleteUserAPIKeysQuery, database.UUIDArg(caller.ID)); err != nil {
-		return fmt.Errorf("revoke API keys: %w", err)
-	}
-	return nil
+	// The new password and the revocations commit together, and the locked
+	// account row keeps logins and new API keys out until they do.
+	return database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
+		tx := database.Traced(sqlTx)
+		err := a.replacePassword(ctx, tx, caller.ID, item.PasswordHash, hash)
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			return validation.Errors{{Field: "currentPassword", Message: "is incorrect"}}
+		}
+		if err != nil {
+			return err
+		}
+		if err := revokeRows(ctx, tx, deleteOtherFamiliesQuery, database.UUIDArg(caller.ID), caller.CredentialID); err != nil {
+			return fmt.Errorf("revoke other refresh tokens: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, deleteUserAPIKeysQuery, database.UUIDArg(caller.ID)); err != nil {
+			return fmt.Errorf("revoke API keys: %w", err)
+		}
+		return nil
+	})
 }
 
 func (a *Accounts) SetRole(ctx context.Context, identity, role string) error {
@@ -437,10 +531,13 @@ func (a *Accounts) SetPassword(ctx context.Context, identity, password string) e
 	if err := checkNewPassword("password", password); err != nil {
 		return err
 	}
-	if err := a.setPassword(ctx, item.ID, password); err != nil {
-		return err
-	}
-	return a.revokeAll(ctx, item.ID)
+	return database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
+		tx := database.Traced(sqlTx)
+		if err := a.setPassword(ctx, tx, item.ID, password); err != nil {
+			return err
+		}
+		return a.revokeAll(ctx, tx, item.ID)
+	})
 }
 
 func (a *Accounts) RevokeAll(ctx context.Context, identity string) error {
@@ -448,21 +545,28 @@ func (a *Accounts) RevokeAll(ctx context.Context, identity string) error {
 	if err != nil {
 		return err
 	}
-	return a.revokeAll(ctx, item.ID)
+	return database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
+		return a.revokeAll(ctx, database.Traced(sqlTx), item.ID)
+	})
 }
 
-func (a *Accounts) revokeAll(ctx context.Context, id uuid.UUID) error {
+func (a *Accounts) revokeAll(ctx context.Context, db database.DBTX, id uuid.UUID) error {
+	if err := a.expectRow(ctx, db, database.ErrNotFound, "revoke credentials", lockAccountQuery, database.UUIDArg(id)); err != nil {
+		return err
+	}
 	for _, query := range []string{deleteUserRefreshQuery, deleteUserAPIKeysQuery} {
-		if err := a.revokeRows(ctx, query, database.UUIDArg(id)); err != nil {
+		if err := revokeRows(ctx, db, query, database.UUIDArg(id)); err != nil {
 			return fmt.Errorf("revoke credentials: %w", err)
 		}
 	}
 	return nil
 }
 
-func (a *Accounts) revokeRows(ctx context.Context, query string, args ...any) error {
+// revokeRows repeats a delete until it finds nothing: a refresh committing
+// meanwhile can add the successor of a token the previous pass removed.
+func revokeRows(ctx context.Context, db database.DBTX, query string, args ...any) error {
 	for range maxRevokePasses {
-		res, err := a.q.ExecContext(ctx, query, args...)
+		res, err := db.ExecContext(ctx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -481,21 +585,9 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 	if caller.Method == auth.MethodAPIKey {
 		return CreatedAPIKey{}, auth.ErrForbidden
 	}
-	if caller.Method == auth.MethodJWT {
-		if _, err := a.confirm(ctx, caller); err != nil {
-			return CreatedAPIKey{}, err
-		}
-	}
 	created := authNow()
 	if in.ExpiresAt != nil && !in.ExpiresAt.After(created) {
 		return CreatedAPIKey{}, validation.Errors{{Field: "expiresAt", Message: "must be in the future"}}
-	}
-	var count int
-	if err := a.q.QueryRowContext(ctx, countAPIKeysQuery, database.UUIDArg(caller.ID)).Scan(&count); err != nil {
-		return CreatedAPIKey{}, fmt.Errorf("count API keys: %w", err)
-	}
-	if count >= maxAPIKeys {
-		return CreatedAPIKey{}, httpx.NewError(http.StatusConflict, fmt.Sprintf("an account holds at most %d API keys; delete unused keys first", maxAPIKeys))
 	}
 	key := auth.NewToken(auth.APIKeyPrefix)
 	item := CreatedAPIKey{ID: auth.NewID(), Name: in.Name, Prefix: key[:12], CreatedAt: created, Key: key}
@@ -503,10 +595,44 @@ func (a *Accounts) CreateAPIKey(ctx context.Context, caller auth.Principal, in A
 		expires := in.ExpiresAt.UTC().Truncate(time.Microsecond)
 		item.ExpiresAt = &expires
 	}
-	if _, err := a.q.ExecContext(ctx, insertAPIKeyQuery, item.ID, database.UUIDArg(caller.ID), item.Name, item.Prefix, auth.HashToken(key), database.TimeArg(created), database.NullTimeArg(item.ExpiresAt)); err != nil {
-		return CreatedAPIKey{}, fmt.Errorf("create API key: %w", err)
+	// The key is stored under the account lock and only while the credential
+	// that asks for it still exists, so a password change or a revocation
+	// that ran first is never outlived by a key created with the old login.
+	err := database.InTx(ctx, a.db, func(sqlTx *sql.Tx) error {
+		tx := database.Traced(sqlTx)
+		if err := a.expectRow(ctx, tx, auth.ErrInvalidToken, "create API key", lockAccountQuery, database.UUIDArg(caller.ID)); err != nil {
+			return err
+		}
+		if err := a.stillValid(ctx, tx, caller); err != nil {
+			return err
+		}
+		var count int
+		if err := tx.QueryRowContext(ctx, countAPIKeysQuery, database.UUIDArg(caller.ID)).Scan(&count); err != nil {
+			return fmt.Errorf("count API keys: %w", err)
+		}
+		if count >= maxAPIKeys {
+			return httpx.NewError(http.StatusConflict, fmt.Sprintf("an account holds at most %d API keys; delete unused keys first", maxAPIKeys))
+		}
+		if _, err := tx.ExecContext(ctx, insertAPIKeyQuery, item.ID, database.UUIDArg(caller.ID), item.Name, item.Prefix, auth.HashToken(key), database.TimeArg(created), database.NullTimeArg(item.ExpiresAt)); err != nil {
+			return fmt.Errorf("create API key: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return CreatedAPIKey{}, err
 	}
 	return item, nil
+}
+
+// stillValid checks again, inside the caller's transaction, the login
+// credential that authenticated the request.
+func (a *Accounts) stillValid(ctx context.Context, db database.DBTX, caller auth.Principal) error {
+	switch caller.Method {
+	case auth.MethodJWT:
+		_, err := a.confirm(ctx, db, caller)
+		return err
+	}
+	return auth.ErrInvalidToken
 }
 
 func (a *Accounts) ListAPIKeys(ctx context.Context, caller auth.Principal) ([]APIKey, error) {
