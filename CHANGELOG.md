@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-24
+
 ### Added
 
 - `Idempotency-Key` on creates: a client that repeats a `POST` with the same key and body within 24 hours, because it lost the answer to a timeout or a dropped connection, gets the first answer back with `Idempotent-Replayed: true` instead of a second resource. The same key with another body answers 422, and while the first request still runs, 409. Only successful answers are kept, so a client can fix a rejected request and retry with the same key. Answers live in a new `idempotency_keys` table of every database, which existing projects get through a new migration, scoped by caller and route and cleaned up in the background. In workspaces the gateway forwards the key and each service keeps the answers of its own creates. The OpenAPI description documents the header.
@@ -158,7 +160,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.5.0
 [0.4.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.4.0
 [0.3.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.3.0
 [0.2.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.2.0

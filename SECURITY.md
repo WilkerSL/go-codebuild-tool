@@ -6,7 +6,7 @@ codebuild writes security-sensitive code into your projects: password hashing, s
 
 | Version | Supported |
 |---|---|
-| 0.4.x | yes |
+| 0.5.x | yes |
 | older | no |
 
 Before 1.0, fixes ship only in the latest minor release.
@@ -48,7 +48,7 @@ gh attestation verify codebuild_0.3.0_linux_amd64.tar.gz --repo WilkerSL/go-code
 
 ## Reviews
 
-The generated authentication code had an internal security review in October 2026; it was not an independent audit. Its findings are fixed in 0.3.0 and listed in `CHANGELOG.md`. The parsers of the tool and the token and password parsers of generated projects are fuzz tested.
+The generated authentication code had an internal security review in October 2026, and the changes of 0.4.0 and the microservice runtime a second one; neither was an independent audit. Their findings are fixed in 0.3.0 and 0.5.0 and listed in `CHANGELOG.md`. The parsers of the tool and the token and password parsers of generated projects are fuzz tested.
 
 ## Fixing generated projects
 
