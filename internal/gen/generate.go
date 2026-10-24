@@ -126,6 +126,7 @@ func Generate(opts Options) ([]File, error) {
 		return nil, err
 	}
 	pv.Auth = newAuthView(pv, opts.Dialect, opts.Model)
+	pv.Ops = newOpsView(pv.Auth)
 	var authDomain *domainView
 	for _, e := range opts.Model.Entities {
 		dv := newDomainView(pv, opts.Dialect, opts.Model, e)
@@ -178,6 +179,7 @@ func Generate(opts Options) ([]File, error) {
 	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
 	g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
 	g.kubernetes(monolithKube(pv, opts.Module))
+	g.observability(newObservabilityView(composeProject(opts.Module), "api", false, pv.Ops, nil), false)
 	for _, dv := range pv.Domains {
 		dir := "internal/" + dv.Package + "/"
 		g.goFile(dir+"model_gen.go", "domain/model.go.tmpl", dv)
@@ -303,6 +305,7 @@ func (g *generator) authFiles(pv *projectView, dv *domainView) {
 	if av.JWT {
 		g.goFile("internal/platform/auth/jwt_gen.go", "platform/auth_jwt.go.tmpl", pv)
 	}
+	g.ops(pv)
 	g.goFile("internal/app/accounts_gen.go", "project/accounts.go.tmpl", pv)
 	g.userGoFile("cmd/accounts/main.go", "project/accounts_main.go.tmpl", pv)
 	dir := "internal/" + dv.Package + "/"

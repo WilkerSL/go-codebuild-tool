@@ -4,13 +4,21 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
-### Security
+### Added
 
-- Entities without an `owner` field that reference an owned entity through a required `belongs_to` in the same database, such as the items of an owned order or invoice, were not scoped on their own routes: any authenticated user could read, change or delete them by their ID, list them all, and attach new ones to another user's parent. They now inherit the owner of their parent, through any number of levels: every query checks that the parent belongs to the caller, other users get 404, and a create or update pointing at another user's parent answers 422. Such entities can no longer be `public`.
+- The observability stack is generated with the code. Workspaces get `deploy/observability`, with Jaeger 2 (traces, plus span metrics for its Monitor tab read back from Prometheus), Prometheus scraping every module with alert rules, and Grafana provisioned with both data sources and a dashboard of the project; `docker compose --profile observability up` starts it, and `docker-compose.yml` now sets `METRICS_ADDR` and `OTEL_EXPORTER_OTLP_ENDPOINT` on every module. Monoliths and workspaces get `deploy/kubernetes/components/observability`, a kustomize component with Jaeger, PodMonitors, a PrometheusRule and the dashboard as a ConfigMap for the Grafana sidecar; the production overlay of new projects includes it.
+- Operations panels behind the login: when the account entity has a `role` field, the API or the gateway serves a sign-in page at `/_ops/` and proxies `/_ops/jaeger/`, `/_ops/grafana/` and `/_ops/prometheus/` to the accounts with a role in `OPS_ROLES` (`admin` by default). The proxy never forwards the credentials of the project, and Grafana signs the account in through its auth proxy. Without roles there is no such route, and Compose publishes the panels on 127.0.0.1 only.
 
 ### Changed
 
-- The repository and service methods of those entities take the owner as an explicit parameter, like owned entities. `service.go` is yours, so add `ownerID` as the second parameter of each of their methods and pass it to `s.repo`; `codebuild plan` now warns about every service method whose parameters no longer match what the generated code calls and prints the expected signature.
+- Requests under `/_ops/` are no longer traced.
+- When the trace collector does not answer, the exporter logs once until it answers again, instead of on every batch, and counts the lost spans in `telemetry_spans_dropped_total`.
+- The production overlay that codebuild creates for new projects includes the observability component, which needs the CRDs of the Prometheus Operator. Existing overlays are yours and stay as they are; add `components: [../../components/observability]` to adopt it.
+- The repository and service methods of entities scoped through their parent (see Security below) take the owner as an explicit parameter, like owned entities. `service.go` is yours, so add `ownerID` as the second parameter of each of their methods and pass it to `s.repo`; `codebuild plan` now warns about every service method whose parameters no longer match what the generated code calls and prints the expected signature.
+
+### Security
+
+- Entities without an `owner` field that reference an owned entity through a required `belongs_to` in the same database, such as the items of an owned order or invoice, were not scoped on their own routes: any authenticated user could read, change or delete them by their ID, list them all, and attach new ones to another user's parent. They now inherit the owner of their parent, through any number of levels: every query checks that the parent belongs to the caller, other users get 404, and a create or update pointing at another user's parent answers 422. Such entities can no longer be `public`.
 
 ## [0.5.0] - 2026-10-24
 

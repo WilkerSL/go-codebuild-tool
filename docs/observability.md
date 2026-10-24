@@ -4,6 +4,8 @@ Generated projects can expose Prometheus metrics, export OpenTelemetry traces an
 
 The code lives in `internal/platform/telemetry` and `internal/platform/httpx/cors_gen.go`, both generated. A `main.go` created by codebuild 0.3.0 or later wires them; see [Wiring an older project](#wiring-an-older-project) for projects created before.
 
+codebuild also generates the infrastructure that reads them: Jaeger with its Monitor tab, Prometheus with alert rules and Grafana with a dashboard, for Docker Compose and for Kubernetes, behind the login of the project when accounts have roles. See [The observability stack](#the-observability-stack).
+
 ## Metrics
 
 Set `METRICS_ADDR` (for example `:9090`) and the process serves `GET /metrics` in the Prometheus text format on that address, separate from the API so it is not exposed with it.
@@ -49,6 +51,98 @@ Every query of the generated repositories and of the account code becomes a clie
 | `OTEL_SDK_DISABLED` | `false` | `true` turns tracing off whatever the other variables say. |
 
 The variables follow the OpenTelemetry specification, so the same settings work for services written with the official SDKs.
+
+## The observability stack
+
+Every build also writes the stack that reads those metrics and traces, so a project only has to run it:
+
+| Path | What |
+|---|---|
+| `deploy/observability/jaeger.yaml`, `jaeger-ui.json` | Jaeger 2 (workspaces): receives the spans over OTLP, keeps them in memory, turns them into span metrics for the Monitor tab and reads those back from Prometheus. |
+| `deploy/observability/prometheus.yml`, `alerts.yml` | Prometheus (workspaces): scrapes `/metrics` of every module and the span metrics of Jaeger, with the [alert rules](#alerts). |
+| `deploy/observability/grafana/` | Grafana provisioning (workspaces): the Prometheus and Jaeger data sources and a [dashboard](#dashboard) of the project. |
+| `deploy/kubernetes/components/observability/` | A kustomize component for Kubernetes, monoliths and workspaces alike; see [below](#kubernetes). |
+
+All of them are regenerated on every build: the YAML files carry the generated header, and the JSON files open with an `"x-codebuild"` member, as `openapi.json` does. The three panels are served under `/_ops/jaeger/`, `/_ops/grafana/` and `/_ops/prometheus/`, so the API or the gateway can put them behind the login of the project.
+
+### Docker Compose
+
+The `docker-compose.yml` of a workspace sets `METRICS_ADDR` and `OTEL_EXPORTER_OTLP_ENDPOINT` on every module and declares Jaeger, Prometheus and Grafana under the `observability` profile:
+
+```bash
+docker compose --profile observability up --build
+```
+
+Without the profile the stack does not start; the modules then log once that the collector does not answer and count the lost spans in `telemetry_spans_dropped_total`.
+
+| Panel | Accounts with roles | No roles or no authentication |
+|---|---|---|
+| Jaeger | http://localhost:8080/_ops/jaeger/ | http://127.0.0.1:16686/_ops/jaeger/ |
+| Grafana | http://localhost:8080/_ops/grafana/ | http://127.0.0.1:3000/_ops/grafana/ |
+| Prometheus | http://localhost:8080/_ops/prometheus/ | http://127.0.0.1:9091/_ops/prometheus/ |
+
+### Who can open the panels
+
+Traces show paths, queries and identifiers, and Prometheus and Grafana answer any query, so the panels are never public.
+
+- When the account entity has a `role` field, the API of a monolith or the gateway of a workspace serves `/_ops/`: a sign-in page and a reverse proxy to every panel whose `OPS_*_URL` is set. Only accounts with a role listed in `OPS_ROLES` get through; other accounts get 403, anonymous calls 401, and a browser without a session is sent to the sign-in page. The session is the usual one, so the authentication cookie of the API works and so does `Authorization: Bearer`. Compose publishes no port of the stack in this case: the gateway is the only way in.
+- The proxy drops the `Authorization` header and the authentication cookies, so a panel never sees a credential of the project. It also removes any `X-Webauth-*` header the client sent and sets `X-Webauth-User` to the account ID, which Grafana trusts as its [auth proxy](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/auth-proxy/) user, created on first visit with the Editor role. Grafana is only reachable through the gateway, so nobody else can set that header.
+- Requests to `/_ops/` are counted in the metrics under their route but never traced, and the alerts and the dashboard leave them out, so browsing the panels does not show up as traffic of the product.
+- Without a `role` field any registered account could get in, so the API serves no `/_ops/` route. Compose then publishes the panels on 127.0.0.1 only and Grafana admits anonymous visitors as admins, which suits a development machine; on a shared host reach them through SSH or a VPN.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OPS_JAEGER_URL`, `OPS_GRAFANA_URL`, `OPS_PROMETHEUS_URL` | empty | Address of the panel without a path, such as `http://jaeger:16686`. The proxy keeps the `/_ops/<panel>/` path, so the panel must be served under it, as the generated stack is. Empty leaves the panel out; with none set there is no `/_ops/` route. |
+| `OPS_ROLES` | `admin`, when it is one of the roles | Roles that may open the panels, separated by commas. Required when a panel is set and the roles have no `admin`. |
+
+### Kubernetes
+
+`deploy/kubernetes/components/observability` is a kustomize component, and the overlay that codebuild creates includes it and points every module at it with `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318`, plus `OPS_JAEGER_URL=http://jaeger:16686` on the API or the gateway when the panels are on. It contains:
+
+- a Jaeger Deployment and Service, with a NetworkPolicy that accepts spans only from the pods of the project and queries only from the API or the gateway;
+- a PodMonitor for the `metrics` port of every module, which adds the `service` and `project` labels the alerts and the dashboard use, and one for the span metrics of Jaeger;
+- a PrometheusRule with the [alerts](#alerts);
+- the dashboard in the ConfigMap `<project>-dashboard`, labelled `grafana_dashboard: "1"` for the Grafana sidecar of kube-prometheus-stack, which only looks in its own namespace unless its `searchNamespace` says otherwise.
+
+PodMonitor and PrometheusRule need the Prometheus Operator, which kube-prometheus-stack installs; on a cluster without it, remove the component and the `OTEL_EXPORTER_OTLP_ENDPOINT` lines from the overlay and send the spans to your own collector. kube-prometheus-stack only selects monitors and rules that carry its release label by default: add the label in the overlay or set `podMonitorSelectorNilUsesHelmValues` and `ruleSelectorNilUsesHelmValues` to `false`. Jaeger reads the span metrics back from `PROMETHEUS_URL`, `http://prometheus-operated.monitoring.svc:9090` by default. Kustomize runs the generators of the overlay before its components, so change it, or any other file of the component, with a patch rather than a `configMapGenerator` merge:
+
+```yaml
+patches:
+  - path: deployments.yaml
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: jaeger-env
+      data:
+        PROMETHEUS_URL: http://prometheus.observability.svc:9090
+```
+
+Jaeger keeps up to 100,000 traces in memory and loses them when it restarts. For lasting storage, patch the `config.yaml` key of the `jaeger-config` ConfigMap the same way, with a configuration that uses Badger on a volume, Elasticsearch, OpenSearch or Cassandra. Only Jaeger is proxied by default: the Prometheus and Grafana of a cluster keep their own access control.
+
+### Alerts
+
+The rules are the same in `alerts.yml` and in the PrometheusRule, and only look at the series of the project (`project="<project>"`):
+
+| Alert | Fires when | Severity |
+|---|---|---|
+| `TargetDown` | a module does not answer the scrape for 2 minutes | critical |
+| `HTTPServerErrors` | more than 5% of the HTTP requests of a module answer 5xx for 5 minutes | critical |
+| `HTTPLatency` | the 95th percentile of HTTP requests stays above 1 second for 10 minutes | warning |
+| `GRPCServerErrors` | more than 5% of the gRPC calls to a service fail with `Unknown`, `Internal`, `Unavailable`, `DataLoss` or `DeadlineExceeded` for 5 minutes (workspaces) | critical |
+| `GRPCLatency` | the 95th percentile of gRPC calls stays above 1 second for 10 minutes (workspaces) | warning |
+| `CircuitOpen` | a module stopped calling a backend because its circuit breaker opened (workspaces) | warning |
+| `CertificateExpiresSoon` | the certificate in use expires within 7 days (workspaces) | warning |
+| `CertificateReloadFails` | new certificate files failed to load in the last 15 minutes (workspaces) | warning |
+| `DatabaseConnectionWaits` | queries of a module spend more than 10% of the time waiting for a pool connection, for 10 minutes | warning |
+| `Restarts` | a process restarted more than twice in 15 minutes | warning |
+| `SpansDropped` | a module dropped spans in the last 15 minutes | warning |
+
+Compose has no Alertmanager: the alerts show on the Alerts page of Prometheus. In a cluster, the Alertmanager of the Prometheus Operator routes them.
+
+### Dashboard
+
+The Grafana dashboard, named after the project, shows per module the rate, errors and 95th percentile of HTTP requests and of gRPC calls, the slowest routes, retries and open circuits, database connections in use and the time spent waiting for one, heap, goroutines and dropped spans. It reads its data source from a variable, so the same file works with the provisioned Prometheus of Compose and with the one of a cluster.
 
 ## CORS
 

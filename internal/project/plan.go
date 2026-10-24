@@ -766,14 +766,19 @@ func (p *planner) classify(context.Context) error {
 			f.Action = ActionConflict
 			header, move := gen.Header, "a non-generated file such as service.go"
 			switch {
+			case strings.HasPrefix(f.Path, gen.ObservabilityDir+"/"):
+				header, move = gen.YAMLHeader, "docker-compose.override.yml, which can mount your own copy in its place,"
 			case strings.HasSuffix(f.Path, ".yml"):
 				header, move = gen.YAMLHeader, "docker-compose.override.yml, which docker compose merges automatically,"
-			case strings.HasPrefix(f.Path, gen.KubeBaseDir+"/"):
+			case strings.HasPrefix(f.Path, gen.KubeBaseDir+"/"), strings.HasPrefix(f.Path, gen.KubeObservabilityDir+"/"):
 				header, move = gen.YAMLHeader, "the kustomize overlay in "+gen.KubeOverlayDir+","
 			}
 			f.Reason = "the \"" + header + "\" header was removed, so the file may contain manual changes; move them to " + move + " and delete this file, or restore the header"
-			if strings.HasSuffix(f.Path, ".json") {
+			switch {
+			case path.Base(f.Path) == gen.OpenAPIPath:
 				f.Reason = "the x-codebuild member that marks the document as generated was removed, so the file may contain manual changes; describe the API in the specs instead and delete this file, or restore the member"
+			case strings.HasSuffix(f.Path, ".json"):
+				f.Reason = "the x-codebuild member that marks the document as generated was removed, so the file may contain manual changes; move them to " + move + " and delete this file, or restore the member"
 			}
 		case bytes.Equal(f.old, f.content):
 			f.Action = ActionUnchanged
@@ -784,9 +789,15 @@ func (p *planner) classify(context.Context) error {
 			f.Added, f.Removed = textdiff.Stats(string(f.old), string(f.content))
 		}
 	}
-	scan := []string{"internal", MigrationsDir, gen.KubeBaseDir}
+	scan := []string{"internal", MigrationsDir, gen.KubeBaseDir, gen.KubeObservabilityDir}
 	if p.model.Workspace() {
-		scan = []string{"services", gen.GatewayDir, "databases", contract.ContractsDir, gen.KubeBaseDir}
+		scan = []string{"services", gen.GatewayDir, "databases", contract.ContractsDir, gen.KubeBaseDir, gen.KubeObservabilityDir, gen.ObservabilityDir}
+	}
+	deployment := func(dir, name string) bool {
+		if dir != gen.KubeBaseDir && dir != gen.KubeObservabilityDir && dir != gen.ObservabilityDir {
+			return false
+		}
+		return strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".json")
 	}
 	for _, dir := range scan {
 		err := filepath.WalkDir(filepath.Join(p.root, dir), func(full string, d fs.DirEntry, err error) error {
@@ -796,8 +807,7 @@ func (p *planner) classify(context.Context) error {
 				}
 				return err
 			}
-			manifest := dir == gen.KubeBaseDir && strings.HasSuffix(d.Name(), ".yaml")
-			if d.IsDir() || !isGeneratedName(d.Name()) && !manifest {
+			if d.IsDir() || !isGeneratedName(d.Name()) && !deployment(dir, d.Name()) {
 				return nil
 			}
 			rel, err := filepath.Rel(p.root, full)

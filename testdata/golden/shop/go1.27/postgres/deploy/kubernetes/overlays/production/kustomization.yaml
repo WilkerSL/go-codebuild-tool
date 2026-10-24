@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: shop
 resources:
   - ../../base
+components:
+  - ../../components/observability
 images:
   - name: shop-billing
     newName: registry.example.com/shop-billing
@@ -29,19 +31,25 @@ configMapGenerator:
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
   - name: catalog-config
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
   - name: gateway-config
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OPS_JAEGER_URL=http://jaeger:16686
   - name: identity-config
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
   - name: inventory-config
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318

@@ -25,6 +25,11 @@ func TestKubernetesEndToEnd(t *testing.T) {
 			t.Fatalf("%s is required: %v", tool, err)
 		}
 	}
+	// A cluster with kube-prometheus-stack has these CRDs; the observability
+	// component of the overlay needs them, not the operator itself.
+	for _, crd := range []string{"podmonitors", "prometheusrules"} {
+		command(t, "", nil, "kubectl", "apply", "--server-side", "-f", "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/"+prometheusOperator+"/example/prometheus-operator-crd/monitoring.coreos.com_"+crd+".yaml")
+	}
 	bin := buildTool(t)
 	t.Run("monolith", func(t *testing.T) { kubernetesMonolith(t, bin) })
 	t.Run("workspace", func(t *testing.T) { kubernetesWorkspace(t, bin) })
@@ -222,6 +227,10 @@ func kubernetesMonolith(t *testing.T, bin string) {
 	first.expect(http.MethodPost, "/auth/register", map[string]any{"email": email, "name": "Kube", "password": "kube password 1"}, http.StatusCreated)
 	tokens := first.expect(http.MethodPost, "/auth/login", map[string]any{"email": email, "password": "kube password 1"}, http.StatusOK)
 	second.as(tokens["accessToken"].(string)).expect(http.MethodGet, "/auth/me", nil, http.StatusOK)
+	member, admin := opsAccounts(t, first, func(email string) {
+		c.kubectl("exec", "deploy/api", "--", "/app/accounts", "set-role", email, "admin")
+	})
+	opsCheck(t, first, member, admin, "/_ops/jaeger/api/v3/services", contains(`"api"`))
 	for range 10 {
 		first.expect(http.MethodPost, "/auth/login", map[string]any{"email": email, "password": "wrong password"}, http.StatusUnauthorized)
 	}
@@ -271,6 +280,10 @@ func kubernetesWorkspace(t *testing.T, bin string) {
 	shopSmoke(t, gateway, func(email string) {
 		c.kubectl("exec", "deploy/identity", "--", "/app/accounts", "set-role", email, "admin")
 	})
+	member, admin := opsAccounts(t, gateway, func(email string) {
+		c.kubectl("exec", "deploy/identity", "--", "/app/accounts", "set-role", email, "admin")
+	})
+	opsCheck(t, gateway, member, admin, "/_ops/jaeger/api/v3/services", contains(`"gateway"`))
 
 	// Rotate every certificate to a new CA. Running pods only pick it up by
 	// reloading the mounted secrets: after the rotation the catalog restarts

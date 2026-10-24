@@ -1,0 +1,34 @@
+{{.YAMLHeader}}
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - jaeger.yaml
+  - monitoring.yaml
+configMapGenerator:
+  - name: jaeger-config
+    options:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/part-of: {{.Project}}
+        app.kubernetes.io/managed-by: codebuild
+    files:
+      - config.yaml=jaeger-config.yaml
+      - ui.json=jaeger-ui.json
+  - name: jaeger-env
+    options:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/part-of: {{.Project}}
+        app.kubernetes.io/managed-by: codebuild
+    literals:
+      - PROMETHEUS_URL=http://prometheus-operated.monitoring.svc:9090
+  - name: {{.Project}}-dashboard
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+        app.kubernetes.io/part-of: {{.Project}}
+        app.kubernetes.io/managed-by: codebuild
+    files:
+      - {{.Project}}.json=dashboard.json

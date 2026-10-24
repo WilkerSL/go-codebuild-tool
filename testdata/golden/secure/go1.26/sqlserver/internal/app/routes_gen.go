@@ -13,6 +13,7 @@ import (
 	"example.com/secure/internal/notes"
 	"example.com/secure/internal/platform/auth"
 	"example.com/secure/internal/platform/database"
+	"example.com/secure/internal/platform/ops"
 	"example.com/secure/internal/reminders"
 	"example.com/secure/internal/users"
 )
@@ -34,6 +35,11 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 		limits = users.NewLimitStore(db)
 	}
 	users.RegisterAuthRoutes(mux, users.NewAuthHandler(users.NewAuthService(db, accounts), guard, cfg, logger, limits))
+	opsConfig, err := ops.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	ops.Register(mux, opsConfig, guard, logger)
 	folders.RegisterRoutes(mux, folders.NewHandler(folders.NewService(db), logger).UseIdempotency(idem), guard)
 	labels.RegisterRoutes(mux, labels.NewHandler(labels.NewService(db), logger).UseIdempotency(idem), guard)
 	notes.RegisterRoutes(mux, notes.NewHandler(notes.NewService(db), logger).UseIdempotency(idem), guard)

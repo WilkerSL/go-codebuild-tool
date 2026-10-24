@@ -185,9 +185,21 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 		// and with the defaults on SQLite, so both modes are covered.
 		env = append(env, "AUTH_JWT_CONFIRM=true", "AUTH_LIMIT_STORE=database")
 	}
+	var panel *fakePanel
+	if project.method != "" {
+		panel = newFakePanel(t)
+		env = append(env, "OPS_JAEGER_URL="+panel.url)
+	}
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
 	c, stop := startAPI(t, dir, env)
 	project.smoke(t, c, dir, env, project.method)
+	if panel != nil {
+		member, admin := opsAccounts(t, c, func(email string) {
+			command(t, dir, env, "go", "run", "./cmd/accounts", "set-role", email, "admin")
+		})
+		opsCheck(t, c, member, admin, "/_ops/jaeger/api/v3/services", contains(`"api"`))
+		panel.check(t)
+	}
 	telemetryCheck(t, c, metricsAddr, spans)
 	openAPICheck(t, c, dir)
 	stop()

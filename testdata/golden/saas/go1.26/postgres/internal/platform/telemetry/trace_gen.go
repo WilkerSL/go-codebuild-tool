@@ -220,6 +220,7 @@ type exporter struct {
 	done     chan struct{}
 	stopped  chan struct{}
 	closing  sync.Once
+	failing  bool
 }
 
 func newExporter(cfg Config, logger *slog.Logger) *exporter {
@@ -292,15 +293,28 @@ func (e *exporter) shutdown(ctx context.Context) error {
 }
 
 func (e *exporter) send(batch []*Span) {
+	if err := e.post(batch); err != nil {
+		registered.dropped.Add(uint64(len(batch)))
+		if !e.failing {
+			e.logger.Warn("exporting traces failed; spans are dropped until the collector answers", slog.String("endpoint", e.endpoint), slog.Any("error", err))
+		}
+		e.failing = true
+		return
+	}
+	if e.failing {
+		e.logger.Info("exporting traces works again", slog.String("endpoint", e.endpoint))
+	}
+	e.failing = false
+}
+
+func (e *exporter) post(batch []*Span) error {
 	body, err := json.Marshal(e.request(batch))
 	if err != nil {
-		e.logger.Warn("encode traces", slog.Any("error", err))
-		return
+		return err
 	}
 	req, err := http.NewRequest(http.MethodPost, e.endpoint, bytes.NewReader(body))
 	if err != nil {
-		e.logger.Warn("export traces", slog.Any("error", err))
-		return
+		return err
 	}
 	for name, values := range e.headers {
 		req.Header[name] = values
@@ -308,14 +322,14 @@ func (e *exporter) send(batch []*Span) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := e.client.Do(req)
 	if err != nil {
-		e.logger.Warn("export traces", slog.Any("error", err))
-		return
+		return err
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	if resp.StatusCode/100 != 2 {
-		e.logger.Warn("export traces", slog.Any("error", errors.New(resp.Status)), slog.Int("spans", len(batch)))
+		return errors.New(resp.Status)
 	}
+	return nil
 }
 
 type otlpValue struct {

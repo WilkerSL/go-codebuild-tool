@@ -133,9 +133,77 @@ services:
         condition: {{index . 1}}
 {{- end}}
 {{- end}}
+{{- with .Observability}}
+
+  jaeger:
+    image: {{.JaegerImage}}
+    profiles: [observability]
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - ./deploy/observability/jaeger.yaml:/etc/jaeger/config.yaml:ro
+      - ./deploy/observability/jaeger-ui.json:/etc/jaeger/ui.json:ro
+{{- if not .Ops}}
+    ports:
+      - "127.0.0.1:16686:16686"
+{{- end}}
+
+  prometheus:
+    image: {{.PrometheusImage}}
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.external-url=/_ops/prometheus/
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+{{- if not .Ops}}
+    ports:
+      - "127.0.0.1:9091:9090"
+{{- end}}
+
+  grafana:
+    image: {{.GrafanaImage}}
+    profiles: [observability]
+    environment:
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/_ops/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_LIVE_MAX_CONNECTIONS: "0"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+{{- if .Ops}}
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Editor
+{{- else}}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+{{- end}}
+    volumes:
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+{{- if not .Ops}}
+    ports:
+      - "127.0.0.1:3000:3000"
+{{- end}}
+{{- end}}
 
 volumes:
   certs:
+{{- if .Observability}}
+  prometheus-data:
+  grafana-data:
+{{- end}}
 {{- if .SQLServer}}
   sqlserver-data:
 {{- else}}

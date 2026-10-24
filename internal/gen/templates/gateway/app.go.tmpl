@@ -16,6 +16,9 @@ import (
 
 	"{{.Module}}/internal/platform/auth"
 	"{{.Module}}/internal/platform/grpcx"
+{{- if .Ops}}
+	"{{.Module}}/internal/platform/ops"
+{{- end}}
 {{- range .Domains}}
 	"{{.Import}}"
 {{- end}}
@@ -79,6 +82,13 @@ func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger
 		limits = {{.Auth.Package}}.NewLimitStore(authClient)
 	}
 	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler(authClient, guard, cfg, logger, limits))
+{{- if .Ops}}
+	opsConfig, err := ops.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	ops.Register(mux, opsConfig, guard, logger)
+{{- end}}
 {{- range .Wired}}
 	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Proxy.Alias}}.New{{.Proxy.Client}}(b.{{.Proxy.Backend}}), logger), guard)
 {{- end}}

@@ -43,6 +43,7 @@ type projectView struct {
 	MigrationsImport string
 	Gateway          bool
 	Edge             *edgeView
+	Ops              *opsView
 	Idempotency      []queryConst
 }
 

@@ -216,6 +216,43 @@ func TestEditedKubernetesManifestIsAConflict(t *testing.T) {
 	}
 }
 
+// TestEditedObservabilityFileIsAConflict covers the generated stack: a YAML
+// file without its header and a JSON file without its x-codebuild member are
+// treated as edited, and a file the specs no longer produce turns stale.
+func TestEditedObservabilityFileIsAConflict(t *testing.T) {
+	dir := workspaceStarter(t, "1.27.0", "sqlite")
+	prometheus := filepath.Join(dir, "deploy", "observability", "prometheus.yml")
+	writeTestFile(t, prometheus, strings.TrimPrefix(readTestFile(t, prometheus), gen.YAMLHeader+"\n"))
+	board := filepath.Join(dir, "deploy", "kubernetes", "components", "observability", "dashboard.json")
+	writeTestFile(t, board, strings.Replace(readTestFile(t, board), `"x-codebuild"`, `"x-edited"`, 1))
+	old := filepath.Join(dir, "deploy", "observability", "grafana", "dashboards", "old.json")
+	writeTestFile(t, old, "{\n  \"x-codebuild\": \""+gen.OpenAPIMarker+"\",\n  \"title\": \"old\"\n}\n")
+	plan, err := BuildPlan(context.Background(), Options{Dir: dir, Toolchain: fakeToolchain("go1.27.0")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasons := map[string]string{}
+	for _, f := range plan.Conflicts() {
+		reasons[f.Path] = f.Reason
+	}
+	if !strings.Contains(reasons["deploy/observability/prometheus.yml"], "docker-compose.override.yml") {
+		t.Errorf("prometheus.yml conflict = %q", reasons["deploy/observability/prometheus.yml"])
+	}
+	if !strings.Contains(reasons["deploy/kubernetes/components/observability/dashboard.json"], "x-codebuild") {
+		t.Errorf("dashboard.json conflict = %q", reasons["deploy/kubernetes/components/observability/dashboard.json"])
+	}
+	if len(reasons) != 2 {
+		t.Errorf("conflicts = %v", reasons)
+	}
+	stale := false
+	for _, f := range plan.Files {
+		stale = stale || f.Path == "deploy/observability/grafana/dashboards/old.json" && f.Action == ActionStale
+	}
+	if !stale {
+		t.Error("a dashboard the specs no longer produce is not reported as stale")
+	}
+}
+
 // TestGoldenCodeHasNoComments keeps the generated Go code free of comments in
 // every golden project, monoliths with authentication and workspaces included.
 func TestGoldenCodeHasNoComments(t *testing.T) {

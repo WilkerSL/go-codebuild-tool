@@ -221,6 +221,7 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	}
 	pv.Gateway = true
 	pv.Auth = newAuthView(pv, d, m)
+	pv.Ops = newOpsView(pv.Auth)
 	identity := *pv.Auth
 	identity.IDType, identity.IDParse, identity.IDFormat = "string", "return s, nil", "id"
 	pv.Identity = &identity
@@ -271,6 +272,7 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	g.goFile("internal/platform/auth/limiter_gen.go", "platform/auth_limiter.go.tmpl", pv)
 	g.goFile("internal/platform/auth/internal_gen.go", "workspace/auth_internal.go.tmpl", pv)
 	g.goFile("internal/platform/auth/auth_gen_test.go", "gateway/auth_test.go.tmpl", pv)
+	g.ops(pv)
 	g.goFile("internal/app/routes_gen.go", "gateway/app.go.tmpl", pv)
 	g.openAPI(pv)
 	g.goFile("cmd/devcerts/main_gen.go", "gateway/devcerts.go.tmpl", pv)

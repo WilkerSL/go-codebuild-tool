@@ -105,6 +105,8 @@ services:
       TLS_KEY_FILE: "/certs/billing-key.pem"
       INTERNAL_TOKEN_PUBLIC_KEY_FILE: "/certs/internal-token.pub.pem"
       CATALOG_GRPC_ADDR: "catalog:9000"
+      METRICS_ADDR: ":9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     volumes:
       - certs:/certs:ro
     healthcheck:
@@ -129,6 +131,8 @@ services:
       TLS_CERT_FILE: "/certs/catalog.pem"
       TLS_KEY_FILE: "/certs/catalog-key.pem"
       INTERNAL_TOKEN_PUBLIC_KEY_FILE: "/certs/internal-token.pub.pem"
+      METRICS_ADDR: ":9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     volumes:
       - certs:/certs:ro
     healthcheck:
@@ -154,6 +158,8 @@ services:
       TLS_KEY_FILE: "/certs/identity-key.pem"
       INTERNAL_TOKEN_PUBLIC_KEY_FILE: "/certs/internal-token.pub.pem"
       AUTH_COOKIE_SECURE: "false"
+      METRICS_ADDR: ":9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     volumes:
       - certs:/certs:ro
     healthcheck:
@@ -178,6 +184,8 @@ services:
       TLS_CERT_FILE: "/certs/inventory.pem"
       TLS_KEY_FILE: "/certs/inventory-key.pem"
       INTERNAL_TOKEN_PUBLIC_KEY_FILE: "/certs/internal-token.pub.pem"
+      METRICS_ADDR: ":9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     volumes:
       - certs:/certs:ro
     healthcheck:
@@ -208,6 +216,11 @@ services:
       CATALOG_GRPC_ADDR: "catalog:9000"
       IDENTITY_GRPC_ADDR: "identity:9000"
       INVENTORY_GRPC_ADDR: "inventory:9000"
+      METRICS_ADDR: ":9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+      OPS_JAEGER_URL: "http://jaeger:16686"
+      OPS_GRAFANA_URL: "http://grafana:3000"
+      OPS_PROMETHEUS_URL: "http://prometheus:9090"
     volumes:
       - certs:/certs:ro
     healthcheck:
@@ -227,8 +240,55 @@ services:
       inventory:
         condition: service_healthy
 
+  jaeger:
+    image: jaegertracing/jaeger:2.21.0
+    profiles: [observability]
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes:
+      - ./deploy/observability/jaeger.yaml:/etc/jaeger/config.yaml:ro
+      - ./deploy/observability/jaeger-ui.json:/etc/jaeger/ui.json:ro
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.external-url=/_ops/prometheus/
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:12.4.2
+    profiles: [observability]
+    environment:
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/_ops/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_LIVE_MAX_CONNECTIONS: "0"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Editor
+    volumes:
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   certs:
+  prometheus-data:
+  grafana-data:
   shared-data:
   billing-data:
   identity-data:

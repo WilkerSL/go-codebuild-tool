@@ -32,6 +32,8 @@ func (r *recorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }
 
+const opsPrefix = "/_ops/"
+
 func HTTP(mux *http.ServeMux, next http.Handler, untraced ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
@@ -42,7 +44,7 @@ func HTTP(mux *http.ServeMux, next http.Handler, untraced ...string) http.Handle
 		method := Method(r.Method)
 		ctx := r.Context()
 		var span *Span
-		if !slices.Contains(untraced, r.URL.Path) {
+		if !slices.Contains(untraced, r.URL.Path) && !strings.HasPrefix(r.URL.Path, opsPrefix) {
 			remote, _ := ParseTraceparent(r.Header.Get(TraceparentHeader))
 			remote.State = Tracestate(r.Header.Values(TracestateHeader))
 			name := method

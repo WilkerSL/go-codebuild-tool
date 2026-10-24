@@ -62,6 +62,7 @@ type composeView struct {
 	YAMLHeader        string
 	Modules           []*moduleView
 	Jobs              []*moduleView
+	Observability     *observabilityView
 }
 
 var composeName = regexp.MustCompile(`[^a-z0-9_-]+`)
@@ -158,6 +159,15 @@ func newComposeView(pv *projectView, opts WorkspaceOptions, wv *workspaceView) *
 		gateway.DependsOn = append(gateway.DependsOn, [2]string{sv.Name, "service_healthy"})
 	}
 	cv.Modules = append(cv.Modules, gateway)
+	for _, m := range cv.Modules {
+		m.Env = append(m.Env, [2]string{"METRICS_ADDR", ":9090"}, [2]string{"OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4318"})
+	}
+	if pv.Ops != nil {
+		gateway.Env = append(gateway.Env,
+			[2]string{"OPS_JAEGER_URL", "http://jaeger:16686"},
+			[2]string{"OPS_GRAFANA_URL", "http://grafana:3000"},
+			[2]string{"OPS_PROMETHEUS_URL", "http://prometheus:9090"})
+	}
 	slices.SortFunc(cv.Jobs, func(a, b *moduleView) int { return strings.Compare(a.Name, b.Name) })
 	return cv
 }
@@ -203,14 +213,21 @@ func generateInfra(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 		return nil, err
 	}
 	pv.Auth = newAuthView(pv, opts.Dialect, opts.Model)
+	pv.Ops = newOpsView(pv.Auth)
 	g := &generator{module: opts.Module}
 	g.userFile("AGENTS.md", "workspace/agents.md.tmpl", pv)
 	g.userFile(".gitignore", "workspace/gitignore.tmpl", pv)
 	g.userFile(".gitattributes", "project/gitattributes.tmpl", pv)
 	g.userFile(".dockerignore", "workspace/dockerignore.tmpl", pv)
 	cv := newComposeView(pv, opts, wv)
+	var services []string
+	for _, sv := range wv.Services {
+		services = append(services, sv.Name)
+	}
+	cv.Observability = newObservabilityView(cv.Project, "gateway", true, pv.Ops, services)
 	g.generatedFile("docker-compose.yml", "workspace/compose.yml.tmpl", cv)
 	g.kubernetes(workspaceKube(cv, wv, pv))
+	g.observability(cv.Observability, true)
 	g.userFile(".github/workflows/workspace.yml", "workspace/workspace_ci.yml.tmpl", pv)
 	for _, m := range moduleViews(pv, opts, wv) {
 		g.userFile(".github/workflows/"+m.Slug+".yml", "workspace/ci.yml.tmpl", m)

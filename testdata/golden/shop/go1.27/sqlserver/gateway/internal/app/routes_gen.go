@@ -20,6 +20,7 @@ import (
 	"example.com/shop/gateway/internal/invoices"
 	"example.com/shop/gateway/internal/platform/auth"
 	"example.com/shop/gateway/internal/platform/grpcx"
+	"example.com/shop/gateway/internal/platform/ops"
 	"example.com/shop/gateway/internal/products"
 	"example.com/shop/gateway/internal/stocks"
 	"example.com/shop/gateway/internal/users"
@@ -91,6 +92,11 @@ func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger
 		limits = users.NewLimitStore(authClient)
 	}
 	users.RegisterAuthRoutes(mux, users.NewAuthHandler(authClient, guard, cfg, logger, limits))
+	opsConfig, err := ops.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	ops.Register(mux, opsConfig, guard, logger)
 	invoices.RegisterRoutes(mux, invoices.NewHandler(billingv1.NewInvoiceServiceClient(b.Billing), logger), guard)
 	invoiceitems.RegisterRoutes(mux, invoiceitems.NewHandler(billingv1.NewInvoiceItemServiceClient(b.Billing), logger), guard)
 	categories.RegisterRoutes(mux, categories.NewHandler(catalogv1.NewCategoryServiceClient(b.Catalog), logger), guard)

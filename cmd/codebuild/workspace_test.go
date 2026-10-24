@@ -290,7 +290,7 @@ func failureCheck(t *testing.T, w *shopWorkspace, c client) {
 }
 
 func composeCheck(t *testing.T, dir string) {
-	project := []string{"compose", "--project-name", "codebuild-e2e-shop"}
+	project := []string{"compose", "--project-name", "codebuild-e2e-shop", "--profile", "observability"}
 	compose := func(args ...string) string {
 		t.Helper()
 		return command(t, dir, nil, "docker", append(slices.Clone(project), args...)...)
@@ -314,6 +314,16 @@ func composeCheck(t *testing.T, dir string) {
 	shopSmoke(t, c, func(email string) {
 		compose("exec", "-T", "identity", "/app/accounts", "set-role", email, "admin")
 	})
+	member, admin := opsAccounts(t, c, func(email string) {
+		compose("exec", "-T", "identity", "/app/accounts", "set-role", email, "admin")
+	})
+	opsCheck(t, c, member, admin, "/_ops/jaeger/api/v3/services", contains(`"gateway"`))
+	opsWait(t, c, admin, "/_ops/prometheus/api/v1/targets?state=active", func(body []byte) bool {
+		return bytes.Count(body, []byte(`"health":"up"`)) == 6
+	})
+	opsWait(t, c, admin, "/_ops/grafana/api/search?query=shop", contains(`"uid":"shop"`))
+	// The Monitor tab of Jaeger: span metrics that Prometheus scraped from Jaeger.
+	opsWait(t, c, admin, "/_ops/jaeger/api/metrics/calls?service=gateway", contains(`"gaugeValue"`))
 }
 
 func fieldErrors(out map[string]any) []string {

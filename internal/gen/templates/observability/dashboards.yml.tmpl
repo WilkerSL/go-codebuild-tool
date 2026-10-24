@@ -1,0 +1,12 @@
+{{.YAMLHeader}}
+
+apiVersion: 1
+
+providers:
+  - name: {{.Project}}
+    folder: {{.Project}}
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

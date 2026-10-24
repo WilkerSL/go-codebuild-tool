@@ -1,0 +1,61 @@
+{{.YAMLHeader}}
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{.Project}}
+  labels:
+    app.kubernetes.io/part-of: {{.Project}}
+    app.kubernetes.io/managed-by: codebuild
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: {{.Project}}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: service
+        - targetLabel: project
+          replacement: {{.Project}}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: jaeger
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/part-of: {{.Project}}
+    app.kubernetes.io/managed-by: codebuild
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/part-of: {{.Project}}
+  podMetricsEndpoints:
+    - port: spanmetrics
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{.Project}}
+  labels:
+    app.kubernetes.io/part-of: {{.Project}}
+    app.kubernetes.io/managed-by: codebuild
+spec:
+  groups:
+    - name: {{.Project}}
+      rules:
+{{- range .Alerts}}
+        - alert: {{.Name}}
+          expr: {{.Expr}}
+          for: {{.For}}
+          labels:
+            severity: {{.Severity}}
+          annotations:
+            summary: {{.Summary}}
+{{- end}}

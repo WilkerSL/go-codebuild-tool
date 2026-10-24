@@ -234,7 +234,7 @@ func (m *registry) write(w io.Writer) {
 	sample(&b, "go_gc_cycles_total", "", runtimeValue(runtimeSamples[2]))
 	family(&b, "process_start_time_seconds", "gauge", "Start time of the process since the Unix epoch.")
 	sample(&b, "process_start_time_seconds", "", float64(m.started.Unix()))
-	family(&b, "telemetry_spans_dropped_total", "counter", "Spans dropped because the export queue was full.")
+	family(&b, "telemetry_spans_dropped_total", "counter", "Spans dropped because the export queue was full or the collector did not take them.")
 	sample(&b, "telemetry_spans_dropped_total", "", float64(m.dropped.Load()))
 	io.WriteString(w, b.String())
 }

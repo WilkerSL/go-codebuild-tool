@@ -42,6 +42,7 @@ Never pass `upgradeGo: true` to the MCP `generate` tool, and never run `codebuil
 | `*_gen.go`, `*_gen_test.go`, `contracts/**/*.proto`, `contracts/**/*.pb.go` | codebuild | Regenerated on every build. Never edit them. |
 | `docker-compose.yml` | codebuild | Regenerated when services change. Put local changes such as extra ports or variables in `docker-compose.override.yml`, which `docker compose` merges automatically. |
 | `deploy/kubernetes/base/*.yaml` | codebuild | Kustomize base, regenerated on every build. Customize the deployment in `deploy/kubernetes/overlays/production`, which is yours. |
+| `deploy/observability/**`, `deploy/kubernetes/components/observability/*` | codebuild | Jaeger, Prometheus and Grafana for Compose and Kubernetes, regenerated on every build. Mount or patch your own copies from `docker-compose.override.yml` or the overlay. |
 | `contracts/codebuild.contracts.json`, `*/migrations/codebuild.snapshot.json` | codebuild | State files. Commit them, never edit them: they keep protobuf field numbers and the database schema stable across builds. |
 | `services/*/internal/<domain>/service.go`, `service_<method>.go`, `auth_service.go` | you | Created once, never touched again. Business rules live here. |
 | `*/cmd/*/main.go`, `*/internal/platform/config/config.go`, `*/internal/platform/database/database.go` | you | Created once, never touched again. |
@@ -63,7 +64,7 @@ Never pass `upgradeGo: true` to the MCP `generate` tool, and never run `codebuil
 docker compose up --build
 ```
 
-Compose generates development certificates in the `certs` volume, applies the migrations, starts every service and exposes the gateway on `http://localhost:8080`.
+Compose generates development certificates in the `certs` volume, applies the migrations, starts every service and exposes the gateway on `http://localhost:8080`. `docker compose --profile observability up --build` also starts Jaeger (traces and its Monitor tab), Prometheus (metrics and alert rules) and Grafana (a dashboard of the workspace), which the gateway serves at `http://localhost:8080/_ops/` to accounts with a role in `OPS_ROLES`.
 
 Promote the first admin after registering through `POST /auth/register`:
 

@@ -19,6 +19,9 @@ import (
 	"{{.Module}}/internal/platform/auth"
 {{- end}}
 	"{{.Module}}/internal/platform/database"
+{{- if .Ops}}
+	"{{.Module}}/internal/platform/ops"
+{{- end}}
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
@@ -39,6 +42,13 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 		limits = {{.Auth.Package}}.NewLimitStore(db)
 	}
 	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler({{.Auth.Package}}.NewAuthService(db, accounts), guard, cfg, logger, limits))
+{{- end}}
+{{- if .Ops}}
+	opsConfig, err := ops.LoadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	ops.Register(mux, opsConfig, guard, logger)
 {{- end}}
 {{- range .Wired}}
 	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger).UseIdempotency(idem){{if $.Auth}}, guard{{end}})

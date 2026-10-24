@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: secure
 resources:
   - ../../base
+components:
+  - ../../components/observability
 images:
   - name: secure-api
     newName: registry.example.com/secure-api
@@ -14,3 +16,5 @@ configMapGenerator:
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OPS_JAEGER_URL=http://jaeger:16686

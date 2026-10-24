@@ -149,6 +149,8 @@ docker compose up --build
 
 Compose generates development certificates in a volume, starts one database server per database (one SQL Server instance with one database each for `sqlserver`, volumes for SQLite), applies the migrations, starts every service once its migrations ran and the gateway once every service is healthy, and publishes the gateway on port 8080. `docker-compose.yml` is generated and rewritten when services change; put your changes in `docker-compose.override.yml`, which Compose merges automatically.
 
+`docker compose --profile observability up --build` also starts Jaeger, Prometheus and Grafana, already configured for every module; with roles on the account entity the gateway serves them to admins under `/_ops/`. See [observability.md](observability.md#the-observability-stack).
+
 | Variable | Module | Purpose |
 |---|---|---|
 | `GRPC_ADDR` | service | gRPC listen address, default `:9000`. |
@@ -165,6 +167,7 @@ Compose generates development certificates in a volume, starts one database serv
 | `AUTH_*` | gateway, account service | The gateway reads the cookie, origin and login limit settings (`AUTH_LIMIT_STORE=database` keeps the counters in the account service's database); the account service reads the session and JWT settings. See [authentication.md](authentication.md). |
 | `GRPC_*` | gateway, service | Timeouts, retries and circuit breakers of outgoing calls; see below. |
 | `METRICS_ADDR`, `OTEL_*`, `CORS_*` | gateway, service | Metrics, tracing and, at the gateway, CORS. See [observability.md](observability.md). |
+| `OPS_*` | gateway | The operations panels under `/_ops/`. See [observability.md](observability.md#who-can-open-the-panels). |
 
 ## Calls between modules
 

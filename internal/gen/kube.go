@@ -79,6 +79,7 @@ type kubeView struct {
 	Resources  []string
 	Images     []string
 	Services   bool
+	Ops        bool
 }
 
 func (w *kubeWorkload) File() string {
@@ -142,6 +143,7 @@ func (g *generator) kubernetes(kv *kubeView) {
 func monolithKube(pv *projectView, module string) *kubeView {
 	project := composeProject(module)
 	kv := newKubeView(project)
+	kv.Ops = pv.Ops != nil
 	sqlite := pv.Dialect.Embedded
 	api := &kubeWorkload{Name: "api", Component: "api", Image: project + "-api", Probe: "http", Replicas: 2, Metrics: true,
 		Ports:   []kubePort{{"http", 8080, ""}, {"metrics", 9090, ""}},
@@ -178,6 +180,7 @@ func monolithKube(pv *projectView, module string) *kubeView {
 
 func workspaceKube(cv *composeView, wv *workspaceView, pv *projectView) *kubeView {
 	kv := newKubeView(cv.Project)
+	kv.Ops = pv.Ops != nil
 	sqlite := cv.Dialect.Name == "sqlite"
 	tls := func(w *kubeWorkload, module string) {
 		w.Config = append(w.Config,

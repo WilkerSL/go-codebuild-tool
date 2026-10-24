@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: saas
 resources:
   - ../../base
+components:
+  - ../../components/observability
 images:
   - name: saas-api
     newName: registry.example.com/saas-api
@@ -14,3 +16,4 @@ configMapGenerator:
     behavior: merge
     literals:
       - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318

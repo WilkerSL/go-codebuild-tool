@@ -1,0 +1,14 @@
+{{.YAMLHeader}}
+
+groups:
+  - name: {{.Project}}
+    rules:
+{{- range .Alerts}}
+      - alert: {{.Name}}
+        expr: {{.Expr}}
+        for: {{.For}}
+        labels:
+          severity: {{.Severity}}
+        annotations:
+          summary: {{.Summary}}
+{{- end}}
