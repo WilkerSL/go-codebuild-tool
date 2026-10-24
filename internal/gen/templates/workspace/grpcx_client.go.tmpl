@@ -20,6 +20,7 @@ import (
 	_ "google.golang.org/grpc/health"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/resolver/dns"
 	"google.golang.org/grpc/status"
 
 	"{{.Module}}/internal/platform/httpx"
@@ -112,6 +113,10 @@ func LoadCallPolicy(getenv func(string) string) (CallPolicy, error) {
 		}
 	}
 	return p, errors.Join(errs...)
+}
+
+func init() {
+	dns.SetMinResolutionInterval(2 * time.Second)
 }
 
 const serviceConfig = `{"loadBalancingConfig":[{"round_robin":{}}],"healthCheckConfig":{"serviceName":""}}`
