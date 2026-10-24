@@ -55,6 +55,9 @@ func (p *parser) checkAuthModel(m *schema.Model) {
 		if slices.Contains(schema.AuthTables, e.Table) {
 			p.errorf(p.entityPos(e, "table"), CodeDuplicateTable, "", "table %s is reserved for the authentication tables; choose another table name", e.Table)
 		}
+		if e.Table == schema.IdempotencyTable {
+			p.errorf(p.entityPos(e, "table"), CodeDuplicateTable, "", "table %s is reserved for idempotency keys; choose another table name", e.Table)
+		}
 		for _, f := range e.Fields {
 			if !f.Owner || f.Ref == nil {
 				continue

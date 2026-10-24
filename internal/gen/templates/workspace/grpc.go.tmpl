@@ -16,6 +16,7 @@ import (
 {{- range .GRPC.PeerImports}}
 	{{.Name}} "{{.Path}}"
 {{- end}}
+	"{{.Module}}/internal/platform/database"
 	"{{.Module}}/internal/platform/grpcx"
 	"{{.Module}}/internal/platform/validation"
 )
@@ -25,6 +26,7 @@ type GRPCServer struct {
 	{{$g.Alias}}.Unimplemented{{$g.Service}}Server
 	svc    *Service
 	logger *slog.Logger
+	idem   *database.Idempotency
 {{- range $g.Peers}}
 	{{.Field}} {{.Alias}}.{{.Type}}
 {{- end}}
@@ -32,6 +34,11 @@ type GRPCServer struct {
 
 func NewGRPCServer(svc *Service, logger *slog.Logger{{range $g.Peers}}, {{.Field}} {{.Alias}}.{{.Type}}{{end}}) *GRPCServer {
 	return &GRPCServer{svc: svc, logger: logger{{range $g.Peers}}, {{.Field}}: {{.Field}}{{end}}}
+}
+
+func (s *GRPCServer) UseIdempotency(store *database.Idempotency) *GRPCServer {
+	s.idem = store
+	return s
 }
 
 func (s *GRPCServer) fail(ctx context.Context, err error) error {
@@ -125,16 +132,18 @@ func (s *GRPCServer) Create(ctx context.Context, req *{{$g.Alias}}.{{$g.Create.R
 {{- with $g.Create.Authorize}}
 	{{.}}
 {{- end}}
-	in, err := createInputFrom(req)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	{{- template "remoteChecks" $g.Checks}}
-	item, err := s.svc.Create(ctx, {{$g.Create.Owner}}in)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	return toMessage(item), nil
+	return grpcx.Idempotent(ctx, s.idem, s.logger, {{$g.Alias}}.{{$g.Service}}_Create_FullMethodName, req, func() (*{{$g.Alias}}.{{$g.Message}}, error) {
+		in, err := createInputFrom(req)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		{{- template "remoteChecks" $g.Checks}}
+		item, err := s.svc.Create(ctx, {{$g.Create.Owner}}in)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		return toMessage(item), nil
+	})
 }
 {{- if .HasUpdate}}
 

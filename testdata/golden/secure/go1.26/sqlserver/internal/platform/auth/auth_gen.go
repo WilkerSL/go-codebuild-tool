@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -67,6 +68,14 @@ func Current(ctx context.Context) (Principal, error) {
 		return Principal{}, ErrUnauthenticated
 	}
 	return p, nil
+}
+
+func Caller(r *http.Request) string {
+	p, ok := FromContext(r.Context())
+	if !ok {
+		return ""
+	}
+	return fmt.Sprint(p.ID)
 }
 
 func Credential(r *http.Request) (string, bool) {

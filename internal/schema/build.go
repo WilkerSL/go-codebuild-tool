@@ -69,6 +69,9 @@ func buildDatabase(m *Model, include func(*Entity) bool) *Database {
 	if auth := m.AuthEntity(); auth != nil && include(auth) {
 		db.Tables = append(db.Tables, authTables(auth)...)
 	}
+	if len(db.Tables) > 0 {
+		db.Tables = append(db.Tables, idempotencyTable())
+	}
 	slices.SortFunc(db.Tables, func(a, b *Table) int { return cmp.Compare(a.Name, b.Name) })
 	return db
 }

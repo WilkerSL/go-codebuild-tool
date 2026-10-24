@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	identityv1 "example.com/shop/contracts/identity/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"example.com/shop/gateway/internal/platform/grpcx"
 	"example.com/shop/gateway/internal/platform/httpx"
@@ -23,6 +25,20 @@ func NewHandler(client identityv1.UserServiceClient, logger *slog.Logger) *Handl
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	httpx.WriteError(w, r, h.logger, grpcx.HTTPError(r.Context(), h.logger, err))
+}
+
+func (h *Handler) idempotent(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key, err := httpx.IdempotencyKeyFrom(r)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		if key != "" {
+			r = r.WithContext(grpcx.WithIdempotencyKey(r.Context(), key))
+		}
+		next(w, r)
+	}
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -64,10 +80,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	created, err := h.client.Create(r.Context(), msg)
+	var header metadata.MD
+	created, err := h.client.Create(r.Context(), msg, grpc.Header(&header))
 	if err != nil {
 		h.fail(w, r, err)
 		return
+	}
+	if grpcx.Replayed(header) {
+		w.Header().Set(httpx.IdempotentReplayedHeader, "true")
 	}
 	item := fromMessage(created)
 	w.Header().Set("Location", "/users/"+item.ID)

@@ -5,6 +5,17 @@ CREATE TABLE "auth_rate_limits" (
     CONSTRAINT "pk_auth_rate_limits" PRIMARY KEY ("key_hash")
 );
 
+CREATE TABLE "idempotency_keys" (
+    "key_hash" VARCHAR(64) NOT NULL,
+    "request_hash" VARCHAR(64) NOT NULL,
+    "status" INTEGER NOT NULL,
+    "location" VARCHAR(2048),
+    "body" BYTEA,
+    "created_at" TIMESTAMPTZ NOT NULL,
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    CONSTRAINT "pk_idempotency_keys" PRIMARY KEY ("key_hash")
+);
+
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
     "email" VARCHAR(254) NOT NULL,
@@ -40,6 +51,8 @@ CREATE TABLE "auth_sessions" (
 );
 
 CREATE INDEX "ix_auth_rate_limits_reset_at" ON "auth_rate_limits" ("reset_at");
+
+CREATE INDEX "ix_idempotency_keys_expires_at" ON "idempotency_keys" ("expires_at");
 
 CREATE INDEX "lx_users" ON "users" ("created_at", "id");
 

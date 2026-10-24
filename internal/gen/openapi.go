@@ -358,7 +358,12 @@ func (d *openAPIDoc) parameters() object {
 			set("name", "cursor").
 			set("in", "query").
 			set("description", "The nextCursor of the previous page. Cursor pages are not counted, so they have no total.").
-			set("schema", object{}.set("type", "string")))
+			set("schema", object{}.set("type", "string"))).
+		set("IdempotencyKey", object{}.
+			set("name", "Idempotency-Key").
+			set("in", "header").
+			set("description", "A unique value, such as a UUID, that makes retries safe: a request repeated with the same key and body within 24 hours gets the first answer back, with Idempotent-Replayed: true, instead of creating a second resource.").
+			set("schema", object{}.set("type", "string").set("minLength", 1).set("maxLength", 255)))
 }
 
 // opBuilder collects one operation; responses are kept by status code and
@@ -476,6 +481,14 @@ func okResponse(description, schema string) object {
 	return r
 }
 
+func idempotentCreated(schema string) object {
+	r := createdResponse(schema)
+	headers, _ := r.get("headers").(object)
+	return r.set("headers", headers.set("Idempotent-Replayed", object{}.
+		set("description", "true when this is the stored answer to an earlier request with the same Idempotency-Key.").
+		set("schema", object{}.set("type", "string").set("enum", []string{"true"}))))
+}
+
 func createdResponse(schema string) object {
 	return object{}.
 		set("description", "Created.").
@@ -517,13 +530,11 @@ func (d *openAPIDoc) domainPaths(dv *domainView) {
 	d.addOperation(dv.Path, "GET", list.build())
 	if !e.ReadOnly {
 		create := d.newOp("create"+dv.Name, "Create a "+dv.Noun, tag).
+			params(refParam("IdempotencyKey")).
 			body(dv.Name+"Create", true).
-			respond("201", createdResponse(dv.Name)).
-			problems("BadRequest", "UnprocessableEntity", "Error").
+			respond("201", idempotentCreated(dv.Name)).
+			problems("BadRequest", "Conflict", "UnprocessableEntity", "Error").
 			guard(guarded, e.Policy(schema.OpCreate))
-		if hasUnique(e) {
-			create.problems("Conflict")
-		}
 		d.addOperation(dv.Path, "POST", create.build())
 	}
 	id := routeParams(dv.ItemPath, e.PK())

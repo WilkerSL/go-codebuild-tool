@@ -12,6 +12,17 @@ CREATE TABLE "countries" (
     CONSTRAINT "pk_countries" PRIMARY KEY ("code")
 );
 
+CREATE TABLE "idempotency_keys" (
+    "key_hash" VARCHAR(64) NOT NULL,
+    "request_hash" VARCHAR(64) NOT NULL,
+    "status" INTEGER NOT NULL,
+    "location" VARCHAR(2048),
+    "body" BYTEA,
+    "created_at" TIMESTAMPTZ NOT NULL,
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    CONSTRAINT "pk_idempotency_keys" PRIMARY KEY ("key_hash")
+);
+
 CREATE TABLE "orgs" (
     "id" UUID NOT NULL,
     "name" VARCHAR(120) NOT NULL,
@@ -77,6 +88,8 @@ CREATE INDEX "ix_audit_log_action" ON "audit_log" ("action");
 CREATE INDEX "ix_audit_log_created_at" ON "audit_log" ("created_at");
 
 CREATE INDEX "lx_audit_log" ON "audit_log" ("created_at", "id");
+
+CREATE INDEX "ix_idempotency_keys_expires_at" ON "idempotency_keys" ("expires_at");
 
 CREATE INDEX "ix_orgs_plan" ON "orgs" ("plan");
 

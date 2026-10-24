@@ -12,10 +12,14 @@ import (
 	"uuid"
 
 	commonv1 "example.com/shop/contracts/common/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"example.com/shop/services/identity/internal/platform/auth"
 	"example.com/shop/services/identity/internal/platform/database"
 	"example.com/shop/services/identity/internal/platform/httpx"
 	"example.com/shop/services/identity/internal/platform/validation"
@@ -73,6 +77,55 @@ func Peer(ctx context.Context, logger *slog.Logger, err error) error {
 	}
 	logger.ErrorContext(ctx, "a call to another service failed", slog.String("code", st.Code().String()), slog.String("detail", st.Message()))
 	return Problem(codes.Internal, http.StatusInternalServerError, "an unexpected error occurred", nil)
+}
+
+func Idempotent[T proto.Message](ctx context.Context, store *database.Idempotency, logger *slog.Logger, method string, req proto.Message, call func() (T, error)) (T, error) {
+	var zero T
+	md, _ := metadata.FromIncomingContext(ctx)
+	keys := md.Get(IdempotencyKeyHeader)
+	if store == nil || len(keys) != 1 {
+		return call()
+	}
+	if !httpx.ValidIdempotencyKey(keys[0]) {
+		return zero, Problem(codes.InvalidArgument, http.StatusBadRequest, "the Idempotency-Key header must hold 1 to 255 visible ASCII characters", nil)
+	}
+	caller := ""
+	if p, err := auth.Current(ctx); err == nil {
+		caller = fmt.Sprint(p.ID)
+	}
+	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(req)
+	if err != nil {
+		return zero, Error(ctx, logger, err)
+	}
+	hash := database.IdempotencyKey(caller, method, keys[0])
+	answer, err := store.Begin(ctx, hash, database.Fingerprint(data))
+	if err != nil {
+		return zero, Error(ctx, logger, httpx.IdempotencyError(err))
+	}
+	if answer != nil {
+		out := zero.ProtoReflect().New().Interface().(T)
+		if err := proto.Unmarshal(answer.Body, out); err != nil {
+			return zero, Error(ctx, logger, err)
+		}
+		grpc.SetHeader(ctx, metadata.Pairs(ReplayedHeader, "true"))
+		return out, nil
+	}
+	res, err := call()
+	done := context.WithoutCancel(ctx)
+	if err != nil {
+		if err := store.Abandon(done, hash); err != nil {
+			logger.WarnContext(ctx, "releasing the idempotency key failed", slog.Any("error", err))
+		}
+		return zero, err
+	}
+	body, err := proto.Marshal(res)
+	if err == nil {
+		err = store.Finish(done, hash, database.IdempotentAnswer{Status: http.StatusCreated, Body: body})
+	}
+	if err != nil {
+		logger.WarnContext(ctx, "storing the idempotent answer failed", slog.Any("error", err))
+	}
+	return res, nil
 }
 
 func Problem(code codes.Code, httpStatus int, detail string, fields []validation.FieldError) error {

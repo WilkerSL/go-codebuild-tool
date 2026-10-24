@@ -12,11 +12,13 @@ import (
 	"example.com/secure/internal/labels"
 	"example.com/secure/internal/notes"
 	"example.com/secure/internal/platform/auth"
+	"example.com/secure/internal/platform/database"
 	"example.com/secure/internal/users"
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+	idem := database.NewIdempotency(db)
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -31,9 +33,9 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 		limits = users.NewLimitStore(db)
 	}
 	users.RegisterAuthRoutes(mux, users.NewAuthHandler(users.NewAuthService(db, accounts), guard, cfg, logger, limits))
-	folders.RegisterRoutes(mux, folders.NewHandler(folders.NewService(db), logger), guard)
-	labels.RegisterRoutes(mux, labels.NewHandler(labels.NewService(db), logger), guard)
-	notes.RegisterRoutes(mux, notes.NewHandler(notes.NewService(db), logger), guard)
-	users.RegisterRoutes(mux, users.NewHandler(users.NewService(db), logger), guard)
+	folders.RegisterRoutes(mux, folders.NewHandler(folders.NewService(db), logger).UseIdempotency(idem), guard)
+	labels.RegisterRoutes(mux, labels.NewHandler(labels.NewService(db), logger).UseIdempotency(idem), guard)
+	notes.RegisterRoutes(mux, notes.NewHandler(notes.NewService(db), logger).UseIdempotency(idem), guard)
+	users.RegisterRoutes(mux, users.NewHandler(users.NewService(db), logger).UseIdempotency(idem), guard)
 	return nil
 }

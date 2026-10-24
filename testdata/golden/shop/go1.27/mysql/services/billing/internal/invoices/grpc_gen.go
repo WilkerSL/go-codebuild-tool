@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"example.com/shop/services/billing/internal/platform/database"
 	"example.com/shop/services/billing/internal/platform/grpcx"
 	"example.com/shop/services/billing/internal/platform/validation"
 )
@@ -20,10 +21,16 @@ type GRPCServer struct {
 	billingv1.UnimplementedInvoiceServiceServer
 	svc    *Service
 	logger *slog.Logger
+	idem   *database.Idempotency
 }
 
 func NewGRPCServer(svc *Service, logger *slog.Logger) *GRPCServer {
 	return &GRPCServer{svc: svc, logger: logger}
+}
+
+func (s *GRPCServer) UseIdempotency(store *database.Idempotency) *GRPCServer {
+	s.idem = store
+	return s
 }
 
 func (s *GRPCServer) fail(ctx context.Context, err error) error {
@@ -137,15 +144,17 @@ func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceCreateReq
 	if err != nil {
 		return nil, err
 	}
-	in, err := createInputFrom(req)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	item, err := s.svc.Create(ctx, caller.ID, in)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	return toMessage(item), nil
+	return grpcx.Idempotent(ctx, s.idem, s.logger, billingv1.InvoiceService_Create_FullMethodName, req, func() (*billingv1.Invoice, error) {
+		in, err := createInputFrom(req)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		item, err := s.svc.Create(ctx, caller.ID, in)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		return toMessage(item), nil
+	})
 }
 
 func updateInputFrom(req *billingv1.InvoiceUpdateRequest) (UpdateInput, error) {

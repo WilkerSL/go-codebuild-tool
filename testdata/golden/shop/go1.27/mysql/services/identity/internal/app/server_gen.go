@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 
 	"example.com/shop/services/identity/internal/platform/auth"
+	"example.com/shop/services/identity/internal/platform/database"
 	"example.com/shop/services/identity/internal/platform/grpcx"
 	"example.com/shop/services/identity/internal/users"
 )
@@ -48,12 +49,13 @@ func (p *Peers) Close() error {
 }
 
 func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger) error {
+	idem := database.NewIdempotency(db)
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
 		return err
 	}
 	accounts := users.NewAccounts(db, cfg)
 	identityv1.RegisterAuthServiceServer(server, users.NewAuthGRPCServer(users.NewAuthService(db, accounts), accounts, users.NewLimitStore(db), logger))
-	identityv1.RegisterUserServiceServer(server, users.NewGRPCServer(users.NewService(db), logger))
+	identityv1.RegisterUserServiceServer(server, users.NewGRPCServer(users.NewService(db), logger).UseIdempotency(idem))
 	return nil
 }

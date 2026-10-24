@@ -12,4 +12,6 @@ DROP TABLE "users";
 
 DROP TABLE "labels";
 
+DROP TABLE "idempotency_keys";
+
 DROP TABLE "auth_rate_limits";

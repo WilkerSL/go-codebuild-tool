@@ -67,6 +67,11 @@ var openAPIDocument = []byte(`{
         "tags": [
           "folders"
         ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -86,6 +91,15 @@ var openAPIDocument = []byte(`{
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Idempotent-Replayed": {
+                "description": "true when this is the stored answer to an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
               }
             },
             "content": {
@@ -101,6 +115,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -311,6 +328,11 @@ var openAPIDocument = []byte(`{
         "tags": [
           "labels"
         ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -330,6 +352,15 @@ var openAPIDocument = []byte(`{
                 "description": "URL of the new resource.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "true when this is the stored answer to an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
                 }
               }
             },
@@ -742,6 +773,11 @@ var openAPIDocument = []byte(`{
         "tags": [
           "notes"
         ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -761,6 +797,15 @@ var openAPIDocument = []byte(`{
                 "schema": {
                   "type": "string"
                 }
+              },
+              "Idempotent-Replayed": {
+                "description": "true when this is the stored answer to an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
               }
             },
             "content": {
@@ -776,6 +821,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -1223,6 +1271,11 @@ var openAPIDocument = []byte(`{
         "tags": [
           "users"
         ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1242,6 +1295,15 @@ var openAPIDocument = []byte(`{
                 "description": "URL of the new resource.",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "true when this is the stored answer to an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
                 }
               }
             },
@@ -2593,6 +2655,16 @@ var openAPIDocument = []byte(`{
         "description": "The nextCursor of the previous page. Cursor pages are not counted, so they have no total.",
         "schema": {
           "type": "string"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "description": "A unique value, such as a UUID, that makes retries safe: a request repeated with the same key and body within 24 hours gets the first answer back, with Idempotent-Replayed: true, instead of creating a second resource.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
         }
       }
     },

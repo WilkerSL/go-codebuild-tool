@@ -6,6 +6,58 @@
   ],
   "tables": [
     {
+      "name": "idempotency_keys",
+      "columns": [
+        {
+          "name": "key_hash",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "request_hash",
+          "kind": "string",
+          "size": 64
+        },
+        {
+          "name": "status",
+          "kind": "int32"
+        },
+        {
+          "name": "location",
+          "kind": "string",
+          "size": 2048,
+          "nullable": true
+        },
+        {
+          "name": "body",
+          "kind": "bytes",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "kind": "time"
+        },
+        {
+          "name": "expires_at",
+          "kind": "time"
+        }
+      ],
+      "primaryKey": {
+        "name": "pk_idempotency_keys",
+        "columns": [
+          "key_hash"
+        ]
+      },
+      "indexes": [
+        {
+          "name": "ix_idempotency_keys_expires_at",
+          "columns": [
+            "expires_at"
+          ]
+        }
+      ]
+    },
+    {
       "name": "invoice_items",
       "columns": [
         {

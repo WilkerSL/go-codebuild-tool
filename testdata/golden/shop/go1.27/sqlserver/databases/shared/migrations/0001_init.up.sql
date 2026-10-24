@@ -4,6 +4,17 @@ CREATE TABLE [categories] (
     CONSTRAINT [pk_categories] PRIMARY KEY ([id])
 );
 
+CREATE TABLE [idempotency_keys] (
+    [key_hash] NVARCHAR(64) NOT NULL,
+    [request_hash] NVARCHAR(64) NOT NULL,
+    [status] INT NOT NULL,
+    [location] NVARCHAR(2048) NULL,
+    [body] VARBINARY(MAX) NULL,
+    [created_at] DATETIME2(7) NOT NULL,
+    [expires_at] DATETIME2(7) NOT NULL,
+    CONSTRAINT [pk_idempotency_keys] PRIMARY KEY ([key_hash])
+);
+
 CREATE TABLE [products] (
     [id] BIGINT IDENTITY(1,1) NOT NULL,
     [category_id] BIGINT NULL,
@@ -23,6 +34,8 @@ CREATE TABLE [stocks] (
 );
 
 CREATE UNIQUE INDEX [ux_categories_name] ON [categories] ([name]);
+
+CREATE INDEX [ix_idempotency_keys_expires_at] ON [idempotency_keys] ([expires_at]);
 
 CREATE INDEX [ix_products_category_id] ON [products] ([category_id]);
 

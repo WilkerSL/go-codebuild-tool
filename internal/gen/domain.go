@@ -217,7 +217,7 @@ func buildRoutes(dv *domainView) {
 	}
 	add("GET", dv.Path, "list", e.Policy(schema.OpRead))
 	if !e.ReadOnly {
-		add("POST", dv.Path, "create", e.Policy(schema.OpCreate))
+		add("POST", dv.Path, "idempotent(h.create)", e.Policy(schema.OpCreate))
 	}
 	add("GET", dv.ItemPath, "get", e.Policy(schema.OpRead))
 	if dv.HasUpdate {

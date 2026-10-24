@@ -356,6 +356,7 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 		t.Fatalf("text default not applied: %v", org)
 	}
 	orgID := org["id"].(string)
+	idempotencyCheck(t, c, "/orgs", map[string]any{"name": "Idem", "slug": "idem-" + suffix}, map[string]any{"name": "Other", "slug": "other-" + suffix})
 	email := "ann-" + suffix + "@example.com"
 	user := c.expect("POST", "/users", map[string]any{"name": "Ann", "email": email, "orgId": orgID}, http.StatusCreated)
 	userID := user["id"].(string)
@@ -737,5 +738,27 @@ func openAPICheck(t *testing.T, c client, dir string) {
 	}
 	if err := json.Unmarshal(got, &doc); err != nil || doc.OpenAPI != "3.1.0" || len(doc.Paths) == 0 {
 		t.Fatalf("openapi.json = %q with %d paths: %v", doc.OpenAPI, len(doc.Paths), err)
+	}
+}
+
+// idempotencyCheck retries a create with the same Idempotency-Key: the second
+// answer must be the first one, replayed, and the key cannot be reused for a
+// different body.
+func idempotencyCheck(t *testing.T, c client, path string, body, other map[string]any) {
+	t.Helper()
+	key := http.Header{"Idempotency-Key": {"e2e-" + fmt.Sprint(time.Now().UnixNano())}}
+	first, created := c.send("POST", path, body, key)
+	if first.StatusCode != http.StatusCreated || first.Header.Get("Idempotent-Replayed") != "" {
+		t.Fatalf("POST %s with an Idempotency-Key = %d %v", path, first.StatusCode, created)
+	}
+	again, replayed := c.send("POST", path, body, key)
+	if again.StatusCode != http.StatusCreated || again.Header.Get("Idempotent-Replayed") != "true" || replayed["id"] != created["id"] || again.Header.Get("Location") != first.Header.Get("Location") {
+		t.Fatalf("retried POST %s = %d %v %v, want the first answer %v", path, again.StatusCode, again.Header, replayed, created)
+	}
+	if resp, out := c.send("POST", path, other, key); resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("POST %s reusing the key for another body = %d %v", path, resp.StatusCode, out)
+	}
+	if resp, _ := c.send("POST", path, body, http.Header{"Idempotency-Key": {"not a key"}}); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("an invalid Idempotency-Key = %d", resp.StatusCode)
 	}
 }

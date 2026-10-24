@@ -8,6 +8,8 @@ DROP TABLE "tags";
 
 DROP TABLE "orgs";
 
+DROP TABLE "idempotency_keys";
+
 DROP TABLE "countries";
 
 DROP TABLE "audit_log";

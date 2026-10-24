@@ -18,10 +18,12 @@ import (
 {{- end}}
 	"{{.Module}}/internal/platform/auth"
 {{- end}}
+	"{{.Module}}/internal/platform/database"
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+	idem := database.NewIdempotency(db)
 {{- if .Auth}}
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
@@ -39,7 +41,7 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	{{.Auth.Package}}.RegisterAuthRoutes(mux, {{.Auth.Package}}.NewAuthHandler({{.Auth.Package}}.NewAuthService(db, accounts), guard, cfg, logger, limits))
 {{- end}}
 {{- range .Wired}}
-	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger){{if $.Auth}}, guard{{end}})
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger).UseIdempotency(idem){{if $.Auth}}, guard{{end}})
 {{- end}}
 	return nil
 }

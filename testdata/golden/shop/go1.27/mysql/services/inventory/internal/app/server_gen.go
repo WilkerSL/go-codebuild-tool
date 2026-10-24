@@ -11,6 +11,7 @@ import (
 	inventoryv1 "example.com/shop/contracts/inventory/v1"
 	"google.golang.org/grpc"
 
+	"example.com/shop/services/inventory/internal/platform/database"
 	"example.com/shop/services/inventory/internal/platform/grpcx"
 	"example.com/shop/services/inventory/internal/stocks"
 )
@@ -46,6 +47,7 @@ func (p *Peers) Close() error {
 }
 
 func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger) error {
-	inventoryv1.RegisterStockServiceServer(server, stocks.NewGRPCServer(stocks.NewService(db), logger))
+	idem := database.NewIdempotency(db)
+	inventoryv1.RegisterStockServiceServer(server, stocks.NewGRPCServer(stocks.NewService(db), logger).UseIdempotency(idem))
 	return nil
 }

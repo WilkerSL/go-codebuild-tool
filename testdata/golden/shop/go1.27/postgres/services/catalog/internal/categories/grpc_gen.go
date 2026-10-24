@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"example.com/shop/services/catalog/internal/platform/database"
 	"example.com/shop/services/catalog/internal/platform/grpcx"
 	"example.com/shop/services/catalog/internal/platform/validation"
 )
@@ -20,10 +21,16 @@ type GRPCServer struct {
 	catalogv1.UnimplementedCategoryServiceServer
 	svc    *Service
 	logger *slog.Logger
+	idem   *database.Idempotency
 }
 
 func NewGRPCServer(svc *Service, logger *slog.Logger) *GRPCServer {
 	return &GRPCServer{svc: svc, logger: logger}
+}
+
+func (s *GRPCServer) UseIdempotency(store *database.Idempotency) *GRPCServer {
+	s.idem = store
+	return s
 }
 
 func (s *GRPCServer) fail(ctx context.Context, err error) error {
@@ -111,15 +118,17 @@ func (s *GRPCServer) Create(ctx context.Context, req *catalogv1.CategoryCreateRe
 	if _, err := grpcx.Authorize(ctx, "admin"); err != nil {
 		return nil, err
 	}
-	in, err := createInputFrom(req)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	item, err := s.svc.Create(ctx, in)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	return toMessage(item), nil
+	return grpcx.Idempotent(ctx, s.idem, s.logger, catalogv1.CategoryService_Create_FullMethodName, req, func() (*catalogv1.Category, error) {
+		in, err := createInputFrom(req)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		item, err := s.svc.Create(ctx, in)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		return toMessage(item), nil
+	})
 }
 
 func updateInputFrom(req *catalogv1.CategoryUpdateRequest) (UpdateInput, error) {

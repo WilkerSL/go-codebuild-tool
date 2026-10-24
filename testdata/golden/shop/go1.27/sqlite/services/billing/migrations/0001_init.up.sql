@@ -1,3 +1,14 @@
+CREATE TABLE "idempotency_keys" (
+    "key_hash" TEXT NOT NULL,
+    "request_hash" TEXT NOT NULL,
+    "status" INTEGER NOT NULL,
+    "location" TEXT,
+    "body" BLOB,
+    "created_at" DATETIME NOT NULL,
+    "expires_at" DATETIME NOT NULL,
+    CONSTRAINT "pk_idempotency_keys" PRIMARY KEY ("key_hash")
+);
+
 CREATE TABLE "invoices" (
     "id" TEXT NOT NULL,
     "owner_id" TEXT NOT NULL,
@@ -18,6 +29,8 @@ CREATE TABLE "invoice_items" (
     "price" REAL NOT NULL,
     CONSTRAINT "fk_invoice_items_invoice_id" FOREIGN KEY ("invoice_id") REFERENCES "invoices" ("id") ON DELETE CASCADE
 );
+
+CREATE INDEX "ix_idempotency_keys_expires_at" ON "idempotency_keys" ("expires_at");
 
 CREATE INDEX "ix_invoices_owner_id" ON "invoices" ("owner_id");
 

@@ -197,17 +197,8 @@ func BuildAuthQueries(d Dialect, e *schema.Entity) AuthQueries {
 	q.InsertRateLimit = insert(schema.RateLimitsTable, []string{"key_hash", "hits", "reset_at"})
 	p = newParams(d)
 	q.DeleteRateLimit = "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " = " + p.next("key")
-	// Cleanup deletes in batches, so it never holds a long lock on the table.
 	batch := func(where string) string {
-		const size = "1000"
-		switch d.Name() {
-		case "sqlserver":
-			return "DELETE TOP (" + size + ") FROM " + limits + "\nWHERE " + where
-		case "mysql":
-			return "DELETE FROM " + limits + "\nWHERE " + where + "\nLIMIT " + size
-		}
-		return "DELETE FROM " + limits + "\nWHERE " + d.Quote("key_hash") + " IN (\n    SELECT " + d.Quote("key_hash") + "\n    FROM " + limits +
-			"\n    WHERE " + where + "\n    LIMIT " + size + "\n)"
+		return batchDelete(d, schema.RateLimitsTable, "key_hash", where)
 	}
 	p = newParams(d)
 	q.DeleteExpiredLimits = batch(d.Quote("reset_at") + " <= " + p.next("before"))

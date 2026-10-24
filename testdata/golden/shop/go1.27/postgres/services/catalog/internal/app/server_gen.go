@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"example.com/shop/services/catalog/internal/categories"
+	"example.com/shop/services/catalog/internal/platform/database"
 	"example.com/shop/services/catalog/internal/platform/grpcx"
 	"example.com/shop/services/catalog/internal/products"
 )
@@ -47,7 +48,8 @@ func (p *Peers) Close() error {
 }
 
 func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger) error {
-	catalogv1.RegisterCategoryServiceServer(server, categories.NewGRPCServer(categories.NewService(db), logger))
-	catalogv1.RegisterProductServiceServer(server, products.NewGRPCServer(products.NewService(db), logger))
+	idem := database.NewIdempotency(db)
+	catalogv1.RegisterCategoryServiceServer(server, categories.NewGRPCServer(categories.NewService(db), logger).UseIdempotency(idem))
+	catalogv1.RegisterProductServiceServer(server, products.NewGRPCServer(products.NewService(db), logger).UseIdempotency(idem))
 	return nil
 }

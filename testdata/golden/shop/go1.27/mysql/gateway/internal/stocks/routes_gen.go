@@ -10,7 +10,7 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler, guard *auth.Guard) {
 	mux.Handle("GET /stocks", guard.Protect(h.list, "admin"))
-	mux.Handle("POST /stocks", guard.Protect(h.create, "admin"))
+	mux.Handle("POST /stocks", guard.Protect(h.idempotent(h.create), "admin"))
 	mux.Handle("GET /stocks/{id}", guard.Protect(h.get, "admin"))
 	mux.Handle("PUT /stocks/{id}", guard.Protect(h.update, "admin"))
 	mux.Handle("DELETE /stocks/{id}", guard.Protect(h.delete, "admin"))

@@ -8,7 +8,7 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler) {
 	mux.HandleFunc("GET /tags", h.list)
-	mux.HandleFunc("POST /tags", h.create)
+	mux.HandleFunc("POST /tags", h.idempotent(h.create))
 	mux.HandleFunc("GET /tags/{id}", h.get)
 	mux.HandleFunc("PUT /tags/{id}", h.update)
 	mux.HandleFunc("DELETE /tags/{id}", h.delete)

@@ -6,6 +6,18 @@ CREATE TABLE `auth_rate_limits` (
     INDEX `ix_auth_rate_limits_reset_at` (`reset_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `idempotency_keys` (
+    `key_hash` VARCHAR(64) NOT NULL,
+    `request_hash` VARCHAR(64) NOT NULL,
+    `status` INT NOT NULL,
+    `location` VARCHAR(2048),
+    `body` LONGBLOB,
+    `created_at` DATETIME(6) NOT NULL,
+    `expires_at` DATETIME(6) NOT NULL,
+    CONSTRAINT `pk_idempotency_keys` PRIMARY KEY (`key_hash`),
+    INDEX `ix_idempotency_keys_expires_at` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE `users` (
     `id` CHAR(36) NOT NULL,
     `email` VARCHAR(254) NOT NULL,

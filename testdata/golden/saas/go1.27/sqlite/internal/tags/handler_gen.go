@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"example.com/saas/internal/platform/database"
 	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
@@ -14,10 +15,20 @@ import (
 type Handler struct {
 	svc    *Service
 	logger *slog.Logger
+	idem   *database.Idempotency
 }
 
 func NewHandler(svc *Service, logger *slog.Logger) *Handler {
 	return &Handler{svc: svc, logger: logger}
+}
+
+func (h *Handler) UseIdempotency(store *database.Idempotency) *Handler {
+	h.idem = store
+	return h
+}
+
+func (h *Handler) idempotent(next http.HandlerFunc) http.HandlerFunc {
+	return httpx.Idempotent(h.idem, h.logger, nil, next)
 }
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {

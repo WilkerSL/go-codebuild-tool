@@ -9,6 +9,7 @@ import (
 
 	"example.com/saas/internal/countries"
 	"example.com/saas/internal/orgs"
+	"example.com/saas/internal/platform/database"
 	"example.com/saas/internal/projects"
 	"example.com/saas/internal/tags"
 	"example.com/saas/internal/users"
@@ -16,10 +17,11 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
-	countries.RegisterRoutes(mux, countries.NewHandler(countries.NewService(db), logger))
-	orgs.RegisterRoutes(mux, orgs.NewHandler(orgs.NewService(db), logger))
-	projects.RegisterRoutes(mux, projects.NewHandler(projects.NewService(db), logger))
-	tags.RegisterRoutes(mux, tags.NewHandler(tags.NewService(db), logger))
-	users.RegisterRoutes(mux, users.NewHandler(users.NewService(db), logger))
+	idem := database.NewIdempotency(db)
+	countries.RegisterRoutes(mux, countries.NewHandler(countries.NewService(db), logger).UseIdempotency(idem))
+	orgs.RegisterRoutes(mux, orgs.NewHandler(orgs.NewService(db), logger).UseIdempotency(idem))
+	projects.RegisterRoutes(mux, projects.NewHandler(projects.NewService(db), logger).UseIdempotency(idem))
+	tags.RegisterRoutes(mux, tags.NewHandler(tags.NewService(db), logger).UseIdempotency(idem))
+	users.RegisterRoutes(mux, users.NewHandler(users.NewService(db), logger).UseIdempotency(idem))
 	return nil
 }

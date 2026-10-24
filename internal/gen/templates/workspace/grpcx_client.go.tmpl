@@ -34,6 +34,21 @@ const (
 	DefaultMaxMessageBytes = 4 << 20
 )
 
+const (
+	IdempotencyKeyHeader = "idempotency-key"
+	ReplayedHeader       = "idempotent-replayed"
+)
+
+type idempotencyKey struct{}
+
+func WithIdempotencyKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, idempotencyKey{}, key)
+}
+
+func Replayed(header metadata.MD) bool {
+	return len(header.Get(ReplayedHeader)) > 0
+}
+
 type tokenKey struct{}
 
 func WithToken(ctx context.Context, token string) context.Context {
@@ -272,6 +287,9 @@ func outgoing(ctx context.Context) context.Context {
 	}
 	if id := httpx.RequestIDFrom(ctx); id != "" {
 		pairs = append(pairs, RequestIDHeader, id)
+	}
+	if key, _ := ctx.Value(idempotencyKey{}).(string); key != "" {
+		pairs = append(pairs, IdempotencyKeyHeader, key)
 	}
 	if sc, ok := telemetry.SpanContextFrom(ctx); ok {
 		pairs = append(pairs, telemetry.TraceparentHeader, sc.Traceparent())

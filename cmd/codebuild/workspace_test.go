@@ -238,6 +238,7 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 		t.Fatalf("cursor pagination through the gateway saw %d categories", len(ids))
 	}
 	admin.expect(http.MethodPost, "/stocks", map[string]any{"productId": productID, "quantity": 10}, http.StatusCreated)
+	idempotencyCheck(t, admin, "/categories", map[string]any{"name": "Idempotent"}, map[string]any{"name": "Other"})
 	missing := admin.expect(http.MethodPost, "/stocks", map[string]any{"productId": 999999, "quantity": 1}, http.StatusUnprocessableEntity)
 	if got := strings.Join(fieldErrors(missing), ","); got != "productId" {
 		t.Fatalf("stock with a missing product = %v", missing)

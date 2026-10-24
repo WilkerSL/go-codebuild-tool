@@ -183,6 +183,7 @@ func moduleProject(opts WorkspaceOptions, wv *workspaceView, module string) (*pr
 		CI:               newCIView(opts.Dialect.Name()),
 		Workspace:        wv,
 		MigrationsImport: module + "/migrations",
+		Idempotency:      idempotencyQueries(opts.Dialect),
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {
@@ -256,6 +257,7 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 	g.goFile("internal/platform/httpx/json_gen.go", "platform/json.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/request_gen.go", "platform/request.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/middleware_gen.go", "platform/middleware.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/idempotency_gen.go", "platform/idempotency_http.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/health_gen.go", "platform/health.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/probe_gen.go", "workspace/httpx_probe.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
@@ -265,6 +267,10 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 	g.goFile("internal/platform/database/migrate_gen.go", "platform/migrate.go.tmpl", pv)
 	g.goFile("internal/platform/database/migrate_gen_test.go", "platform/migrate_test.go.tmpl", pv)
 	g.goFile("internal/platform/database/tx_gen.go", "platform/tx.go.tmpl", pv)
+	g.goFile("internal/platform/database/idempotency_gen.go", "platform/idempotency.go.tmpl", pv)
+	if pv.HasMigrations {
+		g.goFile("internal/platform/database/idempotency_gen_test.go", "platform/idempotency_test.go.tmpl", pv)
+	}
 	g.goFile("internal/platform/database/trace_gen.go", "platform/trace.go.tmpl", pv)
 	g.goFile("internal/platform/database/trace_gen_test.go", "platform/trace_test.go.tmpl", pv)
 	g.goFile("internal/platform/database/connect_gen.go", opts.Dialect.Name()+".connect", pv)

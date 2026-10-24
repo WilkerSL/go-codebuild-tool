@@ -8,7 +8,7 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler) {
 	mux.HandleFunc("GET /users", h.list)
-	mux.HandleFunc("POST /users", h.create)
+	mux.HandleFunc("POST /users", h.idempotent(h.create))
 	mux.HandleFunc("GET /users/{id}", h.get)
 	mux.HandleFunc("PUT /users/{id}", h.update)
 	mux.HandleFunc("DELETE /users/{id}", h.delete)

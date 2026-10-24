@@ -5,6 +5,17 @@ CREATE TABLE "auth_rate_limits" (
     CONSTRAINT "pk_auth_rate_limits" PRIMARY KEY ("key_hash")
 );
 
+CREATE TABLE "idempotency_keys" (
+    "key_hash" TEXT NOT NULL,
+    "request_hash" TEXT NOT NULL,
+    "status" INTEGER NOT NULL,
+    "location" TEXT,
+    "body" BLOB,
+    "created_at" DATETIME NOT NULL,
+    "expires_at" DATETIME NOT NULL,
+    CONSTRAINT "pk_idempotency_keys" PRIMARY KEY ("key_hash")
+);
+
 CREATE TABLE "labels" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "name" TEXT NOT NULL
@@ -77,6 +88,8 @@ CREATE TABLE "note_labels" (
 );
 
 CREATE INDEX "ix_auth_rate_limits_reset_at" ON "auth_rate_limits" ("reset_at");
+
+CREATE INDEX "ix_idempotency_keys_expires_at" ON "idempotency_keys" ("expires_at");
 
 CREATE UNIQUE INDEX "ux_labels_name" ON "labels" ("name");
 

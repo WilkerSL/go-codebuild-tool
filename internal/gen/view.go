@@ -43,6 +43,7 @@ type projectView struct {
 	MigrationsImport string
 	Gateway          bool
 	Edge             *edgeView
+	Idempotency      []queryConst
 }
 
 type dialectView struct {
@@ -774,4 +775,20 @@ func newFieldView(f *schema.Field, dv dialectView) *fieldView {
 	v.ValidValue = validValue(f, "", f.Unique || f.PK)
 	v.FailingCases = failingCases(f)
 	return v
+}
+
+func idempotencyQueries(d dialect.Dialect) []queryConst {
+	q := dialect.BuildIdempotencyQueries(d)
+	var out []queryConst
+	for _, c := range []struct{ name, sql string }{
+		{"claimIdempotencyQuery", q.Claim},
+		{"lookupIdempotencyQuery", q.Lookup},
+		{"retakeIdempotencyQuery", q.Retake},
+		{"completeIdempotencyQuery", q.Complete},
+		{"releaseIdempotencyQuery", q.Release},
+		{"purgeIdempotencyQuery", q.Purge},
+	} {
+		out = append(out, queryConst{Name: c.name, SQL: c.sql, Literal: goStringLiteral(c.sql)})
+	}
+	return out
 }

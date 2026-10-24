@@ -14,6 +14,7 @@ import (
 
 	"example.com/shop/services/billing/internal/invoiceitems"
 	"example.com/shop/services/billing/internal/invoices"
+	"example.com/shop/services/billing/internal/platform/database"
 	"example.com/shop/services/billing/internal/platform/grpcx"
 )
 
@@ -57,7 +58,8 @@ func (p *Peers) Close() error {
 }
 
 func Register(server *grpc.Server, db *sql.DB, peers *Peers, logger *slog.Logger) error {
-	billingv1.RegisterInvoiceServiceServer(server, invoices.NewGRPCServer(invoices.NewService(db), logger))
-	billingv1.RegisterInvoiceItemServiceServer(server, invoiceitems.NewGRPCServer(invoiceitems.NewService(db), logger, catalogv1.NewProductServiceClient(peers.Catalog)))
+	idem := database.NewIdempotency(db)
+	billingv1.RegisterInvoiceServiceServer(server, invoices.NewGRPCServer(invoices.NewService(db), logger).UseIdempotency(idem))
+	billingv1.RegisterInvoiceItemServiceServer(server, invoiceitems.NewGRPCServer(invoiceitems.NewService(db), logger, catalogv1.NewProductServiceClient(peers.Catalog)).UseIdempotency(idem))
 	return nil
 }

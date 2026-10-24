@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"example.com/shop/services/billing/internal/platform/database"
 	"example.com/shop/services/billing/internal/platform/grpcx"
 	"example.com/shop/services/billing/internal/platform/validation"
 )
@@ -21,11 +22,17 @@ type GRPCServer struct {
 	billingv1.UnimplementedInvoiceItemServiceServer
 	svc           *Service
 	logger        *slog.Logger
+	idem          *database.Idempotency
 	productClient catalogv1.ProductServiceClient
 }
 
 func NewGRPCServer(svc *Service, logger *slog.Logger, productClient catalogv1.ProductServiceClient) *GRPCServer {
 	return &GRPCServer{svc: svc, logger: logger, productClient: productClient}
+}
+
+func (s *GRPCServer) UseIdempotency(store *database.Idempotency) *GRPCServer {
+	s.idem = store
+	return s
 }
 
 func (s *GRPCServer) fail(ctx context.Context, err error) error {
@@ -126,20 +133,22 @@ func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceItemCreat
 	if _, err := grpcx.Authorize(ctx); err != nil {
 		return nil, err
 	}
-	in, err := createInputFrom(req)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	if res, err := s.productClient.Exists(ctx, &catalogv1.ProductExistsRequest{Id: in.ProductID}); err != nil {
-		return nil, grpcx.Peer(ctx, s.logger, err)
-	} else if !res.GetExists() {
-		return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
-	}
-	item, err := s.svc.Create(ctx, in)
-	if err != nil {
-		return nil, s.fail(ctx, err)
-	}
-	return toMessage(item), nil
+	return grpcx.Idempotent(ctx, s.idem, s.logger, billingv1.InvoiceItemService_Create_FullMethodName, req, func() (*billingv1.InvoiceItem, error) {
+		in, err := createInputFrom(req)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		if res, err := s.productClient.Exists(ctx, &catalogv1.ProductExistsRequest{Id: in.ProductID}); err != nil {
+			return nil, grpcx.Peer(ctx, s.logger, err)
+		} else if !res.GetExists() {
+			return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
+		}
+		item, err := s.svc.Create(ctx, in)
+		if err != nil {
+			return nil, s.fail(ctx, err)
+		}
+		return toMessage(item), nil
+	})
 }
 
 func updateInputFrom(req *billingv1.InvoiceItemUpdateRequest) (UpdateInput, error) {

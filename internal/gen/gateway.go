@@ -254,6 +254,7 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	g.goFile("internal/platform/httpx/json_gen.go", "platform/json.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/request_gen.go", "platform/request.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/middleware_gen.go", "platform/middleware.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/idempotency_gen.go", "platform/idempotency_http.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/health_gen.go", "platform/health.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/probe_gen.go", "workspace/httpx_probe.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
