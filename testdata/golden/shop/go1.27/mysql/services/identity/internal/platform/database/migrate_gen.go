@@ -8,10 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
+
+var MigrationLockTimeout = migrationLockTimeout(os.Getenv("MIGRATE_LOCK_TIMEOUT"))
+
+func migrationLockTimeout(v string) time.Duration {
+	if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+		return d
+	}
+	return 10 * time.Second
+}
 
 type Migration struct {
 	Version uint64
@@ -356,12 +368,18 @@ func lockMigrations(ctx context.Context, conn *sql.Conn) error {
 	if !acquired.Valid || acquired.Int64 != 1 {
 		return errors.New("GET_LOCK timed out")
 	}
-	return nil
+	if MigrationLockTimeout <= 0 {
+		return nil
+	}
+	seconds := max(1, int64(math.Ceil(MigrationLockTimeout.Seconds())))
+	_, err := conn.ExecContext(ctx, fmt.Sprintf("SET SESSION lock_wait_timeout = %d", seconds))
+	return err
 }
 
 func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
+	_, resetErr := conn.ExecContext(ctx, "SET SESSION lock_wait_timeout = DEFAULT")
 	_, err := conn.ExecContext(ctx, "SELECT RELEASE_LOCK('codebuild_migrations')")
-	return err
+	return errors.Join(resetErr, err)
 }
 
 func applyMigration(ctx context.Context, conn *sql.Conn, from, to uint64, script string, history historyChange) error {

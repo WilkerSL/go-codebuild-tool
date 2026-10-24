@@ -8,10 +8,21 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
+
+var MigrationLockTimeout = migrationLockTimeout(os.Getenv("MIGRATE_LOCK_TIMEOUT"))
+
+func migrationLockTimeout(v string) time.Duration {
+	if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+		return d
+	}
+	return 10 * time.Second
+}
 
 type Migration struct {
 	Version uint64

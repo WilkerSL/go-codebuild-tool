@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file. The format foll
 
 - Generated CI workflows check dependencies for known vulnerabilities with `govulncheck`.
 
+- `MIGRATE_LOCK_TIMEOUT` (10 seconds by default, `0` waits forever) bounds how long a migration waits for a table lock on PostgreSQL, MySQL and SQL Server, so a migration that meets a long transaction fails and can be retried instead of queueing every query on that table behind it.
+
 ### Changed
 
 - The circuit breaker of a workspace client counts one outcome per call, after its retries, so one failing replica no longer stops the calls to the whole backend; it ignores calls that start with less than a tenth of `GRPC_CALL_TIMEOUT` left, whose deadline is the caller's, and only its probe can close it again. Only the generated reads are retried, from an explicit list, instead of every method whose name starts with `Get` or `List`.

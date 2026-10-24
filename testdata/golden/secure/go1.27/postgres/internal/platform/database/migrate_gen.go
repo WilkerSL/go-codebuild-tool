@@ -8,10 +8,21 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
+
+var MigrationLockTimeout = migrationLockTimeout(os.Getenv("MIGRATE_LOCK_TIMEOUT"))
+
+func migrationLockTimeout(v string) time.Duration {
+	if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+		return d
+	}
+	return 10 * time.Second
+}
 
 type Migration struct {
 	Version uint64
@@ -371,13 +382,17 @@ func ensureMigrationTable(ctx context.Context, conn *sql.Conn) error {
 }
 
 func lockMigrations(ctx context.Context, conn *sql.Conn) error {
-	_, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", migrationLockID)
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
+		return err
+	}
+	_, err := conn.ExecContext(ctx, fmt.Sprintf("SET lock_timeout = %d", MigrationLockTimeout.Milliseconds()))
 	return err
 }
 
 func unlockMigrations(ctx context.Context, conn *sql.Conn) error {
+	_, resetErr := conn.ExecContext(ctx, "RESET lock_timeout")
 	_, err := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID)
-	return err
+	return errors.Join(resetErr, err)
 }
 
 func applyMigration(ctx context.Context, conn *sql.Conn, _, to uint64, script string, history historyChange) error {
