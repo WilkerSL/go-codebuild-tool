@@ -15,6 +15,10 @@ Set `METRICS_ADDR` (for example `:9090`) and the process serves `GET /metrics` i
 | `http_server_requests_in_flight` | gauge | | API and gateway |
 | `grpc_server_handled_total` | counter | `method`, `code` | services |
 | `grpc_server_handling_seconds` | histogram | `method` | services |
+| `grpc_client_retries_total`, `grpc_client_circuit_rejected_total` | counter | `target` | gateway and services |
+| `grpc_client_circuit_open` | gauge | `target` | gateway and services |
+| `tls_certificate_expiry_timestamp_seconds` | gauge | | gateway and services |
+| `tls_reload_errors_total` | counter | | gateway and services |
 | `db_client_connections_open`, `_in_use`, `_idle`, `_max` | gauge | | processes with a database |
 | `db_client_connection_waits_total`, `db_client_connection_wait_seconds_total` | counter | | processes with a database |
 | `go_goroutines`, `go_heap_objects_bytes`, `go_gc_cycles_total`, `process_start_time_seconds` | | | every process |

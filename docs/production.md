@@ -39,7 +39,7 @@ DATABASE_URL=... /app/migrate up        # in the image
 DATABASE_URL=... go run ./cmd/migrate up
 ```
 
-The migrator takes a database lock on PostgreSQL, MySQL and SQL Server, so two runs never apply the same migration twice (with SQLite, run one at a time), and refuses migrations older than the applied version that never ran. Generated migrations only add or drop what the specs changed; read every new migration before deploying it, because codebuild warns about destructive changes and possible renames but cannot know your data. Prefer changes that keep the previous version of the code working (add a column, deploy, backfill, then make it required), so a rollout can be rolled back.
+The migrator takes a database lock on PostgreSQL, MySQL and SQL Server, so two runs never apply the same migration twice (with SQLite, run one at a time), and refuses migrations older than the applied version that never ran. While it runs, a statement waits at most `MIGRATE_LOCK_TIMEOUT` (10 seconds) for a table lock and then fails, instead of queueing every query on that table behind a long transaction; run the migration again later, or raise the timeout (`0` waits forever). The timeout bounds the wait, not the work: an index built on a large table still locks it while it is built, so schedule those migrations, or build the index concurrently yourself in a migration of your own. Generated migrations only add or drop what the specs changed; read every new migration before deploying it, because codebuild warns about destructive changes and possible renames but cannot know your data. Prefer changes that keep the previous version of the code working (add a column, deploy, backfill, then make it required), so a rollout can be rolled back.
 
 ### Backups
 
@@ -53,7 +53,7 @@ codebuild does not back up anything. Use the tools of your database: point-in-ti
 | `DB_MAX_IDLE_CONNS` | `25` | Equal to the open limit avoids reconnecting under steady load. |
 | `DB_CONN_MAX_LIFETIME` | `30m` | Shorter than the idle timeout of any proxy (PgBouncer, RDS Proxy) between the API and the database. |
 
-`db_client_connection_waits_total` growing means requests queue for a connection: raise the pool if the database has headroom, otherwise add database capacity.
+Count every process that connects to the same database: in a workspace the services sharing a database add up, so the Kubernetes manifests give each service replica a pool of 10. `db_client_connection_waits_total` growing means requests queue for a connection: raise the pool if the database has headroom, otherwise add database capacity.
 
 ## Timeouts and shutdown
 
@@ -63,6 +63,7 @@ codebuild does not back up anything. Use the tools of your database: point-in-ti
 | `HTTP_READ_TIMEOUT` | `15s` | Time to read the whole request. |
 | `HTTP_WRITE_TIMEOUT` | `15s` | Time to write the response. |
 | `HTTP_IDLE_TIMEOUT` | `60s` | Keep-alive connections. |
+| `HTTP_REQUEST_TIMEOUT` | `12s` | Workspace gateway: time budget of a request and every backend call it makes; shorter than `HTTP_WRITE_TIMEOUT`. |
 | `SHUTDOWN_DELAY` | `0s` | Keep serving after `/readyz` turns 503 on SIGTERM, so load balancers stop sending traffic first; the Kubernetes manifests use `5s`. |
 | `SHUTDOWN_TIMEOUT` | `20s` | Time for in-flight requests to finish. |
 | `GRPC_CALL_TIMEOUT` | `10s` | Deadline of calls between modules of a workspace. |
@@ -88,6 +89,8 @@ Set `METRICS_ADDR` and scrape `/metrics` with Prometheus, and set `OTEL_EXPORTER
 | Database pool exhausted | `rate(db_client_connection_waits_total[5m]) > 0` |
 | Login abuse | `sum(rate(http_server_requests_total{route="/auth/login",status="429"}[5m])) > 1` |
 | Backend unavailable (workspace) | `max by (target) (grpc_client_circuit_open) == 1` |
+| Certificate expires within 14 days (workspace) | `min(tls_certificate_expiry_timestamp_seconds) - time() < 14 * 86400` |
+| Certificate files stopped loading (workspace) | `increase(tls_reload_errors_total[10m]) > 0` |
 | Instance down | `up == 0` |
 | Traces lost | `rate(telemetry_spans_dropped_total[5m]) > 0` |
 
@@ -95,14 +98,19 @@ Set `METRICS_ADDR` and scrape `/metrics` with Prometheus, and set `OTEL_EXPORTER
 
 The generated limiter covers login, registration and password changes only. Behind more than one replica set `AUTH_LIMIT_STORE=database`, so the replicas share the counters (the Kubernetes manifests do). Limit everything else, and absorb floods, at the proxy or the load balancer. See [authentication.md](authentication.md#rate-limiting).
 
+## Retries and idempotency
+
+Networks lose answers. A client that repeats a create after a timeout or a dropped connection should send an `Idempotency-Key` header, such as a UUID per logical request: the API keeps the successful answer for 24 hours in the `idempotency_keys` table and returns it to a repeat with `Idempotent-Replayed: true`, instead of creating a second row. The same key with another body answers 422, and a repeat while the first request runs answers 409. `PUT` is idempotent by itself and a repeated `DELETE` answers 404. Expired keys are deleted in the background, in batches.
+
 ## Kubernetes
 
 `deploy/kubernetes/base` is a generated kustomize base; `deploy/kubernetes/overlays/production` is yours. The base contains, for the API or for every service and the gateway:
 
-- a Deployment with two replicas (one with SQLite), a rolling update that never drops below the desired count, startup, liveness (`/livez`) and readiness (`/readyz`) probes, CPU and memory requests and a memory limit, and a container that runs as the distroless `nonroot` user with a read-only root file system, no privilege escalation, no capabilities, the `RuntimeDefault` seccomp profile and no service account token;
+- a Deployment with two replicas (one with SQLite), a rolling update that never drops below the desired count, startup, liveness (`/livez`) and readiness (`/readyz`) probes, CPU and memory requests and a memory limit, `GOMEMLIMIT` set below that limit so the garbage collector works harder before the container is killed, soft spreading of the replicas over nodes and zones, a termination grace period that covers `SHUTDOWN_DELAY` and `SHUTDOWN_TIMEOUT`, and a container that runs as the distroless `nonroot` user with a read-only root file system, no privilege escalation, no capabilities, the `RuntimeDefault` seccomp profile and no service account token;
 - a Service and a PodDisruptionBudget;
 - a ConfigMap generated by kustomize, so changing it rolls the pods;
 - a migration Job per database, labelled `app.kubernetes.io/component=migration`.
+- in a workspace, headless Services for the services, so gRPC clients balance over every ready replica, and a NetworkPolicy that admits only the pods of the workspace to their gRPC ports (it needs a network plugin that enforces policies; the health and metrics ports stay open to probes and Prometheus).
 
 The manifests reference Secrets by name and never contain a value. Create them first (`<project>` is the last element of the module path):
 
@@ -122,7 +130,7 @@ kubectl wait --for=condition=complete job -l app.kubernetes.io/component=migrati
 kubectl apply -k deploy/kubernetes/overlays/production
 ```
 
-Jobs cannot be updated in place, hence the delete; finished Jobs are also removed an hour after they complete. In the overlay, set the image names and tags, the namespace, replicas and any patch (resources, node selectors, an Ingress, a HorizontalPodAutoscaler). The workspace manifests of the `shop` example are deployed to a kind cluster by the `Kubernetes` workflow of this repository, which also rotates every certificate without restarting the gateway.
+Jobs cannot be updated in place, hence the delete; finished Jobs are also removed an hour after they complete. In the overlay, set the image names and tags (a version or digest, not `latest`), the namespace, replicas and any patch: resources (change `GOMEMLIMIT` with the memory limit, about 90% of it), node selectors, an Ingress, a HorizontalPodAutoscaler (then drop `replicas` from the patch). Tools that apply manifests on their own, such as Argo CD or Flux, must run the migration Jobs first too: give them a sync hook or wave in the overlay. The workspace manifests of the `shop` example are deployed to a kind cluster by the `Kubernetes` workflow of this repository, which also rotates every certificate without restarting the gateway.
 
 ## Load test results
 
@@ -171,9 +179,10 @@ What the numbers say:
 
 ## Remaining limits
 
-- The security review was internal, not an independent audit, and no generated project is known to run in production yet.
+- The security reviews were internal, not an independent audit, and no generated project is known to run in production yet.
 - The rate limiter only covers the authentication endpoints.
-- Offset pagination counts every matching row; use `?cursor=` for large tables and deep pages.
+- Offset pagination counts every matching row, and a list without `?cursor=` is an offset list, so its first page pays for the count too; the load test shows it slowing down past 100,000 rows. Use `?cursor=` for large tables and deep pages.
+- Idempotency keys cover creates; other writes are idempotent by nature or answer an error when repeated.
 - `jwt` access tokens stay valid until they expire on routes without roles unless `AUTH_JWT_CONFIRM=true`.
 - SQLite runs one replica; use PostgreSQL, MySQL or SQL Server for more.
 - codebuild does not provide backups, a web application firewall, secret management or an Ingress; bring your own.
