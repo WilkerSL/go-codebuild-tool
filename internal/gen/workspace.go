@@ -278,6 +278,7 @@ func generateService(opts WorkspaceOptions, wv *workspaceView, sv *serviceView) 
 	g.goFile("internal/platform/grpcx/client_gen.go", "workspace/grpcx_client.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/client_gen_test.go", "workspace/grpcx_client_test.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/server_gen.go", "workspace/grpcx_server.go.tmpl", pv)
+	g.goFile("internal/platform/grpcx/server_gen_test.go", "workspace/grpcx_server_test.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/status_gen.go", "workspace/grpcx_status.go.tmpl", pv)
 	g.goFile("internal/platform/auth/internal_gen.go", "workspace/auth_internal.go.tmpl", pv)
 	if pv.Auth != nil {

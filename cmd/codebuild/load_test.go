@@ -19,9 +19,10 @@ import (
 	"time"
 )
 
-// TestLoad measures a generated monolith on PostgreSQL: throughput, latency
-// percentiles and errors of the common requests, after seeding enough rows
-// that list queries cannot hide behind a small table. It only runs with
+// TestLoad measures generated monoliths on PostgreSQL, and the shop workspace
+// when CODEBUILD_TEST_POSTGRES_WORKSPACE_DSNS names its databases: throughput,
+// latency percentiles and errors of the common requests, after seeding enough
+// rows that list queries cannot hide behind a small table. It only runs with
 // CODEBUILD_E2E_LOAD=1 and CODEBUILD_TEST_POSTGRES_DSN; CODEBUILD_E2E_LOAD_OUT
 // receives the results as a Markdown table.
 func TestLoad(t *testing.T) {
@@ -41,6 +42,9 @@ func TestLoad(t *testing.T) {
 	var results []loadResult
 	t.Run("saas", func(t *testing.T) { results = append(results, loadSaaS(t, bin, dsn, cfg)...) })
 	t.Run("secure-jwt", func(t *testing.T) { results = append(results, loadAuth(t, bin, dsn, cfg)...) })
+	if dbs := workspaceDatabases(t, "", "postgres"); dbs != nil {
+		t.Run("workspace", func(t *testing.T) { results = append(results, loadWorkspace(t, bin, dbs, cfg)...) })
+	}
 	report := loadReport(cfg, results)
 	t.Log("\n" + report)
 	if out := os.Getenv("CODEBUILD_E2E_LOAD_OUT"); out != "" {
@@ -343,5 +347,63 @@ func loadAuth(t *testing.T, bin, dsn string, cfg loadConfig) []loadResult {
 	results = append(results, measure("list own notes (JWT)", cfg, 0, func(w, _ int) error {
 		return c.do("GET", "/notes?limit=20", current[w].AccessToken, nil, http.StatusOK, nil)
 	}))
+	return results
+}
+
+// loadWorkspace measures the shop workspace through its gateway: every
+// request crosses the gateway, mutual TLS and gRPC, and authenticated ones
+// also ask the identity service, so the numbers show what the hops cost next
+// to the monolith.
+func loadWorkspace(t *testing.T, bin string, dbs map[string]string, cfg loadConfig) []loadResult {
+	dir := t.TempDir()
+	copyDir(t, filepath.Join(repoRoot(t), "testdata", "specs", "shop"), filepath.Join(dir, "specs"))
+	command(t, dir, nil, bin, "build", "--starter", "--module", "example.com/shop", "--dialect", "postgres")
+	for _, m := range workspaceModules {
+		command(t, filepath.Join(dir, filepath.FromSlash(m)), nil, "go", "mod", "tidy")
+	}
+	w := buildShopWorkspace(t, dir, dbs)
+	for name := range shopServices {
+		w.startService(name, "LOG_LEVEL=error")
+	}
+	gateway, _ := w.startGateway("gateway", "LOG_LEVEL=error", "AUTH_LOGIN_LIMIT=0")
+	c := newLoadClient(gateway.base, cfg.concurrency)
+	email := fmt.Sprintf("load-%d@example.com", time.Now().UnixNano())
+	if err := c.do("POST", "/auth/register", "", map[string]any{"email": email, "name": "Load", "password": "load password 1"}, http.StatusCreated, nil); err != nil {
+		t.Fatal(err)
+	}
+	command(t, dir, []string{"DATABASE_URL=" + dbs["identity"]}, w.exe("accounts"), "set-role", email, "admin")
+	var tokens struct{ AccessToken string }
+	if err := c.do("POST", "/auth/login", "", map[string]any{"email": email, "password": "load password 1"}, http.StatusOK, &tokens); err != nil {
+		t.Fatal(err)
+	}
+	admin := tokens.AccessToken
+	rows := min(cfg.rows, 5000)
+	ids := make([]string, rows)
+	create := func(_, i int) error {
+		var category struct{ ID int64 }
+		err := c.do("POST", "/categories", admin, map[string]any{"name": fmt.Sprintf("Category %d-%d", i, time.Now().UnixNano())}, http.StatusCreated, &category)
+		if i < len(ids) {
+			ids[i] = strconv.FormatInt(category.ID, 10)
+		}
+		return err
+	}
+	results := []loadResult{measure("workspace: create category (seeding)", cfg, rows, create)}
+	results = append(results, measure("workspace: get category", cfg, 0, func(int, int) error {
+		return c.do("GET", "/categories/"+ids[rand.IntN(len(ids))], "", nil, http.StatusOK, nil)
+	}))
+	var page struct{ NextCursor *string }
+	if err := c.do("GET", "/categories?limit=20", "", nil, http.StatusOK, &page); err != nil || page.NextCursor == nil {
+		t.Fatalf("first page: %v", err)
+	}
+	results = append(results, measure("workspace: list categories, cursor", cfg, 0, func(int, int) error {
+		return c.do("GET", "/categories?limit=20&cursor="+*page.NextCursor, "", nil, http.StatusOK, nil)
+	}))
+	if err := c.do("POST", "/invoices", admin, map[string]any{"number": "LOAD-1"}, http.StatusCreated, nil); err != nil {
+		t.Fatal(err)
+	}
+	results = append(results, measure("workspace: list own invoices (session)", cfg, 0, func(int, int) error {
+		return c.do("GET", "/invoices?limit=20", admin, nil, http.StatusOK, nil)
+	}))
+	results = append(results, measure("workspace: create category", cfg, 0, func(w, i int) error { return create(w, rows+i) }))
 	return results
 }

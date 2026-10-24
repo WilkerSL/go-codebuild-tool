@@ -39,10 +39,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.x"
+      - name: Create the workspace databases
+        run: |
+          for db in shop_billing shop_identity shop_shared; do
+            docker exec ${{ job.services.postgres.id }} psql -U app -d app -c "CREATE DATABASE $db"
+          done
       - name: Run the load test
         env:
           CODEBUILD_E2E_LOAD: "1"
           CODEBUILD_TEST_POSTGRES_DSN: postgres://app:app@localhost:5432/app?sslmode=disable
+          CODEBUILD_TEST_POSTGRES_WORKSPACE_DSNS: "billing=postgres://app:app@localhost:5432/shop_billing?sslmode=disable;identity=postgres://app:app@localhost:5432/shop_identity?sslmode=disable;shared=postgres://app:app@localhost:5432/shop_shared?sslmode=disable"
           CODEBUILD_E2E_LOAD_DURATION: ${{ inputs.duration }}
           CODEBUILD_E2E_LOAD_CONCURRENCY: ${{ inputs.concurrency }}
           CODEBUILD_E2E_LOAD_ROWS: ${{ inputs.rows }}

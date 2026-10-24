@@ -94,14 +94,22 @@ jobs:
       CODEBUILD_TEST_POSTGRES_DSN: postgres://app:app@localhost:5432/app?sslmode=disable
       CODEBUILD_TEST_SQLSERVER_DSN: sqlserver://sa:Codebuild_Passw0rd@localhost:1433?database=codebuild&encrypt=disable
       CODEBUILD_TEST_MYSQL_DSN: app:app@tcp(localhost:3306)/app
+      CODEBUILD_TEST_POSTGRES_WORKSPACE_DSNS: "billing=postgres://app:app@localhost:5432/shop_billing?sslmode=disable;identity=postgres://app:app@localhost:5432/shop_identity?sslmode=disable;shared=postgres://app:app@localhost:5432/shop_shared?sslmode=disable"
+      CODEBUILD_TEST_MYSQL_WORKSPACE_DSNS: "billing=app:app@tcp(localhost:3306)/shop_billing;identity=app:app@tcp(localhost:3306)/shop_identity;shared=app:app@tcp(localhost:3306)/shop_shared"
+      CODEBUILD_TEST_SQLSERVER_WORKSPACE_DSNS: "billing=sqlserver://sa:Codebuild_Passw0rd@localhost:1433?database=shop_billing&encrypt=disable;identity=sqlserver://sa:Codebuild_Passw0rd@localhost:1433?database=shop_identity&encrypt=disable;shared=sqlserver://sa:Codebuild_Passw0rd@localhost:1433?database=shop_shared&encrypt=disable"
       CODEBUILD_E2E_DOCKER: ${{ matrix.go == '1.27.x' && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
-      - name: Create the SQL Server database
-        run: docker exec ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Codebuild_Passw0rd -C -Q "CREATE DATABASE codebuild"
+      - name: Create the databases
+        run: |
+          docker exec ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Codebuild_Passw0rd -C -Q "CREATE DATABASE codebuild; CREATE DATABASE shop_billing; CREATE DATABASE shop_identity; CREATE DATABASE shop_shared"
+          for db in shop_billing shop_identity shop_shared; do
+            docker exec ${{ job.services.postgres.id }} psql -U app -d app -c "CREATE DATABASE $db"
+          done
+          docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "CREATE DATABASE shop_billing; CREATE DATABASE shop_identity; CREATE DATABASE shop_shared; GRANT ALL ON shop_billing.* TO 'app'@'%'; GRANT ALL ON shop_identity.* TO 'app'@'%'; GRANT ALL ON shop_shared.* TO 'app'@'%';"
       - name: Generate, build, test and exercise every project and dialect against real databases
         run: go test -count=1 -timeout 60m -run TestEndToEnd -v ./cmd/codebuild
       - name: Generate, build, test and run a microservice workspace

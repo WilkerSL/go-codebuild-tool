@@ -1,0 +1,66 @@
+{{.Header}}
+
+package grpcx
+
+import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+
+	"{{.Module}}/internal/platform/auth"
+)
+
+func fromModule(name string) context.Context {
+	cert := &x509.Certificate{Subject: pkix.Name{CommonName: name}, DNSNames: []string{name}}
+	return peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}}})
+}
+
+func TestAdmitChecksTheCaller(t *testing.T) {
+	safeMethods["/test.v1.ThingService/Get"] = true
+	t.Cleanup(func() { delete(safeMethods, "/test.v1.ThingService/Get") })
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := auth.NewVerifier(public)
+	token, err := auth.SignInternal(private, auth.InternalClaims{IssuedAt: 1, ExpiresAt: 1 << 40})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := TLSConfig{Gateway: "gateway"}
+	withToken := func(ctx context.Context) context.Context {
+		return metadata.NewIncomingContext(ctx, metadata.Pairs(TokenHeader, token))
+	}
+	cases := []struct {
+		name   string
+		ctx    context.Context
+		method string
+		cfg    TLSConfig
+		code   codes.Code
+	}{
+		{name: "gateway write", ctx: withToken(fromModule("gateway")), method: "/test.v1.ThingService/Create", cfg: cfg, code: codes.OK},
+		{name: "peer write", ctx: withToken(fromModule("billing")), method: "/test.v1.ThingService/Create", cfg: cfg, code: codes.PermissionDenied},
+		{name: "peer read", ctx: withToken(fromModule("billing")), method: "/test.v1.ThingService/Get", cfg: cfg, code: codes.OK},
+		{name: "trusted peer write", ctx: withToken(fromModule("billing")), method: "/test.v1.ThingService/Create", cfg: TLSConfig{Gateway: "gateway", TrustedCallers: []string{"billing"}}, code: codes.OK},
+		{name: "no token", ctx: fromModule("gateway"), method: "/test.v1.ThingService/Create", cfg: cfg, code: codes.Unauthenticated},
+		{name: "health", ctx: fromModule("anyone"), method: healthPrefix + "Check", cfg: cfg, code: codes.OK},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := admit(c.ctx, c.method, verifier, c.cfg)
+			if got := status.Code(err); got != c.code {
+				t.Fatalf("admit = %v (%v), want %v", got, err, c.code)
+			}
+		})
+	}
+}

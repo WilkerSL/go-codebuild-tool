@@ -227,6 +227,18 @@ func waitReady(t *testing.T, base string, logs func() string) {
 	}
 }
 
+// waitFor polls ok for up to 30 seconds.
+func waitFor(t *testing.T, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			t.Fatal("the condition did not hold within 30 seconds")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func startAPI(t *testing.T, dir string, env []string) (client, func()) {
 	t.Helper()
 	api := filepath.Join(dir, "api")
