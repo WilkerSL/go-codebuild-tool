@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
 ### Added
 
 - `PATCH /<table>/{id}` changes some members of a resource with a JSON merge patch (RFC 7396), sent as `application/merge-patch+json` or `application/json`: members that are present replace the stored values, `null` clears a pointer member, and absent members keep their values. It goes through the same validation, ownership, roles and service `Update` as `PUT`. In workspaces the gateway forwards it to a new `Patch` RPC, which carries the update message and the names of the members to change. CORS now allows `PATCH`, and the OpenAPI description documents it.
@@ -190,7 +192,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.7.0
 [0.6.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.6.0
 [0.5.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.5.0
 [0.4.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.4.0
