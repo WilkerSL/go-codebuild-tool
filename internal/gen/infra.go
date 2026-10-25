@@ -240,6 +240,7 @@ func generateInfra(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	}
 	if opts.Parts.CI {
 		g.userFile(".github/workflows/workspace.yml", "workspace/workspace_ci.yml.tmpl", pv)
+		g.userFile(".github/dependabot.yml", "project/dependabot.yml.tmpl", pv)
 	}
 	for _, m := range moduleViews(pv, opts, wv) {
 		if opts.Parts.CI {

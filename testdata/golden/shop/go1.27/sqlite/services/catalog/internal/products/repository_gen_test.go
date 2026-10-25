@@ -68,7 +68,20 @@ func fixtureCategory(t *testing.T, ctx context.Context, db *sql.DB) categories.C
 	if err != nil {
 		t.Fatalf("create Category: %v", err)
 	}
+	purgeCategory(t, db, item.ID)
 	return item
+}
+
+const purgeCategoryQuery = `
+DELETE FROM "categories" WHERE "id" = ?`
+
+func purgeCategory(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeCategoryQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureProductInput(t *testing.T, ctx context.Context, db *sql.DB) products.CreateInput {
@@ -85,7 +98,20 @@ func fixtureProduct(t *testing.T, ctx context.Context, db *sql.DB) products.Prod
 	if err != nil {
 		t.Fatalf("create Product: %v", err)
 	}
+	purgeProduct(t, db, item.ID)
 	return item
+}
+
+const purgeProductQuery = `
+DELETE FROM "products" WHERE "id" = ?`
+
+func purgeProduct(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeProductQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -228,6 +254,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeProduct(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
@@ -244,6 +271,7 @@ func TestRepositoryListCategoryProducts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeProduct(t, db, created.ID)
 	page, err := repo.ListCategoryProducts(ctx, *created.CategoryID, products.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)

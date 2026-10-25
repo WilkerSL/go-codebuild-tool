@@ -30,6 +30,11 @@ func TestIdempotency(t *testing.T) {
 	now := time.Now()
 	store.now = func() time.Time { return now }
 	key := IdempotencyKey("user-1", "POST /things", t.Name()+time.Now().String())
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), forgetIdempotencyQuery, key); err != nil {
+			t.Errorf("clean up: %v", err)
+		}
+	})
 	request := Fingerprint([]byte(`{"name":"a"}`))
 	if answer, err := store.Begin(ctx, key, request); answer != nil || err != nil {
 		t.Fatalf("first begin = %v %v", answer, err)
@@ -74,3 +79,5 @@ func TestIdempotency(t *testing.T) {
 		t.Fatalf("begin after purge = %v %v", answer, err)
 	}
 }
+
+const forgetIdempotencyQuery = "DELETE FROM `idempotency_keys` WHERE `key_hash` = ?"

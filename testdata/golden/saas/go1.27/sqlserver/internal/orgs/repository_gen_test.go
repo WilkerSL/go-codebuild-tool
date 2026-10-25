@@ -70,7 +70,20 @@ func fixtureOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
 	if err != nil {
 		t.Fatalf("create Org: %v", err)
 	}
+	purgeOrg(t, db, item.ID)
 	return item
+}
+
+const purgeOrgQuery = `
+DELETE FROM [orgs] WHERE [id] = @p1`
+
+func purgeOrg(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeOrgQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -217,6 +230,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeOrg(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

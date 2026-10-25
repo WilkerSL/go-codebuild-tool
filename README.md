@@ -146,6 +146,10 @@ Exit codes: `0` success, `1` error, `2` usage, `3` invalid spec, `4` unsupported
 
 `postgres` (default), `sqlserver`, `mysql` and `sqlite`. The repositories use plain `database/sql` with SQL written for the selected database: placeholders, `RETURNING` or `OUTPUT INSERTED`, pagination syntax, column types, timestamps, identifier quoting and constraint error detection all differ per dialect. The choice is stored in `codebuild.json`. See [docs/dialects.md](docs/dialects.md).
 
+## Stability
+
+codebuild follows [Semantic Versioning](https://semver.org/). Before 1.0 a minor release may change what the generated code expects from yours, such as the parameters of a service method; the [CHANGELOG](CHANGELOG.md) lists every such change with what to do, and `codebuild plan` warns about each file that needs it. Pin the version per project with `go get -tool github.com/WilkerSL/go-codebuild-tool/cmd/codebuild@vX.Y.Z`, read the CHANGELOG before raising it, and run `codebuild plan --diff` before `codebuild build`. Fixes ship in the latest minor release only.
+
 ## Go versions
 
 | Target `go` directive | JSON | UUID |

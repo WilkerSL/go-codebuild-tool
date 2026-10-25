@@ -70,7 +70,20 @@ func fixtureStock(t *testing.T, ctx context.Context, db *sql.DB) stocks.Stock {
 	if err != nil {
 		t.Fatalf("create Stock: %v", err)
 	}
+	purgeStock(t, db, item.ID)
 	return item
+}
+
+const purgeStockQuery = `
+DELETE FROM "stocks" WHERE "id" = ?`
+
+func purgeStock(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeStockQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 type productRow struct {
@@ -94,7 +107,20 @@ func fixtureProductRow(t *testing.T, ctx context.Context, db *sql.DB) productRow
 	if err := db.QueryRowContext(ctx, fixtureProductRowQuery, "a", 0).Scan(&row.ID); err != nil {
 		t.Fatalf("insert into products: %v", err)
 	}
+	purgeProductRow(t, db, row.ID)
 	return row
+}
+
+const purgeProductRowQuery = `
+DELETE FROM "products" WHERE "id" = ?`
+
+func purgeProductRow(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeProductRowQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -235,6 +261,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeStock(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

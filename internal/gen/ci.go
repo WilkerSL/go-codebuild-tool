@@ -2,10 +2,20 @@ package gen
 
 import "strings"
 
+// Generated workflows pin their actions to a commit, with the release in a
+// comment, so a moved tag cannot change what runs; the generated Dependabot
+// configuration proposes the updates.
+const (
+	checkoutAction = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+	setupGoAction  = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
+)
+
 type ciView struct {
 	Services        string
 	TestDatabaseURL string
 	Setup           string
+	Checkout        string
+	SetupGo         string
 }
 
 func indentLines(text, prefix string) string {
@@ -19,6 +29,12 @@ func indentLines(text, prefix string) string {
 }
 
 func newCIView(dialectName string) ciView {
+	v := ciServices(dialectName)
+	v.Checkout, v.SetupGo = checkoutAction, setupGoAction
+	return v
+}
+
+func ciServices(dialectName string) ciView {
 	switch dialectName {
 	case "postgres":
 		return ciView{

@@ -83,8 +83,11 @@ func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, o
 	if err != nil {
 		t.Fatalf("create {{.Entity.Name}}: %v", err)
 	}
+	{{.Purge.Func}}(t, db, item.{{.Entity.PK.Name}})
 	return item
 }
+
+{{template "purge" .Purge}}
 {{- end}}
 
 {{- range .RowFixtures}}
@@ -121,8 +124,11 @@ func {{.Func}}(t *testing.T, ctx context.Context, db *sql.DB{{if .OwnerType}}, o
 		t.Fatalf("insert into {{.Table}}: %v", err)
 	}
 {{- end}}
+	{{.Purge.Func}}(t, db, row.{{.PKName}})
 	return row
 }
+
+{{template "purge" .Purge}}
 {{- end}}
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -297,6 +303,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	{{.OwnPurge}}(t, db, committed.{{.PK.Name}})
 	if _, err := repo.Get(ctx, {{.TestOwnerArg}}committed.{{.PK.Name}}); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
@@ -362,6 +369,7 @@ func TestRepository{{.Method}}(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	{{$.OwnPurge}}(t, db, created.{{$.PK.Name}})
 	page, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{if .FK.F.Nullable}}*{{end}}created.{{.FK.Name}}, {{$.Package}}.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -423,5 +431,17 @@ func TestRepository{{.Method}}(t *testing.T) {
 	if _, err := repo.{{.Method}}(ctx, {{.TestOwnerArg}}{{.MissingSourceID}}, {{$.Package}}.ListParams{Limit: 10}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("list for a missing source: %v", err)
 	}
+}
+{{- end}}
+{{- define "purge"}}
+const {{.Const}} = {{.Literal}}
+
+func {{.Func}}(t *testing.T, db *sql.DB, id {{.IDType}}) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), {{.Const}}, {{.Arg}}); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 {{- end}}

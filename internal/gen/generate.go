@@ -105,20 +105,21 @@ func newDialectView(d dialect.Dialect) dialectView {
 
 func Generate(opts Options) ([]File, error) {
 	pv := &projectView{
-		Header:           Header,
-		Module:           opts.Module,
-		GoVersion:        opts.GoVersion,
-		Caps:             opts.Caps,
-		UUIDImport:       opts.Caps.UUIDImport(),
-		JSONImport:       opts.Caps.JSONImport(),
-		Dialect:          newDialectView(opts.Dialect),
-		Pagination:       opts.Pagination,
-		HasMigrations:    opts.HasMigrations,
-		GoImage:          strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
-		CI:               newCIView(opts.Dialect.Name()),
-		MigrationsImport: opts.Module + "/migrations",
-		Idempotency:      idempotencyQueries(opts.Dialect),
-		Parts:            opts.Parts,
+		Header:            Header,
+		Module:            opts.Module,
+		GoVersion:         opts.GoVersion,
+		Caps:              opts.Caps,
+		UUIDImport:        opts.Caps.UUIDImport(),
+		JSONImport:        opts.Caps.JSONImport(),
+		Dialect:           newDialectView(opts.Dialect),
+		Pagination:        opts.Pagination,
+		HasMigrations:     opts.HasMigrations,
+		GoImage:           strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
+		CI:                newCIView(opts.Dialect.Name()),
+		MigrationsImport:  opts.Module + "/migrations",
+		Idempotency:       idempotencyQueries(opts.Dialect),
+		IdempotencyForget: idempotencyForget(opts.Dialect),
+		Parts:             opts.Parts,
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {
@@ -183,6 +184,7 @@ func Generate(opts Options) ([]File, error) {
 	g.userFile("Dockerfile", "project/dockerfile.tmpl", pv)
 	if opts.Parts.CI {
 		g.userFile(".github/workflows/ci.yml", "project/ci.yml.tmpl", pv)
+		g.userFile(".github/dependabot.yml", "project/dependabot.yml.tmpl", pv)
 	}
 	if opts.Parts.Kubernetes {
 		g.kubernetes(monolithKube(pv, opts.Module))

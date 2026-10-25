@@ -68,7 +68,20 @@ func fixtureFolder(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUI
 	if err != nil {
 		t.Fatalf("create Folder: %v", err)
 	}
+	purgeFolder(t, db, item.ID)
 	return item
+}
+
+const purgeFolderQuery = `
+DELETE FROM "folders" WHERE "id" = $1`
+
+func purgeFolder(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeFolderQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureUserInput(t *testing.T, ctx context.Context, db *sql.DB) users.CreateInput {
@@ -87,7 +100,20 @@ func fixtureUser(t *testing.T, ctx context.Context, db *sql.DB) users.User {
 	if err != nil {
 		t.Fatalf("create User: %v", err)
 	}
+	purgeUser(t, db, item.ID)
 	return item
+}
+
+const purgeUserQuery = `
+DELETE FROM "users" WHERE "id" = $1`
+
+func purgeUser(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeUserQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -232,6 +258,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeFolder(t, db, committed.ID)
 	if _, err := repo.Get(ctx, owner, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

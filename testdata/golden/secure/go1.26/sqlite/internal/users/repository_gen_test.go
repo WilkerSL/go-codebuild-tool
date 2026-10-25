@@ -71,7 +71,20 @@ func fixtureUser(t *testing.T, ctx context.Context, db *sql.DB) users.User {
 	if err != nil {
 		t.Fatalf("create User: %v", err)
 	}
+	purgeUser(t, db, item.ID)
 	return item
+}
+
+const purgeUserQuery = `
+DELETE FROM "users" WHERE "id" = ?`
+
+func purgeUser(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeUserQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -214,6 +227,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeUser(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

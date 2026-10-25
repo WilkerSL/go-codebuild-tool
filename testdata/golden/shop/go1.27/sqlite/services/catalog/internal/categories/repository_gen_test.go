@@ -67,7 +67,20 @@ func fixtureCategory(t *testing.T, ctx context.Context, db *sql.DB) categories.C
 	if err != nil {
 		t.Fatalf("create Category: %v", err)
 	}
+	purgeCategory(t, db, item.ID)
 	return item
+}
+
+const purgeCategoryQuery = `
+DELETE FROM "categories" WHERE "id" = ?`
+
+func purgeCategory(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeCategoryQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -206,6 +219,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeCategory(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

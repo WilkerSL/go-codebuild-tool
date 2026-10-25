@@ -68,7 +68,20 @@ func fixtureInvoice(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UU
 	if err != nil {
 		t.Fatalf("create Invoice: %v", err)
 	}
+	purgeInvoice(t, db, item.ID)
 	return item
+}
+
+const purgeInvoiceQuery = `
+DELETE FROM "invoices" WHERE "id" = ?`
+
+func purgeInvoice(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeInvoiceQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -217,6 +230,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeInvoice(t, db, committed.ID)
 	if _, err := repo.Get(ctx, owner, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

@@ -69,7 +69,19 @@ func fixtureFolder(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUI
 	if err != nil {
 		t.Fatalf("create Folder: %v", err)
 	}
+	purgeFolder(t, db, item.ID)
 	return item
+}
+
+const purgeFolderQuery = "DELETE FROM `folders` WHERE `id` = ?"
+
+func purgeFolder(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeFolderQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureLabelInput(t *testing.T, ctx context.Context, db *sql.DB) labels.CreateInput {
@@ -85,7 +97,19 @@ func fixtureLabel(t *testing.T, ctx context.Context, db *sql.DB) labels.Label {
 	if err != nil {
 		t.Fatalf("create Label: %v", err)
 	}
+	purgeLabel(t, db, item.ID)
 	return item
+}
+
+const purgeLabelQuery = "DELETE FROM `labels` WHERE `id` = ?"
+
+func purgeLabel(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeLabelQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureNoteInput(t *testing.T, ctx context.Context, db *sql.DB) notes.CreateInput {
@@ -102,7 +126,19 @@ func fixtureNote(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUID)
 	if err != nil {
 		t.Fatalf("create Note: %v", err)
 	}
+	purgeNote(t, db, item.ID)
 	return item
+}
+
+const purgeNoteQuery = "DELETE FROM `notes` WHERE `id` = ?"
+
+func purgeNote(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeNoteQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureUserInput(t *testing.T, ctx context.Context, db *sql.DB) users.CreateInput {
@@ -121,7 +157,19 @@ func fixtureUser(t *testing.T, ctx context.Context, db *sql.DB) users.User {
 	if err != nil {
 		t.Fatalf("create User: %v", err)
 	}
+	purgeUser(t, db, item.ID)
 	return item
+}
+
+const purgeUserQuery = "DELETE FROM `users` WHERE `id` = ?"
+
+func purgeUser(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeUserQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -272,6 +320,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeNote(t, db, committed.ID)
 	if _, err := repo.Get(ctx, owner, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
@@ -289,6 +338,7 @@ func TestRepositoryListFolderNotes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeNote(t, db, created.ID)
 	page, err := repo.ListFolderNotes(ctx, owner, *created.FolderID, notes.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)

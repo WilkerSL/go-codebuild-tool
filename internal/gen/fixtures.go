@@ -26,6 +26,7 @@ type rowFixture struct {
 	Mode       string
 	IDExpr     string
 	ScanTarget string
+	Purge      purgeView
 }
 
 type rowFixtures struct {
@@ -85,6 +86,7 @@ func (r *rowFixtures) fixture(x *schema.Entity) *rowFixture {
 		PKType: goBase(pk.Kind),
 		Const:  "fixture" + x.Name + "RowQuery",
 	}
+	fx.Purge = newPurgeView(r.d, x, x.Name+"Row")
 	r.made[x.Name] = fx
 	var columns, args []string
 	identity := pk.AutoPK && pk.Kind.IsInteger()

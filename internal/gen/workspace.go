@@ -172,20 +172,21 @@ const (
 
 func moduleProject(opts WorkspaceOptions, wv *workspaceView, module string) (*projectView, error) {
 	pv := &projectView{
-		Header:           Header,
-		Module:           module,
-		GoVersion:        opts.GoVersion,
-		Caps:             opts.Caps,
-		UUIDImport:       opts.Caps.UUIDImport(),
-		JSONImport:       opts.Caps.JSONImport(),
-		Dialect:          newDialectView(opts.Dialect),
-		Pagination:       opts.Pagination,
-		GoImage:          strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
-		CI:               newCIView(opts.Dialect.Name()),
-		Workspace:        wv,
-		MigrationsImport: module + "/migrations",
-		Idempotency:      idempotencyQueries(opts.Dialect),
-		Parts:            opts.Parts,
+		Header:            Header,
+		Module:            module,
+		GoVersion:         opts.GoVersion,
+		Caps:              opts.Caps,
+		UUIDImport:        opts.Caps.UUIDImport(),
+		JSONImport:        opts.Caps.JSONImport(),
+		Dialect:           newDialectView(opts.Dialect),
+		Pagination:        opts.Pagination,
+		GoImage:           strings.TrimPrefix(version.Lang("go"+opts.GoVersion), "go"),
+		CI:                newCIView(opts.Dialect.Name()),
+		Workspace:         wv,
+		MigrationsImport:  module + "/migrations",
+		Idempotency:       idempotencyQueries(opts.Dialect),
+		IdempotencyForget: idempotencyForget(opts.Dialect),
+		Parts:             opts.Parts,
 	}
 	var err error
 	if pv.Dialect.ConstraintCode, err = render(opts.Dialect.Name()+".constraint", pv); err != nil {

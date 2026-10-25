@@ -74,7 +74,20 @@ func fixtureOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
 	if err != nil {
 		t.Fatalf("create Org: %v", err)
 	}
+	purgeOrg(t, db, item.ID)
 	return item
+}
+
+const purgeOrgQuery = `
+DELETE FROM "orgs" WHERE "id" = ?`
+
+func purgeOrg(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeOrgQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureTagInput(t *testing.T, ctx context.Context, db *sql.DB) tags.CreateInput {
@@ -90,7 +103,20 @@ func fixtureTag(t *testing.T, ctx context.Context, db *sql.DB) tags.Tag {
 	if err != nil {
 		t.Fatalf("create Tag: %v", err)
 	}
+	purgeTag(t, db, item.ID)
 	return item
+}
+
+const purgeTagQuery = `
+DELETE FROM "tags" WHERE "id" = ?`
+
+func purgeTag(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeTagQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureUserInput(t *testing.T, ctx context.Context, db *sql.DB) users.CreateInput {
@@ -110,7 +136,20 @@ func fixtureUser(t *testing.T, ctx context.Context, db *sql.DB) users.User {
 	if err != nil {
 		t.Fatalf("create User: %v", err)
 	}
+	purgeUser(t, db, item.ID)
 	return item
+}
+
+const purgeUserQuery = `
+DELETE FROM "users" WHERE "id" = ?`
+
+func purgeUser(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeUserQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -251,6 +290,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeTag(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

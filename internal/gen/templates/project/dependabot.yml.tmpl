@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+{{- if .Workspace}}
+    directories:
+      - /contracts
+      - /gateway
+{{- if .Workspace.Shared}}
+      - /databases/shared
+{{- end}}
+{{- range .Workspace.Services}}
+      - /{{.Dir}}
+{{- end}}
+{{- else}}
+    directory: /
+{{- end}}
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"

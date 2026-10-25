@@ -69,7 +69,20 @@ func fixtureInvoice(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UU
 	if err != nil {
 		t.Fatalf("create Invoice: %v", err)
 	}
+	purgeInvoice(t, db, item.ID)
 	return item
+}
+
+const purgeInvoiceQuery = `
+DELETE FROM "invoices" WHERE "id" = $1`
+
+func purgeInvoice(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeInvoiceQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureInvoiceItemInput(t *testing.T, ctx context.Context, db *sql.DB, owner uuid.UUID) invoiceitems.CreateInput {
@@ -89,7 +102,20 @@ func fixtureInvoiceItem(t *testing.T, ctx context.Context, db *sql.DB, owner uui
 	if err != nil {
 		t.Fatalf("create InvoiceItem: %v", err)
 	}
+	purgeInvoiceItem(t, db, item.ID)
 	return item
+}
+
+const purgeInvoiceItemQuery = `
+DELETE FROM "invoice_items" WHERE "id" = $1`
+
+func purgeInvoiceItem(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeInvoiceItemQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -240,6 +266,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeInvoiceItem(t, db, committed.ID)
 	if _, err := repo.Get(ctx, owner, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
@@ -270,6 +297,7 @@ func TestRepositoryListInvoiceItems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeInvoiceItem(t, db, created.ID)
 	page, err := repo.ListInvoiceItems(ctx, owner, created.InvoiceID, invoiceitems.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)

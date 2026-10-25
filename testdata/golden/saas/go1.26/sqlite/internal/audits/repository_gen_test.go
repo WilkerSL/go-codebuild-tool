@@ -66,7 +66,20 @@ func fixtureAudit(t *testing.T, ctx context.Context, db *sql.DB) audits.Audit {
 	if err != nil {
 		t.Fatalf("create Audit: %v", err)
 	}
+	purgeAudit(t, db, item.ID)
 	return item
+}
+
+const purgeAuditQuery = `
+DELETE FROM "audit_log" WHERE "id" = ?`
+
+func purgeAudit(t *testing.T, db *sql.DB, id int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeAuditQuery, id); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -207,6 +220,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeAudit(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}

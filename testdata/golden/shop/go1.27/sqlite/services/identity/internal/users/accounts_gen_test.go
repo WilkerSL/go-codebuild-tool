@@ -35,6 +35,7 @@ func TestAccountsLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeUser(t, db, created.ID)
 	if created.PasswordHash == in.Password || !strings.HasPrefix(created.PasswordHash, "pbkdf2-sha256$") {
 		t.Fatalf("the password was not hashed: %q", created.PasswordHash)
 	}
@@ -96,6 +97,7 @@ func TestAccountsChangePassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeUser(t, db, user.ID)
 	first, _ := accounts.Issue(ctx, user)
 	second, _ := accounts.Issue(ctx, user)
 	caller, err := accounts.Authenticate(ctx, first.AccessToken)
@@ -149,6 +151,16 @@ func TestLimitStore(t *testing.T) {
 	store := users.NewLimitStore(db)
 	limiter := auth.NewLimiter("login", 2, time.Minute, store)
 	key := "203.0.113.9|" + t.Name()
+	t.Cleanup(func() {
+		for _, scope := range []string{"login", "burst", "short"} {
+			l := auth.NewLimiter(scope, 1, time.Minute, store)
+			for _, k := range []string{key, key + "|other"} {
+				if err := l.Reset(context.Background(), k); err != nil {
+					t.Errorf("clean up: %v", err)
+				}
+			}
+		}
+	})
 	for i := range 2 {
 		if err := limiter.Allow(ctx, key); err != nil {
 			t.Fatalf("attempt %d was rejected: %v", i+1, err)
@@ -221,6 +233,7 @@ func TestAccountsAdministration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeUser(t, db, user.ID)
 	tokens, _ := accounts.Issue(ctx, user)
 	if err := accounts.SetRole(ctx, in.Email, users.RoleAdmin); err != nil {
 		t.Fatalf("set role: %v", err)

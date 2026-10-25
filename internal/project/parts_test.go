@@ -1,6 +1,7 @@
 package project
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func TestMinimalStarterLeavesPartsOut(t *testing.T) {
 func TestMinimalNeedsANewProject(t *testing.T) {
 	dir := starter(t, "1.27.0", "sqlite")
 	_, err := BuildPlan(t.Context(), Options{Dir: dir, Minimal: true, Toolchain: fakeToolchain("go1.27.0")})
-	if e, ok := err.(*Error); !ok || e.Code != "minimal_existing" {
+	if e, ok := errors.AsType[*Error](err); !ok || e.Code != "minimal_existing" {
 		t.Fatalf("plan with --minimal on an existing project = %v", err)
 	}
 }

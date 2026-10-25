@@ -422,6 +422,12 @@ func RowInsert(d Dialect, table string, columns []string, returning []Returned) 
 	return "INSERT INTO " + d.Quote(table) + " (" + strings.Join(quoteAll(d, columns), ", ") + ")\nVALUES (" + strings.Join(params, ", ") + ")"
 }
 
+// RowDelete removes one row by its key whatever soft delete says, so the
+// generated tests can clean up the rows they create.
+func RowDelete(d Dialect, table, column string) string {
+	return "DELETE FROM " + d.Quote(table) + " WHERE " + d.Quote(column) + " = " + d.Placeholder(1)
+}
+
 // afterCondition selects the rows that come after a cursor in the list order:
 // newest first by the creation time with the primary key breaking ties, or the
 // primary key alone for entities without a creation time.

@@ -11,7 +11,7 @@ codebuild decides what it may write by who owns each file. `codebuild plan` show
 | `cmd/api/main.go`, `cmd/migrate/main.go`, `cmd/accounts/main.go` | you | Created once. `cmd/accounts` exists only with authentication. |
 | `internal/platform/config/config.go` | you | Created once. |
 | `internal/platform/database/database.go` | you | Created once; it calls the generated `Connect`. |
-| `AGENTS.md`, `.gitignore`, `.gitattributes`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml` | you | Created once. `.gitattributes` keeps LF line endings even when Git converts them on Windows. |
+| `AGENTS.md`, `.gitignore`, `.gitattributes`, `.dockerignore`, `Dockerfile`, `.github/workflows/ci.yml`, `.github/dependabot.yml` | you | Created once; the workflows pin their actions to a commit and Dependabot proposes updates of the actions and the Go modules. `.gitattributes` keeps LF line endings even when Git converts them on Windows. |
 | `specs/*.go` | you | Never written by codebuild. |
 | `migrations/NNNN_<name>.up.sql`, `.down.sql` | you after creation | Created once when the schema changes; existing migrations are never modified. |
 | `migrations/codebuild.snapshot.json` | codebuild | The schema produced by all generated migrations. Commit it. |
@@ -53,7 +53,7 @@ The code of the API is always generated. The deployment files around it can be l
 |---|---|
 | `kubernetes` | `deploy/kubernetes/**`: the base, the production overlay and, with `observability`, its component. |
 | `observability` | `deploy/observability/**`, the Jaeger, Prometheus and Grafana services and the `METRICS_ADDR` and OTLP settings of `docker-compose.yml`, the Kubernetes component, and the `/_ops/` panels of the API or the gateway. The telemetry code itself stays: metrics and traces remain available through their environment variables. |
-| `ci` | `.github/workflows/*.yml`. |
+| `ci` | `.github/workflows/*.yml` and `.github/dependabot.yml`. |
 
 All three default to `true`, and a `codebuild.json` without `generate` keeps them on. `codebuild build --starter --minimal` creates a project with all three set to `false`. Turning a part off later makes its generated files stale, so `codebuild build --prune` deletes them; files that are yours, such as the overlay or the workflows, stay where they are.
 

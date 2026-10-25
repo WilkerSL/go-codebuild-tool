@@ -74,7 +74,20 @@ func fixtureOrg(t *testing.T, ctx context.Context, db *sql.DB) orgs.Org {
 	if err != nil {
 		t.Fatalf("create Org: %v", err)
 	}
+	purgeOrg(t, db, item.ID)
 	return item
+}
+
+const purgeOrgQuery = `
+DELETE FROM [orgs] WHERE [id] = @p1`
+
+func purgeOrg(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeOrgQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureProjectInput(t *testing.T, ctx context.Context, db *sql.DB) projects.CreateInput {
@@ -96,7 +109,20 @@ func fixtureProject(t *testing.T, ctx context.Context, db *sql.DB) projects.Proj
 	if err != nil {
 		t.Fatalf("create Project: %v", err)
 	}
+	purgeProject(t, db, item.ID)
 	return item
+}
+
+const purgeProjectQuery = `
+DELETE FROM [projects] WHERE [id] = @p1`
+
+func purgeProject(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeProjectQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func fixtureUserInput(t *testing.T, ctx context.Context, db *sql.DB) users.CreateInput {
@@ -116,7 +142,20 @@ func fixtureUser(t *testing.T, ctx context.Context, db *sql.DB) users.User {
 	if err != nil {
 		t.Fatalf("create User: %v", err)
 	}
+	purgeUser(t, db, item.ID)
 	return item
+}
+
+const purgeUserQuery = `
+DELETE FROM [users] WHERE [id] = @p1`
+
+func purgeUser(t *testing.T, db *sql.DB, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(), purgeUserQuery, database.UUIDArg(id)); err != nil {
+			t.Errorf("clean up %v: %v", id, err)
+		}
+	})
 }
 
 func TestRepositoryCRUD(t *testing.T) {
@@ -269,6 +308,7 @@ func TestRepositoryWithTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InTx: %v", err)
 	}
+	purgeProject(t, db, committed.ID)
 	if _, err := repo.Get(ctx, committed.ID); err != nil {
 		t.Fatalf("committed row is missing: %v", err)
 	}
@@ -295,6 +335,7 @@ func TestRepositoryListOrgProjects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	purgeProject(t, db, created.ID)
 	page, err := repo.ListOrgProjects(ctx, created.OrgID, projects.ListParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list: %v", err)

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directories:
+      - /contracts
+      - /gateway
+      - /databases/shared
+      - /services/billing
+      - /services/catalog
+      - /services/identity
+      - /services/inventory
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns:
+          - "*"

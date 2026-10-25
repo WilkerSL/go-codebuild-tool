@@ -36,29 +36,30 @@ func AllParts() Parts {
 }
 
 type projectView struct {
-	Header           string
-	Module           string
-	GoVersion        string
-	Caps             goversion.Capabilities
-	UUIDImport       string
-	JSONImport       string
-	Dialect          dialectView
-	Domains          []*domainView
-	Wired            []*domainView
-	Pagination       Pagination
-	HasMigrations    bool
-	GoImage          string
-	CI               ciView
-	Auth             *authView
-	Identity         *authView
-	Workspace        *workspaceView
-	Current          *serviceView
-	MigrationsImport string
-	Gateway          bool
-	Edge             *edgeView
-	Ops              *opsView
-	Parts            Parts
-	Idempotency      []queryConst
+	Header            string
+	Module            string
+	GoVersion         string
+	Caps              goversion.Capabilities
+	UUIDImport        string
+	JSONImport        string
+	Dialect           dialectView
+	Domains           []*domainView
+	Wired             []*domainView
+	Pagination        Pagination
+	HasMigrations     bool
+	GoImage           string
+	CI                ciView
+	Auth              *authView
+	Identity          *authView
+	Workspace         *workspaceView
+	Current           *serviceView
+	MigrationsImport  string
+	Gateway           bool
+	Edge              *edgeView
+	Ops               *opsView
+	Parts             Parts
+	Idempotency       []queryConst
+	IdempotencyForget string
 }
 
 type dialectView struct {
@@ -202,6 +203,27 @@ type helperView struct {
 	Fields     []string
 	OwnerType  string
 	InputOwner bool
+	Purge      purgeView
+}
+
+// purgeView deletes a row created by a test when the test ends.
+type purgeView struct {
+	Func    string
+	Const   string
+	Literal string
+	IDType  string
+	Arg     string
+}
+
+func newPurgeView(d dialect.Dialect, e *schema.Entity, name string) purgeView {
+	pk := e.PK()
+	return purgeView{
+		Func:    "purge" + name,
+		Const:   "purge" + name + "Query",
+		Literal: goStringLiteral(dialect.RowDelete(d, e.Table, pk.Column)),
+		IDType:  goBase(pk.Kind),
+		Arg:     argExpr(nonNull(pk), "id"),
+	}
 }
 
 type parentRef struct {
@@ -260,6 +282,7 @@ type domainView struct {
 	MissingID        string
 	OwnHelper        string
 	OwnInputHelper   string
+	OwnPurge         string
 	UpdateTestValues []string
 	TestImports      []string
 	allEntities      []*schema.Entity
@@ -792,6 +815,12 @@ func newFieldView(f *schema.Field, dv dialectView) *fieldView {
 	v.ValidValue = validValue(f, "", f.Unique || f.PK)
 	v.FailingCases = failingCases(f)
 	return v
+}
+
+// idempotencyForget deletes one key whatever its state; only the generated test
+// uses it, to leave no row behind.
+func idempotencyForget(d dialect.Dialect) string {
+	return goStringLiteral(dialect.RowDelete(d, "idempotency_keys", "key_hash"))
 }
 
 func idempotencyQueries(d dialect.Dialect) []queryConst {

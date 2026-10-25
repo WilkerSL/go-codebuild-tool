@@ -409,6 +409,7 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 			Func:      "fixture" + x.Name,
 			InputFunc: "fixture" + x.Name + "Input",
 		}
+		h.Purge = newPurgeView(d, x, x.Name)
 		if owner := x.ScopeOwner(); owner != nil {
 			h.OwnerType = goBase(owner.Kind)
 		}
@@ -466,6 +467,7 @@ func buildTestPlan(dv *domainView, d dialect.Dialect, m *schema.Model) {
 	slices.Sort(dv.TestImports)
 	dv.OwnHelper = "fixture" + e.Name
 	dv.OwnInputHelper = "fixture" + e.Name + "Input"
+	dv.OwnPurge = "purge" + e.Name
 	for _, fv := range dv.Fields {
 		f := fv.F
 		if dv.UniqueTestField == nil && f.Unique && !f.Nullable && f.Ref == nil && f.InCreate() {
