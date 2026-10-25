@@ -18,7 +18,7 @@ type User struct {
 }
 ```
 
-From that file codebuild generates `GET/POST /users` and `GET/PUT/DELETE /users/{id}` (plus `GET /orgs/{orgId}/users` once `Org` declares the `has_many` side), validation with field errors, RFC 9457 problem responses, paginated and filtered listing, soft delete, a migration, and repository tests.
+From that file codebuild generates `GET/POST /users` and `GET/PUT/PATCH/DELETE /users/{id}` (plus `GET /orgs/{orgId}/users` once `Org` declares the `has_many` side), validation with field errors, RFC 9457 problem responses, paginated and filtered listing, soft delete, a migration, and repository tests.
 
 ## Principles
 

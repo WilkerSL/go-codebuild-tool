@@ -3,6 +3,7 @@
 package notes
 
 import (
+	"example.com/secure/internal/platform/httpx"
 	"example.com/secure/internal/platform/validation"
 )
 
@@ -10,6 +11,7 @@ type CreateInput struct {
 	FolderID *int64
 	Title    string
 	Body     *string
+	Estimate *string
 	Pinned   bool
 }
 
@@ -17,6 +19,7 @@ type UpdateInput struct {
 	FolderID *int64
 	Title    string
 	Body     *string
+	Estimate *string
 	Pinned   bool
 }
 
@@ -32,6 +35,7 @@ type createRequest struct {
 	FolderID *int64  `json:"folderId"`
 	Title    *string `json:"title"`
 	Body     *string `json:"body"`
+	Estimate *string `json:"estimate"`
 	Pinned   *bool   `json:"pinned"`
 }
 
@@ -48,6 +52,8 @@ func (req createRequest) input() (CreateInput, error) {
 
 	in.Body = req.Body
 
+	in.Estimate = req.Estimate
+
 	in.Pinned = false
 	if req.Pinned != nil {
 		in.Pinned = *req.Pinned
@@ -60,6 +66,7 @@ type updateRequest struct {
 	FolderID *int64  `json:"folderId"`
 	Title    *string `json:"title"`
 	Body     *string `json:"body"`
+	Estimate *string `json:"estimate"`
 	Pinned   *bool   `json:"pinned"`
 }
 
@@ -76,6 +83,8 @@ func (req updateRequest) input() (UpdateInput, error) {
 
 	in.Body = req.Body
 
+	in.Estimate = req.Estimate
+
 	if req.Pinned == nil {
 		errs.Add("pinned", "is required")
 	} else {
@@ -83,4 +92,54 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Note) UpdateInput {
+	return UpdateInput{
+		FolderID: item.FolderID,
+		Title:    item.Title,
+		Body:     item.Body,
+		Estimate: item.Estimate,
+		Pinned:   item.Pinned,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "folderId", "title", "body", "estimate", "pinned":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["folderId"] {
+		in.FolderID = req.FolderID
+
+	}
+	if members["title"] {
+		if req.Title == nil {
+			errs.Add("title", "cannot be null")
+		} else {
+			in.Title = *req.Title
+		}
+
+	}
+	if members["body"] {
+		in.Body = req.Body
+
+	}
+	if members["estimate"] {
+		in.Estimate = req.Estimate
+
+	}
+	if members["pinned"] {
+		if req.Pinned == nil {
+			errs.Add("pinned", "cannot be null")
+		} else {
+			in.Pinned = *req.Pinned
+		}
+
+	}
+	return errs.Err()
 }

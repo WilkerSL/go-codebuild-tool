@@ -8,6 +8,7 @@ const getQuery = "SELECT\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
@@ -24,6 +25,7 @@ const listQuery = "SELECT\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
@@ -42,6 +44,7 @@ const listAfterQuery = "SELECT\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
@@ -69,10 +72,12 @@ const createQuery = "INSERT INTO `notes` (\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
 	") VALUES (\n" +
+	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
@@ -88,6 +93,7 @@ const updateQuery = "UPDATE `notes`\n" +
 	"    `folder_id` = ?,\n" +
 	"    `title` = ?,\n" +
 	"    `body` = ?,\n" +
+	"    `estimate` = ?,\n" +
 	"    `pinned` = ?,\n" +
 	"    `updated_at` = UTC_TIMESTAMP(6)\n" +
 	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL AND EXISTS (SELECT 1 FROM `users` WHERE `users`.`id` = `notes`.`owner_id` AND `users`.`deleted_at` IS NULL)"
@@ -106,6 +112,7 @@ const listFolderNotesQuery = "SELECT\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
@@ -124,6 +131,7 @@ const listFolderNotesAfterQuery = "SELECT\n" +
 	"    `folder_id`,\n" +
 	"    `title`,\n" +
 	"    `body`,\n" +
+	"    `estimate`,\n" +
 	"    `pinned`,\n" +
 	"    `created_at`,\n" +
 	"    `updated_at`\n" +
@@ -155,6 +163,7 @@ const listLabelNotesQuery = "SELECT\n" +
 	"    `notes`.`folder_id`,\n" +
 	"    `notes`.`title`,\n" +
 	"    `notes`.`body`,\n" +
+	"    `notes`.`estimate`,\n" +
 	"    `notes`.`pinned`,\n" +
 	"    `notes`.`created_at`,\n" +
 	"    `notes`.`updated_at`\n" +
@@ -175,6 +184,7 @@ const listLabelNotesAfterQuery = "SELECT\n" +
 	"    `notes`.`folder_id`,\n" +
 	"    `notes`.`title`,\n" +
 	"    `notes`.`body`,\n" +
+	"    `notes`.`estimate`,\n" +
 	"    `notes`.`pinned`,\n" +
 	"    `notes`.`created_at`,\n" +
 	"    `notes`.`updated_at`\n" +

@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `PATCH /<table>/{id}` changes some members of a resource with a JSON merge patch (RFC 7396), sent as `application/merge-patch+json` or `application/json`: members that are present replace the stored values, `null` clears a pointer member, and absent members keep their values. It goes through the same validation, ownership, roles and service `Update` as `PUT`. In workspaces the gateway forwards it to a new `Patch` RPC, which carries the update message and the names of the members to change. CORS now allows `PATCH`, and the OpenAPI description documents it.
+- `decimal=<precision>:<scale>` on `string` fields stores exact decimal numbers, such as money, as `NUMERIC` on PostgreSQL, `DECIMAL` on MySQL and SQL Server and canonical text on SQLite. JSON and gRPC carry them as strings such as `"1999.90"`; requests are validated against the precision and scale, `min=` and `max=` become numeric bounds, and values are stored with exactly `scale` decimals.
+- `codebuild.json` gains a `generate` section with `kubernetes`, `observability` and `ci`, all on by default, to leave those files out of a project; `codebuild build --starter --minimal` creates a project with the three off. Turning a part off makes its generated files stale for `--prune`.
+- With the `ci` part, a `.github/dependabot.yml` keeps the actions of the generated workflows and the Go modules up to date.
+
+### Changed
+
+- Generated workflows pin `actions/checkout` and `actions/setup-go` to a commit, with the release in a comment, instead of a moving major tag. Existing workflows are yours and keep their references.
+- Generated repository, account, idempotency and rate limiter tests delete every row they create when they finish, children before parents and soft-deleted rows included, so a shared test database stays empty.
+
 ## [0.6.0] - 2026-10-24
 
 ### Added

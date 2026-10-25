@@ -80,6 +80,7 @@ CREATE TABLE `notes` (
     `folder_id` BIGINT,
     `title` VARCHAR(200) NOT NULL,
     `body` LONGTEXT,
+    `estimate` DECIMAL(6, 2),
     `pinned` BOOLEAN NOT NULL DEFAULT FALSE,
     `created_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `updated_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),

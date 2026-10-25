@@ -15,7 +15,7 @@ type Project struct {
 	OrgID     uuid.UUID  `json:"orgId"`
 	OwnerID   *uuid.UUID `json:"ownerId"`
 	Name      string     `json:"name"`
-	Budget    float64    `json:"budget"`
+	Budget    string     `json:"budget"`
 	Priority  int32      `json:"priority"`
 	Archived  bool       `json:"archived"`
 	Logo      []byte     `json:"logo"`

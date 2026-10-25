@@ -222,6 +222,7 @@ func buildRoutes(dv *domainView) {
 	add("GET", dv.ItemPath, "get", e.Policy(schema.OpRead))
 	if dv.HasUpdate {
 		add("PUT", dv.ItemPath, "update", e.Policy(schema.OpUpdate))
+		add("PATCH", dv.ItemPath, "patch", e.Policy(schema.OpUpdate))
 	}
 	if !e.ReadOnly {
 		add("DELETE", dv.ItemPath, "delete", e.Policy(schema.OpDelete))

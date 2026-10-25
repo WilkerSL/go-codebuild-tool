@@ -5,6 +5,7 @@ package users
 import (
 	"strings"
 
+	"example.com/secure/internal/platform/httpx"
 	"example.com/secure/internal/platform/validation"
 )
 
@@ -92,4 +93,48 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item User) UpdateInput {
+	return UpdateInput{
+		Email: item.Email,
+		Name:  item.Name,
+		Role:  item.Role,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "email", "name", "role":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["email"] {
+		if req.Email == nil {
+			errs.Add("email", "cannot be null")
+		} else {
+			in.Email = strings.ToLower(*req.Email)
+		}
+
+	}
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["role"] {
+		if req.Role == nil {
+			errs.Add("role", "cannot be null")
+		} else {
+			in.Role = *req.Role
+		}
+
+	}
+	return errs.Err()
 }

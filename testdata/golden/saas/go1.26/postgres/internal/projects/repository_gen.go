@@ -82,7 +82,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error
 	if err != nil {
 		return Project{}, fmt.Errorf("create project: %w", err)
 	}
-	item, err := scanProject(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)).Scan)
+	item, err := scanProject(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, database.DecimalArg(in.Budget, 2), in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)).Scan)
 	if err != nil {
 		return Project{}, writeError("create project", err)
 	}
@@ -98,7 +98,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (
 			return Project{}, err
 		}
 	}
-	item, err := scanProject(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id)).Scan)
+	item, err := scanProject(r.db.QueryRowContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, database.DecimalArg(in.Budget, 2), in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Project{}, database.ErrNotFound
 	}

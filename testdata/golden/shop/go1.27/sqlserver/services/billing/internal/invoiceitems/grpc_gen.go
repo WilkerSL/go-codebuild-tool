@@ -193,6 +193,45 @@ func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceItemUpdat
 	return toMessage(item), nil
 }
 
+func (s *GRPCServer) Patch(ctx context.Context, req *billingv1.InvoiceItemPatchRequest) (*billingv1.InvoiceItem, error) {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	update := req.GetUpdate()
+	id := update.GetId()
+	var errs validation.Errors
+	r := updateRequest{
+		InvoiceID: update.InvoiceId,
+		ProductID: update.ProductId,
+		Quantity:  update.Quantity,
+		Price:     update.Price,
+	}
+
+	current, err := s.svc.Get(ctx, caller.ID, id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	members := make(map[string]bool, len(req.GetFields()))
+	for _, name := range req.GetFields() {
+		members[name] = true
+	}
+	in := patchBase(current)
+	if err := validation.Merge(errs.Err(), r.patch(&in, members), in.Validate()); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	if res, err := s.productClient.Exists(ctx, &catalogv1.ProductExistsRequest{Id: in.ProductID}); err != nil {
+		return nil, grpcx.Peer(ctx, s.logger, err)
+	} else if !res.GetExists() {
+		return nil, s.fail(ctx, validation.Errors{{Field: "productId", Message: "references a record that does not exist"}})
+	}
+	item, err := s.svc.Update(ctx, caller.ID, id, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+
 func (s *GRPCServer) Delete(ctx context.Context, req *billingv1.InvoiceItemDeleteRequest) (*emptypb.Empty, error) {
 	caller, err := grpcx.Authorize(ctx)
 	if err != nil {

@@ -202,7 +202,7 @@ var markerDefs = []markerDef{
 		name: "min", scope: scopeField, value: valueRequired,
 		doc: MarkerDoc{
 			Syntax:      "min=<n>",
-			AppliesTo:   "`string` (characters), `[]byte` (bytes), integers and floats (value)",
+			AppliesTo:   "`string` (characters), `[]byte` (bytes), integers, floats and `decimal=` strings (value)",
 			Description: "Lower bound validated in Go. For strings the length is counted in runes.",
 			Example:     "Name string `gen:\"min=2,max=120\"`",
 			CommonError: "`min=10,max=5` fails with invalid_value: min cannot be greater than max.",
@@ -212,10 +212,20 @@ var markerDefs = []markerDef{
 		name: "max", scope: scopeField, value: valueRequired,
 		doc: MarkerDoc{
 			Syntax:      "max=<n>",
-			AppliesTo:   "`string` (characters), `[]byte` (bytes), integers and floats (value)",
+			AppliesTo:   "`string` (characters), `[]byte` (bytes), integers, floats and `decimal=` strings (value)",
 			Description: "Upper bound validated in Go. On strings and byte slices it also sets the column size (`VARCHAR(n)`, `NVARCHAR(n)`, `VARBINARY(n)`).",
 			Example:     "Title string `gen:\"max=200\"`",
 			CommonError: "`max=abc` fails with invalid_value: the bound must be a number.",
+		},
+	},
+	{
+		name: "decimal", scope: scopeField, value: valueRequired,
+		doc: MarkerDoc{
+			Syntax:      "decimal=<precision>:<scale>",
+			AppliesTo:   "`string` and `*string`",
+			Description: "Holds an exact decimal number, such as money, instead of a float: `NUMERIC(p,s)` on PostgreSQL, `DECIMAL(p,s)` on MySQL and SQL Server, canonical text on SQLite. JSON and gRPC carry it as a string such as `\"1999.90\"`; requests are validated against the precision and scale, and values are stored with exactly `scale` decimals. `min=` and `max=` become numeric bounds. Decimal fields are not list filters.",
+			Example:     "Price string `gen:\"decimal=12:2,min=0\"`",
+			CommonError: "`decimal=12,2` fails because the comma starts another marker; separate precision and scale with a colon.",
 		},
 	},
 	{

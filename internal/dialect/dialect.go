@@ -104,7 +104,7 @@ func joinStatements(stmts []string) string {
 
 func literal(c *schema.Column, value string, stringPrefix string, trueLit, falseLit string) string {
 	switch c.Kind {
-	case schema.ColumnString:
+	case schema.ColumnString, schema.ColumnDecimal:
 		return stringPrefix + quoteString(value)
 	case schema.ColumnBool:
 		if value == "true" {

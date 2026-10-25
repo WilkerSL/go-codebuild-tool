@@ -49,6 +49,11 @@ message StockUpdateRequest {
   optional int32 quantity = 3;
 }
 
+message StockPatchRequest {
+  StockUpdateRequest update = 1;
+  repeated string fields = 2;
+}
+
 message StockDeleteRequest {
   int64 id = 1;
 }
@@ -58,6 +63,7 @@ service StockService {
   rpc List(StockListRequest) returns (StockPage);
   rpc Create(StockCreateRequest) returns (Stock);
   rpc Update(StockUpdateRequest) returns (Stock);
+  rpc Patch(StockPatchRequest) returns (Stock);
   rpc Delete(StockDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(StockExistsRequest) returns (common.v1.ExistsResponse);
 }

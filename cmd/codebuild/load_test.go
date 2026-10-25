@@ -263,7 +263,7 @@ func loadSaaS(t *testing.T, bin, dsn string, cfg loadConfig) []loadResult {
 	ids := make([]string, cfg.rows)
 	create := func(_, i int) error {
 		var p struct{ ID string }
-		err := c.do("POST", "/projects", "", map[string]any{"orgId": org.ID, "name": "Project " + strconv.Itoa(i), "budget": float64(i)}, http.StatusCreated, &p)
+		err := c.do("POST", "/projects", "", map[string]any{"orgId": org.ID, "name": "Project " + strconv.Itoa(i), "budget": strconv.Itoa(i)}, http.StatusCreated, &p)
 		if i < len(ids) {
 			ids[i] = p.ID
 		}

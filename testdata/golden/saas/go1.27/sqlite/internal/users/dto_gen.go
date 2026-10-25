@@ -5,6 +5,7 @@ package users
 import (
 	"uuid"
 
+	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
 
@@ -113,4 +114,64 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item User) UpdateInput {
+	return UpdateInput{
+		Name:  item.Name,
+		Email: item.Email,
+		Role:  item.Role,
+		Bio:   item.Bio,
+		OrgID: item.OrgID,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "name", "email", "role", "bio", "orgId":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["email"] {
+		if req.Email == nil {
+			errs.Add("email", "cannot be null")
+		} else {
+			in.Email = *req.Email
+		}
+
+	}
+	if members["role"] {
+		if req.Role == nil {
+			errs.Add("role", "cannot be null")
+		} else {
+			in.Role = *req.Role
+		}
+
+	}
+	if members["bio"] {
+		in.Bio = req.Bio
+
+	}
+	if members["orgId"] {
+		if req.OrgID == nil {
+			errs.Add("orgId", "cannot be null")
+		} else if v, err := uuid.Parse(*req.OrgID); err != nil {
+			errs.Add("orgId", "must be a valid UUID")
+		} else {
+			in.OrgID = v
+		}
+
+	}
+	return errs.Err()
 }

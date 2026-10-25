@@ -62,7 +62,7 @@ CREATE TABLE "projects" (
     "org_id" TEXT NOT NULL,
     "owner_id" TEXT,
     "name" TEXT NOT NULL,
-    "budget" REAL NOT NULL,
+    "budget" TEXT NOT NULL,
     "priority" INTEGER NOT NULL DEFAULT 3,
     "archived" BOOLEAN NOT NULL,
     "logo" BLOB NOT NULL,

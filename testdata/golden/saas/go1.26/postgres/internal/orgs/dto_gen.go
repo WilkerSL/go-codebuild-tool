@@ -3,6 +3,7 @@
 package orgs
 
 import (
+	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
 
@@ -113,4 +114,66 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Org) UpdateInput {
+	return UpdateInput{
+		Name:   item.Name,
+		Slug:   item.Slug,
+		Plan:   item.Plan,
+		Active: item.Active,
+		Locale: item.Locale,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "name", "slug", "plan", "active", "locale":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["slug"] {
+		if req.Slug == nil {
+			errs.Add("slug", "cannot be null")
+		} else {
+			in.Slug = *req.Slug
+		}
+
+	}
+	if members["plan"] {
+		if req.Plan == nil {
+			errs.Add("plan", "cannot be null")
+		} else {
+			in.Plan = *req.Plan
+		}
+
+	}
+	if members["active"] {
+		if req.Active == nil {
+			errs.Add("active", "cannot be null")
+		} else {
+			in.Active = *req.Active
+		}
+
+	}
+	if members["locale"] {
+		if req.Locale == nil {
+			errs.Add("locale", "cannot be null")
+		} else {
+			in.Locale = *req.Locale
+		}
+
+	}
+	return errs.Err()
 }

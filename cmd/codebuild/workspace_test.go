@@ -381,7 +381,7 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 		t.Fatalf("stock with a missing product = %v", missing)
 	}
 	invoice := admin.expect(http.MethodPost, "/invoices", map[string]any{"number": "INV-1"}, http.StatusCreated)
-	if invoice["ownerId"] != ana["id"] || invoice["status"] != "draft" || invoice["notes"] != nil {
+	if invoice["ownerId"] != ana["id"] || invoice["status"] != "draft" || invoice["notes"] != nil || invoice["discount"] != "0.00" {
 		t.Fatalf("invoice = %v", invoice)
 	}
 	invoiceID := invoice["id"].(string)
@@ -404,6 +404,9 @@ func shopSmoke(t *testing.T, c client, promote func(email string)) {
 	c.expect(http.MethodPost, "/auth/register", map[string]any{"email": "bob@example.com", "name": "Bob", "password": "supersecret2"}, http.StatusCreated)
 	bob := login("bob@example.com", "supersecret2")
 	bob.expect(http.MethodGet, "/invoices/"+invoiceID, nil, http.StatusNotFound)
+	if patched := patchCheck(t, admin, bob, "/invoices/"+invoiceID, "discount", "12.5", "number"); patched["discount"] != "12.50" {
+		t.Fatalf("patched discount = %v", patched["discount"])
+	}
 	// Invoice items belong to the owner of their invoice, on their own routes too.
 	bob.expect(http.MethodGet, itemPath, nil, http.StatusNotFound)
 	bob.expect(http.MethodPut, itemPath, map[string]any{"invoiceId": invoiceID, "productId": productID, "quantity": 9, "price": 0.1}, http.StatusUnprocessableEntity)

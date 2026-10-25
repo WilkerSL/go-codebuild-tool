@@ -20,7 +20,7 @@ func Validate(d Dialect, m *schema.Model) schema.Diagnostics {
 	limits := d.Limits()
 	for _, e := range m.Entities {
 		for _, f := range e.Fields {
-			if f.Kind == schema.KindString && indexed(f) {
+			if f.Kind == schema.KindString && !f.Decimal() && indexed(f) {
 				limit := limits.IndexedString
 				if f.PK {
 					limit = limits.PrimaryKeyString

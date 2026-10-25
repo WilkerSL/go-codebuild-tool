@@ -391,6 +391,14 @@ type Field struct {
 	Password     bool
 	Role         bool
 	Owner        bool
+	Precision    int
+	Scale        int
+}
+
+// Decimal reports whether the string field holds an exact decimal number,
+// stored as NUMERIC or DECIMAL with the precision and scale of decimal=.
+func (f *Field) Decimal() bool {
+	return f.Precision > 0
 }
 
 func (f *Field) GoType() string {
@@ -425,7 +433,7 @@ func (f *Field) InUpdate() bool {
 }
 
 func (f *Field) Filterable() bool {
-	if f.Owner || f.Password || (!f.Index && !f.Unique && f.Ref == nil) {
+	if f.Owner || f.Password || f.Decimal() || (!f.Index && !f.Unique && f.Ref == nil) {
 		return false
 	}
 	switch f.Kind {

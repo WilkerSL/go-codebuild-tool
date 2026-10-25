@@ -64,7 +64,7 @@ CREATE TABLE [projects] (
     [org_id] UNIQUEIDENTIFIER NOT NULL,
     [owner_id] UNIQUEIDENTIFIER NULL,
     [name] NVARCHAR(200) NOT NULL,
-    [budget] FLOAT NOT NULL,
+    [budget] DECIMAL(14, 2) NOT NULL,
     [priority] INT NOT NULL CONSTRAINT [df_projects_priority] DEFAULT 3,
     [archived] BIT NOT NULL,
     [logo] VARBINARY(MAX) NOT NULL,

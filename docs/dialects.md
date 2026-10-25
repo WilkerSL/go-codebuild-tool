@@ -37,11 +37,14 @@ Repositories use `database/sql` with SQL written for one database. The dialect i
 | `bool` | `BOOLEAN` | `BIT` | `BOOLEAN` | `BOOLEAN` |
 | `int16` / `int32` / `int`, `int64` | `SMALLINT` / `INTEGER` / `BIGINT` | `SMALLINT` / `INT` / `BIGINT` | `SMALLINT` / `INT` / `BIGINT` | `INTEGER` |
 | `float32` / `float64` | `REAL` / `DOUBLE PRECISION` | `REAL` / `FLOAT` | `FLOAT` / `DOUBLE` | `REAL` |
+| `string` with `decimal=p:s` | `NUMERIC(p, s)` | `DECIMAL(p, s)` | `DECIMAL(p, s)` | `TEXT` holding the canonical value |
 | `[]byte` | `BYTEA` | `VARBINARY(n)` or `VARBINARY(MAX)` | `VARBINARY(n)` or `LONGBLOB` | `BLOB` |
 | `time.Time` | `TIMESTAMPTZ` | `DATETIME2(7)` holding UTC | `DATETIME(6)` holding UTC | `DATETIME` text |
 | `uuid.UUID` | `UUID` | `UNIQUEIDENTIFIER` | `CHAR(36)` | `TEXT` |
 
 Enum columns without `max=` get the smallest of 32, 64, 128 or 255 characters that fits every item, so they can be indexed everywhere.
+
+Floats are binary approximations: `0.1 + 0.2` is not `0.3`. Store money and other exact quantities in a `string` field with `decimal=p:s`, which keeps every digit, travels as a JSON string such as `"1999.90"` and is written with exactly `s` decimals on every dialect.
 
 ## The same operations side by side
 

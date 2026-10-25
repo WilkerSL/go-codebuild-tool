@@ -63,11 +63,14 @@ type grpcView struct {
 	List         grpcOp
 	Create       grpcOp
 	Update       grpcOp
+	Patch        grpcOp
 	Delete       grpcOp
 	Exists       grpcOp
 	IDParse      string
 	CreateFrom   string
 	UpdateFrom   string
+	PatchFrom    string
+	PatchIDParse string
 	ListFrom     string
 	Checks       []remoteCheck
 	Peers        []*peerClient
@@ -193,6 +196,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 	gv.Exists = op("Exists", e.Name+"ExistsRequest", schema.Policy{Public: true})
 	gv.Create = op("Create", e.Name+"CreateRequest", e.Policy(schema.OpCreate))
 	gv.Update = op("Update", e.Name+"UpdateRequest", e.Policy(schema.OpUpdate))
+	gv.Patch = op("Patch", e.Name+"PatchRequest", e.Policy(schema.OpUpdate))
 	gv.Delete = op("Delete", e.Name+"DeleteRequest", e.Policy(schema.OpDelete))
 	gv.IDParse = idParse(pk, "req.GetId()", "id", "id")
 
@@ -204,7 +208,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 	b.WriteString("}")
 	gv.ToMessage = b.String()
 
-	conversion := func(message, target string, fields []*fieldView, update bool) string {
+	conversion := func(message, target, source string, fields []*fieldView, update bool) string {
 		msg := file.Message(message)
 		if msg == nil {
 			return ""
@@ -221,15 +225,17 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 			if fd == nil {
 				continue
 			}
-			fmt.Fprintf(&c, "%s: %s,\n", fv.Input, requestValue(fv.F, "req."+fd.GoName, fv.InputJSON))
+			fmt.Fprintf(&c, "%s: %s,\n", fv.Input, requestValue(fv.F, source+"."+fd.GoName, fv.InputJSON))
 		}
 		c.WriteString("}\n")
 		return c.String()
 	}
 	if !e.ReadOnly {
-		gv.CreateFrom = conversion(e.Name+"CreateRequest", "createRequest", dv.Create, false)
+		gv.CreateFrom = conversion(e.Name+"CreateRequest", "createRequest", "req", dv.Create, false)
 		if dv.HasUpdate {
-			gv.UpdateFrom = conversion(e.Name+"UpdateRequest", "updateRequest", dv.Update, true)
+			gv.UpdateFrom = conversion(e.Name+"UpdateRequest", "updateRequest", "req", dv.Update, true)
+			gv.PatchFrom = conversion(e.Name+"UpdateRequest", "updateRequest", "update", dv.Update, true)
+			gv.PatchIDParse = idParse(pk, "update.GetId()", "id", "id")
 		}
 		if e.Register {
 			var register []*fieldView
@@ -238,7 +244,7 @@ func newGRPCView(dv *domainView, m *schema.Model, file *contract.File, enabled b
 					register = append(register, fv)
 				}
 			}
-			gv.RegisterFrom = conversion(e.Name+"CreateRequest", "registerRequest", register, false)
+			gv.RegisterFrom = conversion(e.Name+"CreateRequest", "registerRequest", "req", register, false)
 		}
 	}
 	filters := func(message string, skip *schema.Field) string {

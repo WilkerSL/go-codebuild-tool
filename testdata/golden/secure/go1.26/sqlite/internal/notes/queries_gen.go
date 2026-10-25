@@ -9,6 +9,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -27,6 +28,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -46,6 +48,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -75,10 +78,12 @@ INSERT INTO "notes" (
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
 ) VALUES (
+    ?,
     ?,
     ?,
     ?,
@@ -94,6 +99,7 @@ RETURNING
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"`
@@ -104,6 +110,7 @@ SET
     "folder_id" = ?,
     "title" = ?,
     "body" = ?,
+    "estimate" = ?,
     "pinned" = ?,
     "updated_at" = strftime('%Y-%m-%d %H:%M:%f', 'now')
 WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
@@ -113,6 +120,7 @@ RETURNING
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"`
@@ -134,6 +142,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -153,6 +162,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -187,6 +197,7 @@ SELECT
     "notes"."folder_id",
     "notes"."title",
     "notes"."body",
+    "notes"."estimate",
     "notes"."pinned",
     "notes"."created_at",
     "notes"."updated_at"
@@ -208,6 +219,7 @@ SELECT
     "notes"."folder_id",
     "notes"."title",
     "notes"."body",
+    "notes"."estimate",
     "notes"."pinned",
     "notes"."created_at",
     "notes"."updated_at"

@@ -56,6 +56,11 @@ message UserUpdateRequest {
   optional string role = 4;
 }
 
+message UserPatchRequest {
+  UserUpdateRequest update = 1;
+  repeated string fields = 2;
+}
+
 message UserDeleteRequest {
   string id = 1;
 }
@@ -136,6 +141,7 @@ service UserService {
   rpc List(UserListRequest) returns (UserPage);
   rpc Create(UserCreateRequest) returns (User);
   rpc Update(UserUpdateRequest) returns (User);
+  rpc Patch(UserPatchRequest) returns (User);
   rpc Delete(UserDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(UserExistsRequest) returns (common.v1.ExistsResponse);
 }

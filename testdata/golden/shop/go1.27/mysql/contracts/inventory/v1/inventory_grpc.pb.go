@@ -18,6 +18,7 @@ const (
 	StockService_List_FullMethodName   = "/inventory.v1.StockService/List"
 	StockService_Create_FullMethodName = "/inventory.v1.StockService/Create"
 	StockService_Update_FullMethodName = "/inventory.v1.StockService/Update"
+	StockService_Patch_FullMethodName  = "/inventory.v1.StockService/Patch"
 	StockService_Delete_FullMethodName = "/inventory.v1.StockService/Delete"
 	StockService_Exists_FullMethodName = "/inventory.v1.StockService/Exists"
 )
@@ -27,6 +28,7 @@ type StockServiceClient interface {
 	List(ctx context.Context, in *StockListRequest, opts ...grpc.CallOption) (*StockPage, error)
 	Create(ctx context.Context, in *StockCreateRequest, opts ...grpc.CallOption) (*Stock, error)
 	Update(ctx context.Context, in *StockUpdateRequest, opts ...grpc.CallOption) (*Stock, error)
+	Patch(ctx context.Context, in *StockPatchRequest, opts ...grpc.CallOption) (*Stock, error)
 	Delete(ctx context.Context, in *StockDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *StockExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 }
@@ -75,6 +77,15 @@ func (c *stockServiceClient) Update(ctx context.Context, in *StockUpdateRequest,
 	return out, nil
 }
 
+func (c *stockServiceClient) Patch(ctx context.Context, in *StockPatchRequest, opts ...grpc.CallOption) (*Stock, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Stock)
+	if err := c.cc.Invoke(ctx, StockService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *stockServiceClient) Delete(ctx context.Context, in *StockDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -98,6 +109,7 @@ type StockServiceServer interface {
 	List(context.Context, *StockListRequest) (*StockPage, error)
 	Create(context.Context, *StockCreateRequest) (*Stock, error)
 	Update(context.Context, *StockUpdateRequest) (*Stock, error)
+	Patch(context.Context, *StockPatchRequest) (*Stock, error)
 	Delete(context.Context, *StockDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *StockExistsRequest) (*v1.ExistsResponse, error)
 	mustEmbedUnimplementedStockServiceServer()
@@ -119,6 +131,10 @@ func (UnimplementedStockServiceServer) Create(context.Context, *StockCreateReque
 
 func (UnimplementedStockServiceServer) Update(context.Context, *StockUpdateRequest) (*Stock, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedStockServiceServer) Patch(context.Context, *StockPatchRequest) (*Stock, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedStockServiceServer) Delete(context.Context, *StockDeleteRequest) (*emptypb.Empty, error) {
@@ -195,6 +211,21 @@ func _StockService_Update_Handler(srv any, ctx context.Context, dec func(any) er
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StockService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(StockPatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StockServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: StockService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(StockServiceServer).Patch(ctx, req.(*StockPatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _StockService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(StockDeleteRequest)
 	if err := dec(in); err != nil {
@@ -233,6 +264,7 @@ var StockService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _StockService_List_Handler},
 		{MethodName: "Create", Handler: _StockService_Create_Handler},
 		{MethodName: "Update", Handler: _StockService_Update_Handler},
+		{MethodName: "Patch", Handler: _StockService_Patch_Handler},
 		{MethodName: "Delete", Handler: _StockService_Delete_Handler},
 		{MethodName: "Exists", Handler: _StockService_Exists_Handler},
 	},

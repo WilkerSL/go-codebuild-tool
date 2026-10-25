@@ -15,6 +15,9 @@ func (in CreateInput) Validate() error {
 	if in.Body != nil {
 		checkBody(&errs, *in.Body)
 	}
+	if in.Estimate != nil {
+		checkEstimate(&errs, *in.Estimate)
+	}
 	return errs.Err()
 }
 
@@ -23,6 +26,9 @@ func (in UpdateInput) Validate() error {
 	checkTitle(&errs, in.Title)
 	if in.Body != nil {
 		checkBody(&errs, *in.Body)
+	}
+	if in.Estimate != nil {
+		checkEstimate(&errs, *in.Estimate)
 	}
 	return errs.Err()
 }
@@ -42,6 +48,20 @@ func checkBody(errs *validation.Errors, v string) {
 	n := utf8.RuneCountInString(v)
 	if n > 5000 {
 		errs.Add("body", "must be at most 5000 characters")
+	}
+
+}
+
+func checkEstimate(errs *validation.Errors, v string) {
+	if !validation.Decimal(v, 6, 2) {
+		errs.Add("estimate", "must be a decimal number with at most 4 digits before the point and 2 after it, as a string")
+	} else {
+		if validation.CompareDecimal(v, "0.00") < 0 {
+			errs.Add("estimate", "must be at least 0.00")
+		}
+		if validation.CompareDecimal(v, "1000.00") > 0 {
+			errs.Add("estimate", "must be at most 1000.00")
+		}
 	}
 
 }

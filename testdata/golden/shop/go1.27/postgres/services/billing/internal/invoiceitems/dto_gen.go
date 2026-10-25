@@ -5,6 +5,7 @@ package invoiceitems
 import (
 	"uuid"
 
+	"example.com/shop/services/billing/internal/platform/httpx"
 	"example.com/shop/services/billing/internal/platform/validation"
 )
 
@@ -103,4 +104,59 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item InvoiceItem) UpdateInput {
+	return UpdateInput{
+		InvoiceID: item.InvoiceID,
+		ProductID: item.ProductID,
+		Quantity:  item.Quantity,
+		Price:     item.Price,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "invoiceId", "productId", "quantity", "price":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["invoiceId"] {
+		if req.InvoiceID == nil {
+			errs.Add("invoiceId", "cannot be null")
+		} else if v, err := uuid.Parse(*req.InvoiceID); err != nil {
+			errs.Add("invoiceId", "must be a valid UUID")
+		} else {
+			in.InvoiceID = v
+		}
+
+	}
+	if members["productId"] {
+		if req.ProductID == nil {
+			errs.Add("productId", "cannot be null")
+		} else {
+			in.ProductID = *req.ProductID
+		}
+
+	}
+	if members["quantity"] {
+		if req.Quantity == nil {
+			errs.Add("quantity", "cannot be null")
+		} else {
+			in.Quantity = *req.Quantity
+		}
+
+	}
+	if members["price"] {
+		if req.Price == nil {
+			errs.Add("price", "cannot be null")
+		} else {
+			in.Price = *req.Price
+		}
+
+	}
+	return errs.Err()
 }

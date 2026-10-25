@@ -3,6 +3,7 @@
 package stocks
 
 import (
+	"example.com/shop/services/inventory/internal/platform/httpx"
 	"example.com/shop/services/inventory/internal/platform/validation"
 )
 
@@ -65,4 +66,39 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Stock) UpdateInput {
+	return UpdateInput{
+		ProductID: item.ProductID,
+		Quantity:  item.Quantity,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "productId", "quantity":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["productId"] {
+		if req.ProductID == nil {
+			errs.Add("productId", "cannot be null")
+		} else {
+			in.ProductID = *req.ProductID
+		}
+
+	}
+	if members["quantity"] {
+		if req.Quantity == nil {
+			errs.Add("quantity", "cannot be null")
+		} else {
+			in.Quantity = *req.Quantity
+		}
+
+	}
+	return errs.Err()
 }

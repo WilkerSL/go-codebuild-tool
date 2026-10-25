@@ -61,7 +61,7 @@ Rules:
 | `string` | text, `VARCHAR(max)` when `max=` is set |
 | `bool` | boolean |
 | `int16`, `int32`, `int`, `int64` | integers (`int` is stored as a 64-bit column) |
-| `float32`, `float64` | floating point |
+| `float32`, `float64` | floating point; use `string` with `decimal=` for money |
 | `[]byte` | binary, base64 in JSON |
 | `time.Time` | timestamp, stored in UTC, RFC 3339 in JSON |
 | `uuid.UUID` | UUID, string in JSON |
@@ -206,7 +206,7 @@ Rules:
 ### `min`
 
 - Syntax: `min=<n>`
-- Applies to: `string` (characters), `[]byte` (bytes), integers and floats (value)
+- Applies to: `string` (characters), `[]byte` (bytes), integers, floats and `decimal=` strings (value)
 - Effect: Lower bound validated in Go. For strings the length is counted in runes.
 - Example: `Name string `gen:"min=2,max=120"``
 - Common error: `min=10,max=5` fails with invalid_value: min cannot be greater than max.
@@ -214,10 +214,18 @@ Rules:
 ### `max`
 
 - Syntax: `max=<n>`
-- Applies to: `string` (characters), `[]byte` (bytes), integers and floats (value)
+- Applies to: `string` (characters), `[]byte` (bytes), integers, floats and `decimal=` strings (value)
 - Effect: Upper bound validated in Go. On strings and byte slices it also sets the column size (`VARCHAR(n)`, `NVARCHAR(n)`, `VARBINARY(n)`).
 - Example: `Title string `gen:"max=200"``
 - Common error: `max=abc` fails with invalid_value: the bound must be a number.
+
+### `decimal`
+
+- Syntax: `decimal=<precision>:<scale>`
+- Applies to: `string` and `*string`
+- Effect: Holds an exact decimal number, such as money, instead of a float: `NUMERIC(p,s)` on PostgreSQL, `DECIMAL(p,s)` on MySQL and SQL Server, canonical text on SQLite. JSON and gRPC carry it as a string such as `"1999.90"`; requests are validated against the precision and scale, and values are stored with exactly `scale` decimals. `min=` and `max=` become numeric bounds. Decimal fields are not list filters.
+- Example: `Price string `gen:"decimal=12:2,min=0"``
+- Common error: `decimal=12,2` fails because the comma starts another marker; separate precision and scale with a colon.
 
 ### `email`
 
@@ -350,9 +358,10 @@ type BillingService struct {
 ## Request semantics
 
 - Request bodies must be sent with `Content-Type: application/json` (or another `+json` media type); other content types answer HTTP 415.
-- Create (`POST`) and update (`PUT`, full replacement) requests reject unknown members with HTTP 400.
+- Create (`POST`), update (`PUT`, full replacement) and patch (`PATCH`) requests reject unknown members with HTTP 400.
 - On create, an absent member takes the `default=` value, or the zero value (an empty value for `[]byte`). Pointer fields treat `null` like an absent member.
 - `PUT` replaces the whole resource, so every non-pointer member is required: leaving one out answers 422 instead of resetting it to its default. Pointer members left out become `null`.
+- `PATCH` takes a JSON merge patch (RFC 7396), sent as `application/merge-patch+json` or `application/json`: members that are present replace the stored values, `null` clears a pointer member (and answers 422 on any other), and absent members keep their values. It reads the row and writes it back through the same validation and service `Update` as `PUT`, so two concurrent patches of different members of one row can overwrite each other.
 - `required` members must be present. Non-pointer `belongs_to` fields and client-provided primary keys are required implicitly.
 - Validation rules apply to every value of non-pointer fields and to non-nil values of pointer fields. Use a pointer for optional values.
 - Fields with `auto`, `auto=create`, `auto=update` or the primary key never appear in update requests.
@@ -368,6 +377,7 @@ type BillingService struct {
 | `POST /<table>` | create | 201 with `Location`; skipped for `readonly` |
 | `GET /<table>/{id}` | get | 404 when missing or soft deleted |
 | `PUT /<table>/{id}` | full update | skipped for `readonly` |
+| `PATCH /<table>/{id}` | partial update | JSON merge patch; skipped for `readonly` |
 | `DELETE /<table>/{id}` | delete | soft delete with `softdelete`; 409 when referenced |
 | `GET /<parents>/{parentId}/<field>` | has_many | generated in the child domain |
 | `GET /<sources>/{sourceId}/<field>` | many_to_many list | generated in the target domain |

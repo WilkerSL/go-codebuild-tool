@@ -3,19 +3,22 @@
 package invoices
 
 import (
+	"example.com/shop/services/billing/internal/platform/httpx"
 	"example.com/shop/services/billing/internal/platform/validation"
 )
 
 type CreateInput struct {
-	Number string
-	Status string
-	Notes  *string
+	Number   string
+	Status   string
+	Notes    *string
+	Discount string
 }
 
 type UpdateInput struct {
-	Number string
-	Status string
-	Notes  *string
+	Number   string
+	Status   string
+	Notes    *string
+	Discount string
 }
 
 type ListParams struct {
@@ -27,9 +30,10 @@ type ListParams struct {
 }
 
 type createRequest struct {
-	Number *string `json:"number"`
-	Status *string `json:"status"`
-	Notes  *string `json:"notes"`
+	Number   *string `json:"number"`
+	Status   *string `json:"status"`
+	Notes    *string `json:"notes"`
+	Discount *string `json:"discount"`
 }
 
 func (req createRequest) input() (CreateInput, error) {
@@ -48,13 +52,19 @@ func (req createRequest) input() (CreateInput, error) {
 
 	in.Notes = req.Notes
 
+	in.Discount = "0.00"
+	if req.Discount != nil {
+		in.Discount = *req.Discount
+	}
+
 	return in, errs.Err()
 }
 
 type updateRequest struct {
-	Number *string `json:"number"`
-	Status *string `json:"status"`
-	Notes  *string `json:"notes"`
+	Number   *string `json:"number"`
+	Status   *string `json:"status"`
+	Notes    *string `json:"notes"`
+	Discount *string `json:"discount"`
 }
 
 func (req updateRequest) input() (UpdateInput, error) {
@@ -74,5 +84,60 @@ func (req updateRequest) input() (UpdateInput, error) {
 
 	in.Notes = req.Notes
 
+	if req.Discount == nil {
+		errs.Add("discount", "is required")
+	} else {
+		in.Discount = *req.Discount
+	}
+
 	return in, errs.Err()
+}
+
+func patchBase(item Invoice) UpdateInput {
+	return UpdateInput{
+		Number:   item.Number,
+		Status:   item.Status,
+		Notes:    item.Notes,
+		Discount: item.Discount,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "number", "status", "notes", "discount":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["number"] {
+		if req.Number == nil {
+			errs.Add("number", "cannot be null")
+		} else {
+			in.Number = *req.Number
+		}
+
+	}
+	if members["status"] {
+		if req.Status == nil {
+			errs.Add("status", "cannot be null")
+		} else {
+			in.Status = *req.Status
+		}
+
+	}
+	if members["notes"] {
+		in.Notes = req.Notes
+
+	}
+	if members["discount"] {
+		if req.Discount == nil {
+			errs.Add("discount", "cannot be null")
+		} else {
+			in.Discount = *req.Discount
+		}
+
+	}
+	return errs.Err()
 }

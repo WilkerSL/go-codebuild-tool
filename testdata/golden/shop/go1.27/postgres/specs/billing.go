@@ -17,6 +17,7 @@ type BillingService struct {
 		Number    string        `gen:"required,unique,max=32"`
 		Status    string        `gen:"enum=draft|issued|paid,default=draft,index"`
 		Notes     *string       `gen:"max=500"`
+		Discount  string        `gen:"decimal=10:2,min=0,default=0.00"`
 		CreatedAt time.Time     `gen:"auto=create"`
 		Items     []InvoiceItem `gen:"rel=has_many:InvoiceItem"`
 	}

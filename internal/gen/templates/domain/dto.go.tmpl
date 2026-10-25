@@ -8,6 +8,7 @@ import (
 
 	"{{.UUIDImport}}"
 
+	"{{.Module}}/internal/platform/httpx"
 	"{{.Module}}/internal/platform/validation"
 )
 {{- if not .ReadOnly}}
@@ -66,6 +67,31 @@ func (req updateRequest) input() (UpdateInput, error) {
 	{{.UpdateConvert}}
 {{- end}}
 	return in, errs.Err()
+}
+
+func patchBase(item {{.Name}}) UpdateInput {
+	return UpdateInput{
+{{- range .Update}}
+		{{.Input}}: item.{{.F.Name}},
+{{- end}}
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case {{range $i, $f := .Update}}{{if $i}}, {{end}}"{{$f.InputJSON}}"{{end}}:
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+{{- range .Update}}
+	if members["{{.InputJSON}}"] {
+		{{.PatchConvert}}
+	}
+{{- end}}
+	return errs.Err()
 }
 {{- end}}
 {{- end}}

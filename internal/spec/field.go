@@ -108,6 +108,9 @@ func (b *fieldBuilder) apply() {
 	if set.has("index") && b.kindAllowed("index", isIndexKind, "string, integer, bool, uuid.UUID or time.Time") {
 		f.Index = true
 	}
+	if set.has("decimal") {
+		b.applyDecimal()
+	}
 	b.applyBounds()
 	if set.has("email") && b.kindAllowed("email", func(k schema.Kind) bool { return k == schema.KindString }, "string") {
 		f.Email = true
@@ -214,13 +217,15 @@ func (b *fieldBuilder) applyBounds() {
 	if hasMin && hasMax && minV > maxV {
 		b.fail("min", CodeInvalidValue, "", "min=%s cannot be greater than max=%s", f.Min, f.Max)
 	}
-	if hasMax && isStringOrBytes(f.Kind) && maxV < 1 {
+	if hasMax && isStringOrBytes(f.Kind) && !f.Decimal() && maxV < 1 {
 		b.fail("max", CodeInvalidValue, "", "max must be at least 1 for %s", f.GoType())
 	}
 }
 
 func (b *fieldBuilder) boundHint() string {
 	switch {
+	case b.f.Decimal():
+		return fmt.Sprintf("use a decimal number that fits decimal=%d:%d", b.f.Precision, b.f.Scale)
 	case isStringOrBytes(b.f.Kind):
 		return "use a non-negative integer length"
 	case b.f.Kind.IsInteger():
@@ -232,6 +237,13 @@ func (b *fieldBuilder) boundHint() string {
 
 func (b *fieldBuilder) parseBound(s string) (string, float64, bool) {
 	switch {
+	case b.f.Decimal():
+		normalized, ok := schema.NormalizeDecimal(s, b.f.Precision, b.f.Scale)
+		if !ok {
+			return "", 0, false
+		}
+		v, _ := strconv.ParseFloat(normalized, 64)
+		return normalized, v, true
 	case isStringOrBytes(b.f.Kind):
 		n, err := strconv.ParseInt(s, 10, 32)
 		if err != nil || n < 0 {
@@ -442,6 +454,17 @@ func (b *fieldBuilder) applyDefault() {
 	f := b.f
 	raw := f.Default
 	switch {
+	case f.Decimal():
+		normalized, ok := schema.NormalizeDecimal(raw, f.Precision, f.Scale)
+		if !ok {
+			b.fail("default", CodeInvalidValue, "", "default %q is not a decimal number that fits decimal=%d:%d", raw, f.Precision, f.Scale)
+			return
+		}
+		v, _ := strconv.ParseFloat(normalized, 64)
+		if !b.withinBounds(v) {
+			return
+		}
+		f.Default = normalized
 	case f.Kind == schema.KindString:
 		if len(f.Enum) > 0 && !slices.Contains(f.Enum, raw) {
 			b.fail("default", CodeInvalidValue, naming.Suggest(raw, f.Enum), "default %q is not one of the enum items %s", raw, strings.Join(f.Enum, ", "))
@@ -513,4 +536,29 @@ func (b *fieldBuilder) withinBounds(v float64) bool {
 		}
 	}
 	return true
+}
+
+func (b *fieldBuilder) applyDecimal() {
+	f := b.f
+	if !b.kindAllowed("decimal", func(k schema.Kind) bool { return k == schema.KindString }, "string") {
+		return
+	}
+	b.exclusive("decimal", []string{"pk", "auto", "rel", "email", "enum", "identity", "password", "role", "owner"}, "a decimal field holds a number")
+	m := b.set.get("decimal")
+	p, s, scaled := strings.Cut(m.value, ":")
+	precision, err := strconv.Atoi(p)
+	scale := 0
+	if err == nil && scaled {
+		scale, err = strconv.Atoi(s)
+	}
+	switch {
+	case err != nil || !m.hasValue:
+		b.fail("decimal", CodeInvalidValue, "decimal=12:2", "decimal needs <precision>:<scale>, such as decimal=12:2 for up to 10 digits before the point and 2 after it, not %q", m.value)
+	case precision < 1 || precision > schema.MaxDecimalPrecision:
+		b.fail("decimal", CodeInvalidValue, "", "the precision of decimal=%s must be between 1 and %d, the limit every dialect supports", m.value, schema.MaxDecimalPrecision)
+	case scale < 0 || scale > precision:
+		b.fail("decimal", CodeInvalidValue, "", "the scale of decimal=%s must be between 0 and the precision %d", m.value, precision)
+	default:
+		f.Precision, f.Scale = precision, scale
+	}
 }

@@ -166,6 +166,16 @@
           "nullable": true
         },
         {
+          "name": "discount",
+          "kind": "decimal",
+          "size": 10,
+          "scale": 2,
+          "default": {
+            "kind": "literal",
+            "value": "0.00"
+          }
+        },
+        {
           "name": "created_at",
           "kind": "time",
           "default": {

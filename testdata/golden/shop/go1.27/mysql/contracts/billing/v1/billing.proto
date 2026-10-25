@@ -16,7 +16,8 @@ message Invoice {
   string number = 3;
   string status = 4;
   optional string notes = 5;
-  google.protobuf.Timestamp created_at = 6;
+  string discount = 6;
+  google.protobuf.Timestamp created_at = 7;
 }
 
 message InvoicePage {
@@ -47,6 +48,7 @@ message InvoiceCreateRequest {
   optional string number = 1;
   optional string status = 2;
   optional string notes = 3;
+  optional string discount = 4;
 }
 
 message InvoiceUpdateRequest {
@@ -54,6 +56,12 @@ message InvoiceUpdateRequest {
   optional string number = 2;
   optional string status = 3;
   optional string notes = 4;
+  optional string discount = 5;
+}
+
+message InvoicePatchRequest {
+  InvoiceUpdateRequest update = 1;
+  repeated string fields = 2;
 }
 
 message InvoiceDeleteRequest {
@@ -107,6 +115,11 @@ message InvoiceItemUpdateRequest {
   optional double price = 5;
 }
 
+message InvoiceItemPatchRequest {
+  InvoiceItemUpdateRequest update = 1;
+  repeated string fields = 2;
+}
+
 message InvoiceItemDeleteRequest {
   int64 id = 1;
 }
@@ -124,6 +137,7 @@ service InvoiceService {
   rpc List(InvoiceListRequest) returns (InvoicePage);
   rpc Create(InvoiceCreateRequest) returns (Invoice);
   rpc Update(InvoiceUpdateRequest) returns (Invoice);
+  rpc Patch(InvoicePatchRequest) returns (Invoice);
   rpc Delete(InvoiceDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(InvoiceExistsRequest) returns (common.v1.ExistsResponse);
 }
@@ -133,6 +147,7 @@ service InvoiceItemService {
   rpc List(InvoiceItemListRequest) returns (InvoiceItemPage);
   rpc Create(InvoiceItemCreateRequest) returns (InvoiceItem);
   rpc Update(InvoiceItemUpdateRequest) returns (InvoiceItem);
+  rpc Patch(InvoiceItemPatchRequest) returns (InvoiceItem);
   rpc Delete(InvoiceItemDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(InvoiceItemExistsRequest) returns (common.v1.ExistsResponse);
   rpc ListInvoiceItems(ListInvoiceItemsRequest) returns (InvoiceItemPage);

@@ -181,6 +181,8 @@ func (s *diffState) diffTable(o, n *Table) {
 				s.warnf("changing the type of %s.%s from %s to %s may fail or lose data", n.Name, nc.Name, oc.Kind, nc.Kind)
 			} else if nc.Size != 0 && (oc.Size == 0 || nc.Size < oc.Size) {
 				s.warnf("shrinking %s.%s may fail or truncate existing values", n.Name, nc.Name)
+			} else if nc.Scale < oc.Scale || nc.Size-nc.Scale < oc.Size-oc.Scale {
+				s.warnf("narrowing %s.%s may fail or round existing values", n.Name, nc.Name)
 			}
 		}
 	}
@@ -341,7 +343,7 @@ func isPrimaryKeyColumn(t *Table, column string) bool {
 }
 
 func sameColumn(a, b *Column) bool {
-	if a.Kind != b.Kind || a.Size != b.Size || a.Nullable != b.Nullable || a.Identity != b.Identity {
+	if a.Kind != b.Kind || a.Size != b.Size || a.Scale != b.Scale || a.Nullable != b.Nullable || a.Identity != b.Identity {
 		return false
 	}
 	if a.Default == nil || b.Default == nil {

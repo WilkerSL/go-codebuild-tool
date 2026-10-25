@@ -3,6 +3,7 @@
 package tags
 
 import (
+	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
 
@@ -59,4 +60,35 @@ func (req updateRequest) input() (UpdateInput, error) {
 	in.Color = req.Color
 
 	return in, errs.Err()
+}
+
+func patchBase(item Tag) UpdateInput {
+	return UpdateInput{
+		Name:  item.Name,
+		Color: item.Color,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "name", "color":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["color"] {
+		in.Color = req.Color
+
+	}
+	return errs.Err()
 }

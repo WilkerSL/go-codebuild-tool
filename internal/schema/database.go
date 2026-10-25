@@ -13,6 +13,7 @@ const (
 	ColumnBytes   ColumnKind = "bytes"
 	ColumnTime    ColumnKind = "time"
 	ColumnUUID    ColumnKind = "uuid"
+	ColumnDecimal ColumnKind = "decimal"
 )
 
 type DefaultKind string
@@ -31,6 +32,7 @@ type Column struct {
 	Name     string     `json:"name"`
 	Kind     ColumnKind `json:"kind"`
 	Size     int        `json:"size,omitempty"`
+	Scale    int        `json:"scale,omitempty"`
 	Nullable bool       `json:"nullable,omitempty"`
 	Identity bool       `json:"identity,omitempty"`
 	Default  *Default   `json:"default,omitempty"`

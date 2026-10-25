@@ -8,6 +8,7 @@ const getQuery = "SELECT\n" +
 	"    `number`,\n" +
 	"    `status`,\n" +
 	"    `notes`,\n" +
+	"    `discount`,\n" +
 	"    `created_at`\n" +
 	"FROM `invoices`\n" +
 	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
@@ -22,6 +23,7 @@ const listQuery = "SELECT\n" +
 	"    `number`,\n" +
 	"    `status`,\n" +
 	"    `notes`,\n" +
+	"    `discount`,\n" +
 	"    `created_at`\n" +
 	"FROM `invoices`\n" +
 	"WHERE `owner_id` = ?\n" +
@@ -37,6 +39,7 @@ const listAfterQuery = "SELECT\n" +
 	"    `number`,\n" +
 	"    `status`,\n" +
 	"    `notes`,\n" +
+	"    `discount`,\n" +
 	"    `created_at`\n" +
 	"FROM `invoices`\n" +
 	"WHERE `owner_id` = ?\n" +
@@ -60,8 +63,10 @@ const createQuery = "INSERT INTO `invoices` (\n" +
 	"    `number`,\n" +
 	"    `status`,\n" +
 	"    `notes`,\n" +
+	"    `discount`,\n" +
 	"    `created_at`\n" +
 	") VALUES (\n" +
+	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
 	"    ?,\n" +
@@ -74,7 +79,8 @@ const updateQuery = "UPDATE `invoices`\n" +
 	"SET\n" +
 	"    `number` = ?,\n" +
 	"    `status` = ?,\n" +
-	"    `notes` = ?\n" +
+	"    `notes` = ?,\n" +
+	"    `discount` = ?\n" +
 	"WHERE `id` = ? AND `owner_id` = ? AND `deleted_at` IS NULL"
 
 const deleteQuery = "UPDATE `invoices`\n" +

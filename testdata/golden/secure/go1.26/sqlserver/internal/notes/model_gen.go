@@ -17,6 +17,7 @@ type Note struct {
 	FolderID  *int64    `json:"folderId"`
 	Title     string    `json:"title"`
 	Body      *string   `json:"body"`
+	Estimate  *string   `json:"estimate"`
 	Pinned    bool      `json:"pinned"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

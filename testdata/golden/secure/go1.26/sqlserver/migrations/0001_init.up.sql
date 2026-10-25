@@ -70,6 +70,7 @@ CREATE TABLE [notes] (
     [folder_id] BIGINT NULL,
     [title] NVARCHAR(200) NOT NULL,
     [body] NVARCHAR(MAX) NULL,
+    [estimate] DECIMAL(6, 2) NULL,
     [pinned] BIT NOT NULL CONSTRAINT [df_notes_pinned] DEFAULT 0,
     [created_at] DATETIME2(7) NOT NULL CONSTRAINT [df_notes_created_at] DEFAULT SYSUTCDATETIME(),
     [updated_at] DATETIME2(7) NOT NULL CONSTRAINT [df_notes_updated_at] DEFAULT SYSUTCDATETIME(),

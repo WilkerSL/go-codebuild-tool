@@ -25,6 +25,7 @@ type Invoice struct {
 	Number    string    `json:"number"`
 	Status    string    `json:"status"`
 	Notes     *string   `json:"notes"`
+	Discount  string    `json:"discount"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -43,6 +44,7 @@ func fromMessage(m *billingv1.Invoice) Invoice {
 		Number:    m.GetNumber(),
 		Status:    m.GetStatus(),
 		Notes:     m.Notes,
+		Discount:  m.GetDiscount(),
 		CreatedAt: m.GetCreatedAt().AsTime(),
 	}
 }
@@ -95,34 +97,38 @@ func (p ListParams) message() *billingv1.InvoiceListRequest {
 }
 
 type createRequest struct {
-	Number *string `json:"number"`
-	Status *string `json:"status"`
-	Notes  *string `json:"notes"`
+	Number   *string `json:"number"`
+	Status   *string `json:"status"`
+	Notes    *string `json:"notes"`
+	Discount *string `json:"discount"`
 }
 
 func (req createRequest) message() (*billingv1.InvoiceCreateRequest, error) {
 	var errs validation.Errors
 	m := &billingv1.InvoiceCreateRequest{
-		Number: req.Number,
-		Status: req.Status,
-		Notes:  req.Notes,
+		Number:   req.Number,
+		Status:   req.Status,
+		Notes:    req.Notes,
+		Discount: req.Discount,
 	}
 	return m, errs.Err()
 }
 
 type updateRequest struct {
-	Number *string `json:"number"`
-	Status *string `json:"status"`
-	Notes  *string `json:"notes"`
+	Number   *string `json:"number"`
+	Status   *string `json:"status"`
+	Notes    *string `json:"notes"`
+	Discount *string `json:"discount"`
 }
 
 func (req updateRequest) message(id uuid.UUID) (*billingv1.InvoiceUpdateRequest, error) {
 	var errs validation.Errors
 	m := &billingv1.InvoiceUpdateRequest{
-		Id:     id.String(),
-		Number: req.Number,
-		Status: req.Status,
-		Notes:  req.Notes,
+		Id:       id.String(),
+		Number:   req.Number,
+		Status:   req.Status,
+		Notes:    req.Notes,
+		Discount: req.Discount,
 	}
 	return m, errs.Err()
 }

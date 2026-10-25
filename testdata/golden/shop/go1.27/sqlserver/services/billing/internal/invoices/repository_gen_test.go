@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"math"
 	mrand "math/rand/v2"
 	"os"
+	"strconv"
 	"testing"
 	"uuid"
 
@@ -53,11 +55,26 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
+func fixtureDecimal(whole, scale int) string {
+	v := "0"
+	if whole > 0 {
+		v = strconv.FormatInt(mrand.Int64N(int64(math.Pow10(min(whole, 9)))), 10)
+	}
+	if scale > 0 {
+		v += "."
+		for range scale {
+			v += strconv.Itoa(mrand.IntN(10))
+		}
+	}
+	return v
+}
+
 func fixtureInvoiceInput(t *testing.T, ctx context.Context, db *sql.DB) invoices.CreateInput {
 	t.Helper()
 	return invoices.CreateInput{
-		Number: fixtureString(16),
-		Status: invoices.StatusDraft,
+		Number:   fixtureString(16),
+		Status:   invoices.StatusDraft,
+		Discount: "0.00",
 	}
 }
 
@@ -110,9 +127,10 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("filtered list returned %d of %d items", len(page.Items), *page.Total)
 	}
 	updated, err := repo.Update(ctx, owner, created.ID, invoices.UpdateInput{
-		Number: created.Number,
-		Status: invoices.StatusDraft,
-		Notes:  created.Notes,
+		Number:   created.Number,
+		Status:   invoices.StatusDraft,
+		Notes:    created.Notes,
+		Discount: "0.00",
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -121,9 +139,10 @@ func TestRepositoryCRUD(t *testing.T) {
 		t.Fatalf("update returned %v, want %v", updated.ID, created.ID)
 	}
 	if _, err := repo.Update(ctx, owner, uuid.New(), invoices.UpdateInput{
-		Number: created.Number,
-		Status: invoices.StatusDraft,
-		Notes:  created.Notes,
+		Number:   created.Number,
+		Status:   invoices.StatusDraft,
+		Notes:    created.Notes,
+		Discount: "0.00",
 	}); !errors.Is(err, database.ErrNotFound) {
 		t.Fatalf("update missing: %v", err)
 	}

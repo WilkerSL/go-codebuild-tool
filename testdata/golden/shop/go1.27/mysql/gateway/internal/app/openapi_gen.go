@@ -263,6 +263,75 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchInvoice",
+        "summary": "Change some fields of a invoice",
+        "tags": [
+          "invoices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoicePatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoicePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteInvoice",
         "summary": "Delete a invoice",
@@ -498,6 +567,72 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/InvoiceItemUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated invoice item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchInvoiceItem",
+        "summary": "Change some fields of a invoice item",
+        "tags": [
+          "invoiceitems"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceItemPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceItemPatch"
               }
             }
           }
@@ -869,6 +1004,79 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchCategory",
+        "summary": "Change some fields of a category",
+        "tags": [
+          "categories"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryPatch"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteCategory",
         "summary": "Delete a category",
@@ -1098,6 +1306,76 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProductUpdate"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchProduct",
+        "summary": "Change some fields of a product",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPatch"
               }
             }
           }
@@ -1478,6 +1756,79 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchUser",
+        "summary": "Change some fields of a user",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteUser",
         "summary": "Delete a user",
@@ -1719,6 +2070,79 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StockUpdate"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated stock.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stock"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchStock",
+        "summary": "Change some fields of a stock",
+        "tags": [
+          "stocks"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockPatch"
               }
             }
           }
@@ -2257,6 +2681,12 @@ var openAPIDocument = []byte(`{
             ],
             "maxLength": 500
           },
+          "discount": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,8}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -2268,6 +2698,7 @@ var openAPIDocument = []byte(`{
           "number",
           "status",
           "notes",
+          "discount",
           "createdAt"
         ]
       },
@@ -2328,6 +2759,13 @@ var openAPIDocument = []byte(`{
               "null"
             ],
             "maxLength": 500
+          },
+          "discount": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,8}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point.",
+            "default": "0.00"
           }
         },
         "required": [
@@ -2356,13 +2794,53 @@ var openAPIDocument = []byte(`{
               "null"
             ],
             "maxLength": 500
+          },
+          "discount": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,8}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
           }
         },
         "required": [
           "number",
-          "status"
+          "status",
+          "discount"
         ],
         "additionalProperties": false
+      },
+      "InvoicePatch": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued",
+              "paid"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "discount": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,8}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "InvoiceItem": {
         "type": "object",
@@ -2498,6 +2976,34 @@ var openAPIDocument = []byte(`{
         ],
         "additionalProperties": false
       },
+      "InvoiceItemPatch": {
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "References a Invoice."
+          },
+          "productId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "References a Product."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
+      },
       "Category": {
         "type": "object",
         "properties": {
@@ -2578,6 +3084,19 @@ var openAPIDocument = []byte(`{
           "name"
         ],
         "additionalProperties": false
+      },
+      "CategoryPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "\\S"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "Product": {
         "type": "object",
@@ -2701,6 +3220,32 @@ var openAPIDocument = []byte(`{
           "price"
         ],
         "additionalProperties": false
+      },
+      "ProductPatch": {
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "References a Category."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S"
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "User": {
         "type": "object",
@@ -2844,6 +3389,32 @@ var openAPIDocument = []byte(`{
         ],
         "additionalProperties": false
       },
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "pattern": "\\S"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
+      },
       "Stock": {
         "type": "object",
         "properties": {
@@ -2941,6 +3512,24 @@ var openAPIDocument = []byte(`{
           "quantity"
         ],
         "additionalProperties": false
+      },
+      "StockPatch": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "References a Product."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "AuthTokens": {
         "type": "object",

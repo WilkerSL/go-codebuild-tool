@@ -11,6 +11,7 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler) {
 	mux.HandleFunc("POST /projects", h.idempotent(h.create))
 	mux.HandleFunc("GET /projects/{id}", h.get)
 	mux.HandleFunc("PUT /projects/{id}", h.update)
+	mux.HandleFunc("PATCH /projects/{id}", h.patch)
 	mux.HandleFunc("DELETE /projects/{id}", h.delete)
 	mux.HandleFunc("GET /orgs/{orgId}/projects", h.listOrgProjects)
 }

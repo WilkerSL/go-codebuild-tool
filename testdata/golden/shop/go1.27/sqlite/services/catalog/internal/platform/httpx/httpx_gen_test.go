@@ -30,6 +30,30 @@ func decode(body string) (decodeTarget, error) {
 	return dst, err
 }
 
+func TestDecodePatch(t *testing.T) {
+	patch := func(body string) (decodeTarget, map[string]bool, error) {
+		var dst decodeTarget
+		r := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/merge-patch+json")
+		members, err := DecodePatch(httptest.NewRecorder(), r, &dst)
+		return dst, members, err
+	}
+	got, members, err := patch(`{"name":null,"count":3}`)
+	if err != nil || got.Name != nil || *got.Count != 3 || !members["name"] || !members["count"] || len(members) != 2 {
+		t.Fatalf("patch with a null member = %+v %v %v", got, members, err)
+	}
+	if _, members, err := patch(`{}`); err != nil || len(members) != 0 {
+		t.Fatalf("empty patch = %v %v", members, err)
+	}
+	for _, body := range []string{"", "null", "[1]", `"name"`, `{"nickname":"x"}`, `{"count":"x"}`, `{"name":"a"} {}`} {
+		if _, _, err := patch(body); err == nil {
+			t.Errorf("patch(%q) was accepted", body)
+		} else if httpErr, ok := errors.AsType[*Error](err); !ok || httpErr.Status != http.StatusBadRequest {
+			t.Errorf("patch(%q) = %v, want 400", body, err)
+		}
+	}
+}
+
 func TestDecodeJSON(t *testing.T) {
 	got, err := decode(`{"name":"ann","count":3}`)
 	if err != nil || *got.Name != "ann" || *got.Count != 3 {

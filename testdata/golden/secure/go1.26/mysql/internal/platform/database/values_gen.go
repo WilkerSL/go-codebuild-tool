@@ -5,6 +5,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,4 +95,42 @@ func NullTimeArg(t *time.Time) any {
 		return nil
 	}
 	return t.UTC()
+}
+
+func DecimalArg(s string, scale int) any {
+	return canonicalDecimal(s, scale)
+}
+
+func NullDecimalArg(s *string, scale int) any {
+	if s == nil {
+		return nil
+	}
+	return canonicalDecimal(*s, scale)
+}
+
+func canonicalDecimal(s string, scale int) string {
+	sign, digits := "", s
+	switch {
+	case strings.HasPrefix(digits, "-"):
+		sign, digits = "-", digits[1:]
+	case strings.HasPrefix(digits, "+"):
+		digits = digits[1:]
+	}
+	whole, frac, _ := strings.Cut(digits, ".")
+	whole = strings.TrimLeft(whole, "0")
+	frac = strings.TrimRight(frac, "0")
+	if len(frac) > scale {
+		return s
+	}
+	if whole == "" {
+		whole = "0"
+	}
+	out := whole
+	if scale > 0 {
+		out += "." + frac + strings.Repeat("0", scale-len(frac))
+	}
+	if strings.Trim(out, "0.") == "" {
+		sign = ""
+	}
+	return sign + out
 }

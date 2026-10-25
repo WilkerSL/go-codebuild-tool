@@ -80,7 +80,7 @@ func (r *Repository) Create(ctx context.Context, in CreateInput) (Project, error
 	id := uuid.NewV7()
 	var item Project
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
-		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)); err != nil {
+		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, database.DecimalArg(in.Budget, 2), in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt)); err != nil {
 			return writeError("create project", err)
 		}
 		created, err := scanProject(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id)).Scan)
@@ -106,7 +106,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (
 	}
 	var item Project
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
-		res, err := db.ExecContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, in.Budget, in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id))
+		res, err := db.ExecContext(ctx, updateQuery, database.UUIDArg(in.OrgID), database.NullUUIDArg(in.OwnerID), in.Name, database.DecimalArg(in.Budget, 2), in.Priority, in.Archived, database.BytesArg(in.Logo), database.NullTimeArg(in.DueAt), database.UUIDArg(id))
 		if err != nil {
 			return writeError("update project", err)
 		}

@@ -9,6 +9,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -27,6 +28,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -46,6 +48,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -75,6 +78,7 @@ INSERT INTO "notes" (
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -85,6 +89,7 @@ INSERT INTO "notes" (
     $4,
     $5,
     $6,
+    $7,
     now(),
     now()
 )
@@ -94,6 +99,7 @@ RETURNING
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"`
@@ -104,15 +110,17 @@ SET
     "folder_id" = $1,
     "title" = $2,
     "body" = $3,
-    "pinned" = $4,
+    "estimate" = $4,
+    "pinned" = $5,
     "updated_at" = now()
-WHERE "id" = $5 AND "owner_id" = $6 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
+WHERE "id" = $6 AND "owner_id" = $7 AND "deleted_at" IS NULL AND EXISTS (SELECT 1 FROM "users" WHERE "users"."id" = "notes"."owner_id" AND "users"."deleted_at" IS NULL)
 RETURNING
     "id",
     "owner_id",
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"`
@@ -134,6 +142,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -153,6 +162,7 @@ SELECT
     "folder_id",
     "title",
     "body",
+    "estimate",
     "pinned",
     "created_at",
     "updated_at"
@@ -187,6 +197,7 @@ SELECT
     "notes"."folder_id",
     "notes"."title",
     "notes"."body",
+    "notes"."estimate",
     "notes"."pinned",
     "notes"."created_at",
     "notes"."updated_at"
@@ -208,6 +219,7 @@ SELECT
     "notes"."folder_id",
     "notes"."title",
     "notes"."body",
+    "notes"."estimate",
     "notes"."pinned",
     "notes"."created_at",
     "notes"."updated_at"

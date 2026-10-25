@@ -140,6 +140,7 @@ func (d *openAPIDoc) entitySchemas(dv *domainView) {
 		d.addSchema(dv.Name+"Create", inputSchema(dv.Create, dv.RequiredCreate, true))
 		if dv.HasUpdate {
 			d.addSchema(dv.Name+"Update", inputSchema(dv.Update, dv.RequiredUpdate, false))
+			d.addSchema(dv.Name+"Patch", inputSchema(dv.Update, nil, false).set("description", "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."))
 		}
 	}
 }
@@ -214,11 +215,23 @@ func fieldSchema(f *schema.Field, nullable bool) object {
 	if f.Email {
 		format = "email"
 	}
+	if f.Decimal() {
+		format = "decimal"
+	}
 	if format != "" {
 		s = s.set("format", format)
 	}
 	var notes []string
 	switch {
+	case f.Decimal():
+		s = s.set("pattern", decimalPattern(f))
+		if f.Min != "" {
+			notes = append(notes, "at least "+f.Min)
+		}
+		if f.Max != "" {
+			notes = append(notes, "at most "+f.Max)
+		}
+		notes = append(notes, fmt.Sprintf("decimal number sent as a string, stored with %d digits after the point", f.Scale))
 	case f.Kind == schema.KindString:
 		if f.Min != "" {
 			s = s.set("minLength", atoi(f.Min))
@@ -403,6 +416,16 @@ func (b *opBuilder) body(schema string, required bool) *opBuilder {
 	return b.problems("PayloadTooLarge", "UnsupportedMediaType")
 }
 
+// mergePatchBody accepts application/merge-patch+json and, for clients that
+// cannot set that type, application/json.
+func (b *opBuilder) mergePatchBody(schema string) *opBuilder {
+	content := object{}.
+		set("application/merge-patch+json", object{}.set("schema", schemaRef(schema))).
+		set("application/json", object{}.set("schema", schemaRef(schema)))
+	b.op = b.op.set("requestBody", object{}.set("required", true).set("content", content))
+	return b.problems("PayloadTooLarge", "UnsupportedMediaType")
+}
+
 func (b *opBuilder) params(params ...any) *opBuilder {
 	if len(params) > 0 {
 		existing, _ := b.op.get("parameters").([]any)
@@ -555,6 +578,16 @@ func (d *openAPIDoc) domainPaths(dv *domainView) {
 			update.problems("Conflict")
 		}
 		d.addOperation(dv.ItemPath, "PUT", update.build())
+		patch := d.newOp("patch"+dv.Name, "Change some fields of a "+dv.Noun, tag).
+			params(id...).
+			mergePatchBody(dv.Name+"Patch").
+			respond("200", okResponse("The updated "+dv.Noun+".", dv.Name)).
+			problems("BadRequest", "NotFound", "UnprocessableEntity", "Error").
+			guard(guarded, e.Policy(schema.OpUpdate))
+		if hasUnique(e) {
+			patch.problems("Conflict")
+		}
+		d.addOperation(dv.ItemPath, "PATCH", patch.build())
 	}
 	if !e.ReadOnly {
 		del := d.newOp("delete"+dv.Name, "Delete a "+dv.Noun, tag).
@@ -795,4 +828,21 @@ func (g *generator) openAPI(pv *projectView) {
 	}
 	g.files = append(g.files, File{Path: OpenAPIPath, Content: doc, Owner: OwnerGenerated})
 	g.goFile("internal/app/openapi_gen.go", "project/openapi.go.tmpl", openAPIView{Header: Header, Literal: rawLiteral(string(doc))})
+}
+
+// decimalPattern matches the text of a value that fits decimal=precision:scale.
+func decimalPattern(f *schema.Field) string {
+	whole := f.Precision - f.Scale
+	p := `^[-+]?`
+	if whole == 0 {
+		p += `0*`
+	} else {
+		p += `0*[0-9]{1,` + strconv.Itoa(whole) + `}`
+	}
+	if f.Scale > 0 {
+		p += `(\.[0-9]{1,` + strconv.Itoa(f.Scale) + `}0*)?`
+	} else {
+		p += `(\.0+)?`
+	}
+	return p + `$`
 }

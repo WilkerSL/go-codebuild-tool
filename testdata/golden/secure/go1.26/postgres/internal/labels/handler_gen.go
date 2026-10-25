@@ -130,6 +130,36 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, item)
 }
 
+func (h *Handler) patch(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.PathInt[int64](r, "id")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	members, err := httpx.DecodePatch(w, r, &req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	current, err := h.svc.Get(r.Context(), id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	in := patchBase(current)
+	if err := validation.Merge(req.patch(&in, members), in.Validate()); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.svc.Update(r.Context(), id, in)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, item)
+}
+
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := httpx.PathInt[int64](r, "id")
 	if err != nil {

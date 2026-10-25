@@ -18,6 +18,7 @@ const (
 	CategoryService_List_FullMethodName   = "/catalog.v1.CategoryService/List"
 	CategoryService_Create_FullMethodName = "/catalog.v1.CategoryService/Create"
 	CategoryService_Update_FullMethodName = "/catalog.v1.CategoryService/Update"
+	CategoryService_Patch_FullMethodName  = "/catalog.v1.CategoryService/Patch"
 	CategoryService_Delete_FullMethodName = "/catalog.v1.CategoryService/Delete"
 	CategoryService_Exists_FullMethodName = "/catalog.v1.CategoryService/Exists"
 )
@@ -27,6 +28,7 @@ type CategoryServiceClient interface {
 	List(ctx context.Context, in *CategoryListRequest, opts ...grpc.CallOption) (*CategoryPage, error)
 	Create(ctx context.Context, in *CategoryCreateRequest, opts ...grpc.CallOption) (*Category, error)
 	Update(ctx context.Context, in *CategoryUpdateRequest, opts ...grpc.CallOption) (*Category, error)
+	Patch(ctx context.Context, in *CategoryPatchRequest, opts ...grpc.CallOption) (*Category, error)
 	Delete(ctx context.Context, in *CategoryDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *CategoryExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 }
@@ -75,6 +77,15 @@ func (c *categoryServiceClient) Update(ctx context.Context, in *CategoryUpdateRe
 	return out, nil
 }
 
+func (c *categoryServiceClient) Patch(ctx context.Context, in *CategoryPatchRequest, opts ...grpc.CallOption) (*Category, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Category)
+	if err := c.cc.Invoke(ctx, CategoryService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *categoryServiceClient) Delete(ctx context.Context, in *CategoryDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -98,6 +109,7 @@ type CategoryServiceServer interface {
 	List(context.Context, *CategoryListRequest) (*CategoryPage, error)
 	Create(context.Context, *CategoryCreateRequest) (*Category, error)
 	Update(context.Context, *CategoryUpdateRequest) (*Category, error)
+	Patch(context.Context, *CategoryPatchRequest) (*Category, error)
 	Delete(context.Context, *CategoryDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *CategoryExistsRequest) (*v1.ExistsResponse, error)
 	mustEmbedUnimplementedCategoryServiceServer()
@@ -119,6 +131,10 @@ func (UnimplementedCategoryServiceServer) Create(context.Context, *CategoryCreat
 
 func (UnimplementedCategoryServiceServer) Update(context.Context, *CategoryUpdateRequest) (*Category, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedCategoryServiceServer) Patch(context.Context, *CategoryPatchRequest) (*Category, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedCategoryServiceServer) Delete(context.Context, *CategoryDeleteRequest) (*emptypb.Empty, error) {
@@ -195,6 +211,21 @@ func _CategoryService_Update_Handler(srv any, ctx context.Context, dec func(any)
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CategoryService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(CategoryPatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CategoryServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: CategoryService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(CategoryServiceServer).Patch(ctx, req.(*CategoryPatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CategoryService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(CategoryDeleteRequest)
 	if err := dec(in); err != nil {
@@ -233,6 +264,7 @@ var CategoryService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _CategoryService_List_Handler},
 		{MethodName: "Create", Handler: _CategoryService_Create_Handler},
 		{MethodName: "Update", Handler: _CategoryService_Update_Handler},
+		{MethodName: "Patch", Handler: _CategoryService_Patch_Handler},
 		{MethodName: "Delete", Handler: _CategoryService_Delete_Handler},
 		{MethodName: "Exists", Handler: _CategoryService_Exists_Handler},
 	},
@@ -245,6 +277,7 @@ const (
 	ProductService_List_FullMethodName                 = "/catalog.v1.ProductService/List"
 	ProductService_Create_FullMethodName               = "/catalog.v1.ProductService/Create"
 	ProductService_Update_FullMethodName               = "/catalog.v1.ProductService/Update"
+	ProductService_Patch_FullMethodName                = "/catalog.v1.ProductService/Patch"
 	ProductService_Delete_FullMethodName               = "/catalog.v1.ProductService/Delete"
 	ProductService_Exists_FullMethodName               = "/catalog.v1.ProductService/Exists"
 	ProductService_ListCategoryProducts_FullMethodName = "/catalog.v1.ProductService/ListCategoryProducts"
@@ -255,6 +288,7 @@ type ProductServiceClient interface {
 	List(ctx context.Context, in *ProductListRequest, opts ...grpc.CallOption) (*ProductPage, error)
 	Create(ctx context.Context, in *ProductCreateRequest, opts ...grpc.CallOption) (*Product, error)
 	Update(ctx context.Context, in *ProductUpdateRequest, opts ...grpc.CallOption) (*Product, error)
+	Patch(ctx context.Context, in *ProductPatchRequest, opts ...grpc.CallOption) (*Product, error)
 	Delete(ctx context.Context, in *ProductDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *ProductExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 	ListCategoryProducts(ctx context.Context, in *ListCategoryProductsRequest, opts ...grpc.CallOption) (*ProductPage, error)
@@ -304,6 +338,15 @@ func (c *productServiceClient) Update(ctx context.Context, in *ProductUpdateRequ
 	return out, nil
 }
 
+func (c *productServiceClient) Patch(ctx context.Context, in *ProductPatchRequest, opts ...grpc.CallOption) (*Product, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Product)
+	if err := c.cc.Invoke(ctx, ProductService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) Delete(ctx context.Context, in *ProductDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -336,6 +379,7 @@ type ProductServiceServer interface {
 	List(context.Context, *ProductListRequest) (*ProductPage, error)
 	Create(context.Context, *ProductCreateRequest) (*Product, error)
 	Update(context.Context, *ProductUpdateRequest) (*Product, error)
+	Patch(context.Context, *ProductPatchRequest) (*Product, error)
 	Delete(context.Context, *ProductDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *ProductExistsRequest) (*v1.ExistsResponse, error)
 	ListCategoryProducts(context.Context, *ListCategoryProductsRequest) (*ProductPage, error)
@@ -358,6 +402,10 @@ func (UnimplementedProductServiceServer) Create(context.Context, *ProductCreateR
 
 func (UnimplementedProductServiceServer) Update(context.Context, *ProductUpdateRequest) (*Product, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedProductServiceServer) Patch(context.Context, *ProductPatchRequest) (*Product, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedProductServiceServer) Delete(context.Context, *ProductDeleteRequest) (*emptypb.Empty, error) {
@@ -438,6 +486,21 @@ func _ProductService_Update_Handler(srv any, ctx context.Context, dec func(any) 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(ProductPatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: ProductService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(ProductServiceServer).Patch(ctx, req.(*ProductPatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(ProductDeleteRequest)
 	if err := dec(in); err != nil {
@@ -491,6 +554,7 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _ProductService_List_Handler},
 		{MethodName: "Create", Handler: _ProductService_Create_Handler},
 		{MethodName: "Update", Handler: _ProductService_Update_Handler},
+		{MethodName: "Patch", Handler: _ProductService_Patch_Handler},
 		{MethodName: "Delete", Handler: _ProductService_Delete_Handler},
 		{MethodName: "Exists", Handler: _ProductService_Exists_Handler},
 		{MethodName: "ListCategoryProducts", Handler: _ProductService_ListCategoryProducts_Handler},

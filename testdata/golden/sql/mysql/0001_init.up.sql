@@ -76,7 +76,7 @@ CREATE TABLE `projects` (
     `org_id` CHAR(36) NOT NULL,
     `owner_id` CHAR(36),
     `name` VARCHAR(200) NOT NULL,
-    `budget` DOUBLE NOT NULL,
+    `budget` DECIMAL(14, 2) NOT NULL,
     `priority` INT NOT NULL DEFAULT 3,
     `archived` BOOLEAN NOT NULL,
     `logo` LONGBLOB NOT NULL,

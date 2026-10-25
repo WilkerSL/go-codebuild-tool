@@ -46,6 +46,11 @@ message CategoryUpdateRequest {
   optional string name = 2;
 }
 
+message CategoryPatchRequest {
+  CategoryUpdateRequest update = 1;
+  repeated string fields = 2;
+}
+
 message CategoryDeleteRequest {
   int64 id = 1;
 }
@@ -93,6 +98,11 @@ message ProductUpdateRequest {
   optional double price = 4;
 }
 
+message ProductPatchRequest {
+  ProductUpdateRequest update = 1;
+  repeated string fields = 2;
+}
+
 message ProductDeleteRequest {
   int64 id = 1;
 }
@@ -109,6 +119,7 @@ service CategoryService {
   rpc List(CategoryListRequest) returns (CategoryPage);
   rpc Create(CategoryCreateRequest) returns (Category);
   rpc Update(CategoryUpdateRequest) returns (Category);
+  rpc Patch(CategoryPatchRequest) returns (Category);
   rpc Delete(CategoryDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(CategoryExistsRequest) returns (common.v1.ExistsResponse);
 }
@@ -118,6 +129,7 @@ service ProductService {
   rpc List(ProductListRequest) returns (ProductPage);
   rpc Create(ProductCreateRequest) returns (Product);
   rpc Update(ProductUpdateRequest) returns (Product);
+  rpc Patch(ProductPatchRequest) returns (Product);
   rpc Delete(ProductDeleteRequest) returns (google.protobuf.Empty);
   rpc Exists(ProductExistsRequest) returns (common.v1.ExistsResponse);
   rpc ListCategoryProducts(ListCategoryProductsRequest) returns (ProductPage);

@@ -4,8 +4,10 @@ package {{.Package}}
 
 import (
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 
 	"google.golang.org/grpc"
@@ -116,6 +118,31 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.client.Update(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+
+func (h *Handler) patch(w http.ResponseWriter, r *http.Request) {
+	id, err := {{.PKParse}}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	members, err := httpx.DecodePatch(w, r, &req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message(id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.client.Patch(r.Context(), &{{.Proxy.Alias}}.{{.Name}}PatchRequest{Update: msg, Fields: slices.Sorted(maps.Keys(members))})
 	if err != nil {
 		h.fail(w, r, err)
 		return

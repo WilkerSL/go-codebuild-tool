@@ -126,7 +126,7 @@ func TestWorkspaceMigrationsPerDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	invoice := registry.Messages["billing.v1.Invoice"]
-	if invoice == nil || invoice.Fields["due_at"] != 7 || !slices.Equal(invoice.Reserved, []int32{5}) || invoice.Fields["created_at"] != 6 {
+	if invoice == nil || invoice.Fields["due_at"] != 8 || !slices.Equal(invoice.Reserved, []int32{5}) || invoice.Fields["created_at"] != 7 || invoice.Fields["discount"] != 6 {
 		t.Fatalf("billing.v1.Invoice numbers = %+v", invoice)
 	}
 	if proto := readTestFile(t, filepath.Join(dir, "contracts", "billing", "v1", "billing.proto")); !strings.Contains(proto, "reserved 5;") {

@@ -15,6 +15,7 @@ CREATE TABLE "invoices" (
     "number" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'draft',
     "notes" TEXT,
+    "discount" TEXT NOT NULL DEFAULT '0.00',
     "created_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     "deleted_at" DATETIME,
     CONSTRAINT "pk_invoices" PRIMARY KEY ("id"),

@@ -238,6 +238,72 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchFolder",
+        "summary": "Change some fields of a folder",
+        "tags": [
+          "folders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated folder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Folder"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteFolder",
         "summary": "Delete a folder",
@@ -463,6 +529,79 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LabelUpdate"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated label.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchLabel",
+        "summary": "Change some fields of a label",
+        "tags": [
+          "labels"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelPatch"
               }
             }
           }
@@ -906,6 +1045,72 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NoteUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated note.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchNote",
+        "summary": "Change some fields of a note",
+        "tags": [
+          "notes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotePatch"
               }
             }
           }
@@ -1437,6 +1642,72 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchReminder",
+        "summary": "Change some fields of a reminder",
+        "tags": [
+          "reminders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated reminder.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reminder"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteReminder",
         "summary": "Delete a reminder",
@@ -1728,6 +1999,79 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          }
+        },
+        "description": "Requires one of the roles: admin.",
+        "responses": {
+          "200": {
+            "description": "The updated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchUser",
+        "summary": "Change some fields of a user",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
               }
             }
           }
@@ -2322,6 +2666,19 @@ var openAPIDocument = []byte(`{
         ],
         "additionalProperties": false
       },
+      "FolderPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "\\S"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
+      },
       "Label": {
         "type": "object",
         "properties": {
@@ -2403,6 +2760,19 @@ var openAPIDocument = []byte(`{
         ],
         "additionalProperties": false
       },
+      "LabelPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "\\S"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
+      },
       "Note": {
         "type": "object",
         "properties": {
@@ -2435,6 +2805,15 @@ var openAPIDocument = []byte(`{
             ],
             "maxLength": 5000
           },
+          "estimate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,4}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; at most 1000.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
           "pinned": {
             "type": "boolean"
           },
@@ -2453,6 +2832,7 @@ var openAPIDocument = []byte(`{
           "folderId",
           "title",
           "body",
+          "estimate",
           "pinned",
           "createdAt",
           "updatedAt"
@@ -2516,6 +2896,15 @@ var openAPIDocument = []byte(`{
             ],
             "maxLength": 5000
           },
+          "estimate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,4}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; at most 1000.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
           "pinned": {
             "type": "boolean",
             "default": false
@@ -2549,6 +2938,15 @@ var openAPIDocument = []byte(`{
             ],
             "maxLength": 5000
           },
+          "estimate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,4}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; at most 1000.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
           "pinned": {
             "type": "boolean"
           }
@@ -2558,6 +2956,46 @@ var openAPIDocument = []byte(`{
           "pinned"
         ],
         "additionalProperties": false
+      },
+      "NotePatch": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "References a Folder."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "estimate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,4}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; at most 1000.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
+          "pinned": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "Reminder": {
         "type": "object",
@@ -2684,6 +3122,31 @@ var openAPIDocument = []byte(`{
           "done"
         ],
         "additionalProperties": false
+      },
+      "ReminderPatch": {
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "References a Note."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "User": {
         "type": "object",
@@ -2826,6 +3289,32 @@ var openAPIDocument = []byte(`{
           "role"
         ],
         "additionalProperties": false
+      },
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "pattern": "\\S"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "AuthTokens": {
         "type": "object",

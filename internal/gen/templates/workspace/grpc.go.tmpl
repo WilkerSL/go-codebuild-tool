@@ -169,6 +169,33 @@ func (s *GRPCServer) Update(ctx context.Context, req *{{$g.Alias}}.{{$g.Update.R
 	}
 	return toMessage(item), nil
 }
+
+func (s *GRPCServer) Patch(ctx context.Context, req *{{$g.Alias}}.{{$g.Patch.Request}}) (*{{$g.Alias}}.{{$g.Message}}, error) {
+{{- with $g.Patch.Authorize}}
+	{{.}}
+{{- end}}
+	update := req.GetUpdate()
+	{{$g.PatchIDParse}}
+	{{$g.PatchFrom}}
+	current, err := s.svc.Get(ctx, {{$g.Patch.Owner}}id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	members := make(map[string]bool, len(req.GetFields()))
+	for _, name := range req.GetFields() {
+		members[name] = true
+	}
+	in := patchBase(current)
+	if err := validation.Merge(errs.Err(), r.patch(&in, members), in.Validate()); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	{{- template "remoteChecks" $g.Checks}}
+	item, err := s.svc.Update(ctx, {{$g.Patch.Owner}}id, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
 {{- end}}
 
 func (s *GRPCServer) Delete(ctx context.Context, req *{{$g.Alias}}.{{$g.Delete.Request}}) (*emptypb.Empty, error) {

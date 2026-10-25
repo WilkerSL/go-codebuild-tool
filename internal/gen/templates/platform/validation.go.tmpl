@@ -4,6 +4,7 @@ package validation
 
 import (
 	"errors"
+	"math/big"
 	"net/mail"
 	"slices"
 	"strings"
@@ -62,4 +63,33 @@ func Merge(errs ...error) error {
 func Email(s string) bool {
 	addr, err := mail.ParseAddress(s)
 	return err == nil && addr.Name == "" && addr.Address == s
+}
+
+func Decimal(s string, precision, scale int) bool {
+	if strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+") {
+		s = s[1:]
+	}
+	whole, frac, dotted := strings.Cut(s, ".")
+	if whole == "" || (dotted && frac == "") || !onlyDigits(whole) || !onlyDigits(frac) {
+		return false
+	}
+	return len(strings.TrimLeft(whole, "0")) <= precision-scale && len(strings.TrimRight(frac, "0")) <= scale
+}
+
+func CompareDecimal(a, b string) int {
+	x, okA := new(big.Rat).SetString(a)
+	y, okB := new(big.Rat).SetString(b)
+	if !okA || !okB {
+		return strings.Compare(a, b)
+	}
+	return x.Cmp(y)
+}
+
+func onlyDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }

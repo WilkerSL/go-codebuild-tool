@@ -70,6 +70,7 @@ CREATE TABLE "notes" (
     "folder_id" INTEGER,
     "title" TEXT NOT NULL,
     "body" TEXT,
+    "estimate" TEXT,
     "pinned" BOOLEAN NOT NULL DEFAULT 0,
     "created_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
     "updated_at" DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),

@@ -91,7 +91,7 @@ func fkActionDefault(a schema.OnDelete) string {
 }
 
 func columnsEqualType(a, b *schema.Column) bool {
-	return a.Kind == b.Kind && a.Size == b.Size
+	return a.Kind == b.Kind && a.Size == b.Size && a.Scale == b.Scale
 }
 
 func defaultsEqual(a, b *schema.Column) bool {

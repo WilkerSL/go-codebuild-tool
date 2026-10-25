@@ -35,6 +35,8 @@ const mysqlInlineLimit = 4096
 
 func (MySQL) ColumnType(c *schema.Column) string {
 	switch c.Kind {
+	case schema.ColumnDecimal:
+		return "DECIMAL(" + strconv.Itoa(c.Size) + ", " + strconv.Itoa(c.Scale) + ")"
 	case schema.ColumnString:
 		if c.Size > 0 && c.Size <= mysqlInlineLimit {
 			return "VARCHAR(" + strconv.Itoa(c.Size) + ")"

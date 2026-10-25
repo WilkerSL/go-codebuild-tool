@@ -4,7 +4,9 @@ package categories
 
 import (
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 
 	catalogv1 "example.com/shop/contracts/catalog/v1"
@@ -112,6 +114,31 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.client.Update(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+
+func (h *Handler) patch(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.PathInt[int64](r, "id")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	members, err := httpx.DecodePatch(w, r, &req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message(id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.client.Patch(r.Context(), &catalogv1.CategoryPatchRequest{Update: msg, Fields: slices.Sorted(maps.Keys(members))})
 	if err != nil {
 		h.fail(w, r, err)
 		return

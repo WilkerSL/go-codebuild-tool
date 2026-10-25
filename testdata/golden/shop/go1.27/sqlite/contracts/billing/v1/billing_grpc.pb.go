@@ -18,6 +18,7 @@ const (
 	InvoiceService_List_FullMethodName   = "/billing.v1.InvoiceService/List"
 	InvoiceService_Create_FullMethodName = "/billing.v1.InvoiceService/Create"
 	InvoiceService_Update_FullMethodName = "/billing.v1.InvoiceService/Update"
+	InvoiceService_Patch_FullMethodName  = "/billing.v1.InvoiceService/Patch"
 	InvoiceService_Delete_FullMethodName = "/billing.v1.InvoiceService/Delete"
 	InvoiceService_Exists_FullMethodName = "/billing.v1.InvoiceService/Exists"
 )
@@ -27,6 +28,7 @@ type InvoiceServiceClient interface {
 	List(ctx context.Context, in *InvoiceListRequest, opts ...grpc.CallOption) (*InvoicePage, error)
 	Create(ctx context.Context, in *InvoiceCreateRequest, opts ...grpc.CallOption) (*Invoice, error)
 	Update(ctx context.Context, in *InvoiceUpdateRequest, opts ...grpc.CallOption) (*Invoice, error)
+	Patch(ctx context.Context, in *InvoicePatchRequest, opts ...grpc.CallOption) (*Invoice, error)
 	Delete(ctx context.Context, in *InvoiceDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *InvoiceExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 }
@@ -75,6 +77,15 @@ func (c *invoiceServiceClient) Update(ctx context.Context, in *InvoiceUpdateRequ
 	return out, nil
 }
 
+func (c *invoiceServiceClient) Patch(ctx context.Context, in *InvoicePatchRequest, opts ...grpc.CallOption) (*Invoice, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Invoice)
+	if err := c.cc.Invoke(ctx, InvoiceService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *invoiceServiceClient) Delete(ctx context.Context, in *InvoiceDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -98,6 +109,7 @@ type InvoiceServiceServer interface {
 	List(context.Context, *InvoiceListRequest) (*InvoicePage, error)
 	Create(context.Context, *InvoiceCreateRequest) (*Invoice, error)
 	Update(context.Context, *InvoiceUpdateRequest) (*Invoice, error)
+	Patch(context.Context, *InvoicePatchRequest) (*Invoice, error)
 	Delete(context.Context, *InvoiceDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *InvoiceExistsRequest) (*v1.ExistsResponse, error)
 	mustEmbedUnimplementedInvoiceServiceServer()
@@ -119,6 +131,10 @@ func (UnimplementedInvoiceServiceServer) Create(context.Context, *InvoiceCreateR
 
 func (UnimplementedInvoiceServiceServer) Update(context.Context, *InvoiceUpdateRequest) (*Invoice, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedInvoiceServiceServer) Patch(context.Context, *InvoicePatchRequest) (*Invoice, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedInvoiceServiceServer) Delete(context.Context, *InvoiceDeleteRequest) (*emptypb.Empty, error) {
@@ -195,6 +211,21 @@ func _InvoiceService_Update_Handler(srv any, ctx context.Context, dec func(any) 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InvoiceService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(InvoicePatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: InvoiceService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(InvoiceServiceServer).Patch(ctx, req.(*InvoicePatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _InvoiceService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(InvoiceDeleteRequest)
 	if err := dec(in); err != nil {
@@ -233,6 +264,7 @@ var InvoiceService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _InvoiceService_List_Handler},
 		{MethodName: "Create", Handler: _InvoiceService_Create_Handler},
 		{MethodName: "Update", Handler: _InvoiceService_Update_Handler},
+		{MethodName: "Patch", Handler: _InvoiceService_Patch_Handler},
 		{MethodName: "Delete", Handler: _InvoiceService_Delete_Handler},
 		{MethodName: "Exists", Handler: _InvoiceService_Exists_Handler},
 	},
@@ -245,6 +277,7 @@ const (
 	InvoiceItemService_List_FullMethodName             = "/billing.v1.InvoiceItemService/List"
 	InvoiceItemService_Create_FullMethodName           = "/billing.v1.InvoiceItemService/Create"
 	InvoiceItemService_Update_FullMethodName           = "/billing.v1.InvoiceItemService/Update"
+	InvoiceItemService_Patch_FullMethodName            = "/billing.v1.InvoiceItemService/Patch"
 	InvoiceItemService_Delete_FullMethodName           = "/billing.v1.InvoiceItemService/Delete"
 	InvoiceItemService_Exists_FullMethodName           = "/billing.v1.InvoiceItemService/Exists"
 	InvoiceItemService_ListInvoiceItems_FullMethodName = "/billing.v1.InvoiceItemService/ListInvoiceItems"
@@ -255,6 +288,7 @@ type InvoiceItemServiceClient interface {
 	List(ctx context.Context, in *InvoiceItemListRequest, opts ...grpc.CallOption) (*InvoiceItemPage, error)
 	Create(ctx context.Context, in *InvoiceItemCreateRequest, opts ...grpc.CallOption) (*InvoiceItem, error)
 	Update(ctx context.Context, in *InvoiceItemUpdateRequest, opts ...grpc.CallOption) (*InvoiceItem, error)
+	Patch(ctx context.Context, in *InvoiceItemPatchRequest, opts ...grpc.CallOption) (*InvoiceItem, error)
 	Delete(ctx context.Context, in *InvoiceItemDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *InvoiceItemExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 	ListInvoiceItems(ctx context.Context, in *ListInvoiceItemsRequest, opts ...grpc.CallOption) (*InvoiceItemPage, error)
@@ -304,6 +338,15 @@ func (c *invoiceItemServiceClient) Update(ctx context.Context, in *InvoiceItemUp
 	return out, nil
 }
 
+func (c *invoiceItemServiceClient) Patch(ctx context.Context, in *InvoiceItemPatchRequest, opts ...grpc.CallOption) (*InvoiceItem, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InvoiceItem)
+	if err := c.cc.Invoke(ctx, InvoiceItemService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *invoiceItemServiceClient) Delete(ctx context.Context, in *InvoiceItemDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -336,6 +379,7 @@ type InvoiceItemServiceServer interface {
 	List(context.Context, *InvoiceItemListRequest) (*InvoiceItemPage, error)
 	Create(context.Context, *InvoiceItemCreateRequest) (*InvoiceItem, error)
 	Update(context.Context, *InvoiceItemUpdateRequest) (*InvoiceItem, error)
+	Patch(context.Context, *InvoiceItemPatchRequest) (*InvoiceItem, error)
 	Delete(context.Context, *InvoiceItemDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *InvoiceItemExistsRequest) (*v1.ExistsResponse, error)
 	ListInvoiceItems(context.Context, *ListInvoiceItemsRequest) (*InvoiceItemPage, error)
@@ -358,6 +402,10 @@ func (UnimplementedInvoiceItemServiceServer) Create(context.Context, *InvoiceIte
 
 func (UnimplementedInvoiceItemServiceServer) Update(context.Context, *InvoiceItemUpdateRequest) (*InvoiceItem, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedInvoiceItemServiceServer) Patch(context.Context, *InvoiceItemPatchRequest) (*InvoiceItem, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedInvoiceItemServiceServer) Delete(context.Context, *InvoiceItemDeleteRequest) (*emptypb.Empty, error) {
@@ -438,6 +486,21 @@ func _InvoiceItemService_Update_Handler(srv any, ctx context.Context, dec func(a
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InvoiceItemService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(InvoiceItemPatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InvoiceItemServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: InvoiceItemService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(InvoiceItemServiceServer).Patch(ctx, req.(*InvoiceItemPatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _InvoiceItemService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(InvoiceItemDeleteRequest)
 	if err := dec(in); err != nil {
@@ -491,6 +554,7 @@ var InvoiceItemService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _InvoiceItemService_List_Handler},
 		{MethodName: "Create", Handler: _InvoiceItemService_Create_Handler},
 		{MethodName: "Update", Handler: _InvoiceItemService_Update_Handler},
+		{MethodName: "Patch", Handler: _InvoiceItemService_Patch_Handler},
 		{MethodName: "Delete", Handler: _InvoiceItemService_Delete_Handler},
 		{MethodName: "Exists", Handler: _InvoiceItemService_Exists_Handler},
 		{MethodName: "ListInvoiceItems", Handler: _InvoiceItemService_ListInvoiceItems_Handler},

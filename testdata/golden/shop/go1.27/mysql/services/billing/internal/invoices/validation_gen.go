@@ -15,6 +15,7 @@ func (in CreateInput) Validate() error {
 	if in.Notes != nil {
 		checkNotes(&errs, *in.Notes)
 	}
+	checkDiscount(&errs, in.Discount)
 	return errs.Err()
 }
 
@@ -25,6 +26,7 @@ func (in UpdateInput) Validate() error {
 	if in.Notes != nil {
 		checkNotes(&errs, *in.Notes)
 	}
+	checkDiscount(&errs, in.Discount)
 	return errs.Err()
 }
 
@@ -49,6 +51,17 @@ func checkNotes(errs *validation.Errors, v string) {
 	n := utf8.RuneCountInString(v)
 	if n > 500 {
 		errs.Add("notes", "must be at most 500 characters")
+	}
+
+}
+
+func checkDiscount(errs *validation.Errors, v string) {
+	if !validation.Decimal(v, 10, 2) {
+		errs.Add("discount", "must be a decimal number with at most 8 digits before the point and 2 after it, as a string")
+	} else {
+		if validation.CompareDecimal(v, "0.00") < 0 {
+			errs.Add("discount", "must be at least 0.00")
+		}
 	}
 
 }

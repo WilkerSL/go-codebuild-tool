@@ -64,7 +64,7 @@ CREATE TABLE "projects" (
     "org_id" UUID NOT NULL,
     "owner_id" UUID,
     "name" VARCHAR(200) NOT NULL,
-    "budget" DOUBLE PRECISION NOT NULL,
+    "budget" NUMERIC(14, 2) NOT NULL,
     "priority" INTEGER NOT NULL DEFAULT 3,
     "archived" BOOLEAN NOT NULL,
     "logo" BYTEA NOT NULL,

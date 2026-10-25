@@ -154,7 +154,7 @@ Browsers only let a page call an API on another origin when the API allows it. S
 | `CORS_ALLOW_CREDENTIALS` | `false` | Lets the browser send cookies cross-origin. Requires explicit origins, not `*`. |
 | `CORS_MAX_AGE` | `10m` | How long the browser may cache a preflight answer. |
 
-Allowed methods are `GET`, `POST`, `PUT` and `DELETE`; allowed request headers are `Authorization`, `Content-Type`, `X-Request-ID`, `traceparent` and `tracestate`; `Location`, `Retry-After`, `WWW-Authenticate` and `X-Request-ID` are exposed to scripts. Requests from origins that are not listed get no CORS headers, so the browser blocks them.
+Allowed methods are `GET`, `POST`, `PUT`, `PATCH` and `DELETE`; allowed request headers are `Authorization`, `Content-Type`, `X-Request-ID`, `traceparent` and `tracestate`; `Location`, `Retry-After`, `WWW-Authenticate` and `X-Request-ID` are exposed to scripts. Requests from origins that are not listed get no CORS headers, so the browser blocks them.
 
 A front end on another origin that sends `Authorization: Bearer` only needs `CORS_ALLOWED_ORIGINS`. One that relies on the authentication cookie needs more, because the cookie is `SameSite=Strict` and cookie requests pass `http.CrossOriginProtection`: the two origins must share a site (for example `app.example.com` and `api.example.com`), and the origin must also be listed in `AUTH_TRUSTED_ORIGINS` with `CORS_ALLOW_CREDENTIALS=true`.
 

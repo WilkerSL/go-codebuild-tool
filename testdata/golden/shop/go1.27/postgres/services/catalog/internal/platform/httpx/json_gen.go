@@ -39,6 +39,12 @@ func writeEncoded(w http.ResponseWriter, status int, contentType string, v any) 
 	w.WriteHeader(status)
 	w.Write(append(body, '\n'))
 }
+func membersError(err error) error {
+	if err != nil {
+		return decodeError(err)
+	}
+	return BadRequest("the request body must be a JSON object")
+}
 
 func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	if err := requireJSON(r); err != nil {
@@ -48,6 +54,28 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 		return decodeError(err)
 	}
 	return nil
+}
+
+func DecodePatch(w http.ResponseWriter, r *http.Request, dst any) (map[string]bool, error) {
+	if err := requireJSON(r); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxBodyBytes))
+	if err != nil {
+		return nil, decodeError(err)
+	}
+	var members map[string]jsontext.Value
+	if err := json.Unmarshal(data, &members); err != nil || members == nil {
+		return nil, membersError(err)
+	}
+	if err := json.Unmarshal(data, dst, json.RejectUnknownMembers(true)); err != nil {
+		return nil, decodeError(err)
+	}
+	present := make(map[string]bool, len(members))
+	for name := range members {
+		present[name] = true
+	}
+	return present, nil
 }
 
 func decodeError(err error) error {

@@ -34,6 +34,7 @@ func scanNote(scan func(dest ...any) error) (Note, error) {
 		&item.FolderID,
 		&item.Title,
 		&item.Body,
+		&item.Estimate,
 		&item.Pinned,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -77,7 +78,7 @@ func (r *Repository) Create(ctx context.Context, ownerID uuid.UUID, in CreateInp
 	if err != nil {
 		return Note{}, fmt.Errorf("create note: %w", err)
 	}
-	item, err := scanNote(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.FolderID, in.Title, in.Body, in.Pinned).Scan)
+	item, err := scanNote(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.FolderID, in.Title, in.Body, database.NullDecimalArg(in.Estimate, 2), in.Pinned).Scan)
 	if err != nil {
 		return Note{}, writeError("create note", err)
 	}
@@ -90,7 +91,7 @@ func (r *Repository) Update(ctx context.Context, ownerID uuid.UUID, id uuid.UUID
 			return Note{}, err
 		}
 	}
-	item, err := scanNote(r.db.QueryRowContext(ctx, updateQuery, in.FolderID, in.Title, in.Body, in.Pinned, database.UUIDArg(id), database.UUIDArg(ownerID)).Scan)
+	item, err := scanNote(r.db.QueryRowContext(ctx, updateQuery, in.FolderID, in.Title, in.Body, database.NullDecimalArg(in.Estimate, 2), in.Pinned, database.UUIDArg(id), database.UUIDArg(ownerID)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Note{}, database.ErrNotFound
 	}

@@ -36,7 +36,7 @@ func validCreateInput() CreateInput {
 	return CreateInput{
 		OrgID:    uuid.New(),
 		Name:     "a",
-		Budget:   0,
+		Budget:   "0.00",
 		Priority: 1,
 		Archived: true,
 		Logo:     []byte("a"),
@@ -54,7 +54,6 @@ func TestCreateInputValidate(t *testing.T) {
 	}{
 		{name: "Name notempty", field: "name", mutate: func(in *CreateInput) { in.Name = "   " }},
 		{name: "Name max", field: "name", mutate: func(in *CreateInput) { in.Name = strings.Repeat("a", 201) }},
-		{name: "Budget min", field: "budget", mutate: func(in *CreateInput) { in.Budget = -1 }},
 		{name: "Priority min", field: "priority", mutate: func(in *CreateInput) { in.Priority = 0 }},
 		{name: "Priority max", field: "priority", mutate: func(in *CreateInput) { in.Priority = 6 }},
 		{name: "Logo max", field: "logo", mutate: func(in *CreateInput) { in.Logo = make([]byte, 65537) }},
@@ -101,7 +100,7 @@ func validUpdateInput() UpdateInput {
 	return UpdateInput{
 		OrgID:    uuid.New(),
 		Name:     "a",
-		Budget:   0,
+		Budget:   "0.00",
 		Priority: 1,
 		Archived: true,
 		Logo:     []byte("a"),
@@ -119,7 +118,6 @@ func TestUpdateInputValidate(t *testing.T) {
 	}{
 		{name: "Name notempty", field: "name", mutate: func(in *UpdateInput) { in.Name = "   " }},
 		{name: "Name max", field: "name", mutate: func(in *UpdateInput) { in.Name = strings.Repeat("a", 201) }},
-		{name: "Budget min", field: "budget", mutate: func(in *UpdateInput) { in.Budget = -1 }},
 		{name: "Priority min", field: "priority", mutate: func(in *UpdateInput) { in.Priority = 0 }},
 		{name: "Priority max", field: "priority", mutate: func(in *UpdateInput) { in.Priority = 6 }},
 		{name: "Logo max", field: "logo", mutate: func(in *UpdateInput) { in.Logo = make([]byte, 65537) }},

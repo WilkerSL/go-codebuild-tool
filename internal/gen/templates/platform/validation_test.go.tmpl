@@ -54,3 +54,21 @@ func TestMerge(t *testing.T) {
 		t.Fatal("Merge must return non-validation errors")
 	}
 }
+
+func TestDecimal(t *testing.T) {
+	valid := []string{"0", "12.5", "-12.50", "+0.01", "99999999.99", "007.10", "1.500"}
+	invalid := []string{"", "-", ".5", "5.", "1e3", "1,5", "12.345", "123456789.00", " 1", "0x10"}
+	for _, s := range valid {
+		if !Decimal(s, 10, 2) {
+			t.Errorf("Decimal(%q, 10, 2) = false", s)
+		}
+	}
+	for _, s := range invalid {
+		if Decimal(s, 10, 2) {
+			t.Errorf("Decimal(%q, 10, 2) = true", s)
+		}
+	}
+	if CompareDecimal("10.5", "9.99") <= 0 || CompareDecimal("-1", "0") >= 0 || CompareDecimal("1.50", "1.5") != 0 {
+		t.Error("CompareDecimal does not compare numerically")
+	}
+}

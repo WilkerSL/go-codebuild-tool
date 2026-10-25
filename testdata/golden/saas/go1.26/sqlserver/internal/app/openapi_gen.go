@@ -331,6 +331,72 @@ var openAPIDocument = []byte(`{
           }
         }
       },
+      "patch": {
+        "operationId": "patchOrg",
+        "summary": "Change some fields of a org",
+        "tags": [
+          "orgs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated org.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Org"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteOrg",
         "summary": "Delete a org",
@@ -565,6 +631,69 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchProject",
+        "summary": "Change some fields of a project",
+        "tags": [
+          "projects"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectPatch"
               }
             }
           }
@@ -881,6 +1010,72 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TagUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchTag",
+        "summary": "Change some fields of a tag",
+        "tags": [
+          "tags"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagPatch"
               }
             }
           }
@@ -1286,6 +1481,72 @@ var openAPIDocument = []byte(`{
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchUser",
+        "summary": "Change some fields of a user",
+        "tags": [
+          "users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
               }
             }
           }
@@ -1853,6 +2114,37 @@ var openAPIDocument = []byte(`{
         ],
         "additionalProperties": false
       },
+      "OrgPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "plan": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "locale": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
+      },
       "Project": {
         "type": "object",
         "properties": {
@@ -1879,9 +2171,10 @@ var openAPIDocument = []byte(`{
             "pattern": "\\S"
           },
           "budget": {
-            "type": "number",
-            "format": "double",
-            "minimum": 0
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,12}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
           },
           "priority": {
             "type": "integer",
@@ -1979,9 +2272,10 @@ var openAPIDocument = []byte(`{
             "pattern": "\\S"
           },
           "budget": {
-            "type": "number",
-            "format": "double",
-            "minimum": 0
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,12}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
           },
           "priority": {
             "type": "integer",
@@ -2034,9 +2328,10 @@ var openAPIDocument = []byte(`{
             "pattern": "\\S"
           },
           "budget": {
-            "type": "number",
-            "format": "double",
-            "minimum": 0
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,12}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
           },
           "priority": {
             "type": "integer",
@@ -2069,6 +2364,59 @@ var openAPIDocument = []byte(`{
           "logo"
         ],
         "additionalProperties": false
+      },
+      "ProjectPatch": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "References a Org."
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "References a User."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "budget": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^[-+]?0*[0-9]{1,12}(\\.[0-9]{1,2}0*)?$",
+            "description": "At least 0.00; decimal number sent as a string, stored with 2 digits after the point."
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "logo": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "description": "At most 65536 bytes."
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "Tag": {
         "type": "object",
@@ -2175,6 +2523,27 @@ var openAPIDocument = []byte(`{
           "name"
         ],
         "additionalProperties": false
+      },
+      "TagPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 50,
+            "pattern": "\\S"
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 4,
+            "maxLength": 7
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "User": {
         "type": "object",
@@ -2351,6 +2720,44 @@ var openAPIDocument = []byte(`{
           "orgId"
         ],
         "additionalProperties": false
+      },
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "pattern": "\\S"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "operator",
+              "viewer"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "orgId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "References a Org."
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "description": "A JSON merge patch (RFC 7396): members that are sent replace the stored values, null clears a nullable field, and absent members keep theirs."
       },
       "ProblemDetails": {
         "type": "object",

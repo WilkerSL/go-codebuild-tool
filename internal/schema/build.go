@@ -115,6 +115,9 @@ func FieldColumn(f *Field) *Column {
 		Nullable: f.Nullable,
 		Identity: f.AutoPK && f.Kind.IsInteger(),
 	}
+	if f.Decimal() {
+		c.Kind, c.Size, c.Scale = ColumnDecimal, f.Precision, f.Scale
+	}
 	switch {
 	case f.AutoCreate || f.AutoUpdate:
 		c.Default = &Default{Kind: DefaultNow}

@@ -50,6 +50,7 @@ func TestCreateInputValidate(t *testing.T) {
 		{name: "Title notempty", field: "title", mutate: func(in *CreateInput) { in.Title = "   " }},
 		{name: "Title max", field: "title", mutate: func(in *CreateInput) { in.Title = strings.Repeat("a", 201) }},
 		{name: "Body max", field: "body", mutate: func(in *CreateInput) { in.Body = new(string(strings.Repeat("a", 5001))) }},
+		{name: "Estimate max", field: "estimate", mutate: func(in *CreateInput) { in.Estimate = new(string(strings.Repeat("a", 1))) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,6 +109,7 @@ func TestUpdateInputValidate(t *testing.T) {
 		{name: "Title notempty", field: "title", mutate: func(in *UpdateInput) { in.Title = "   " }},
 		{name: "Title max", field: "title", mutate: func(in *UpdateInput) { in.Title = strings.Repeat("a", 201) }},
 		{name: "Body max", field: "body", mutate: func(in *UpdateInput) { in.Body = new(string(strings.Repeat("a", 5001))) }},
+		{name: "Estimate max", field: "estimate", mutate: func(in *UpdateInput) { in.Estimate = new(string(strings.Repeat("a", 1))) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

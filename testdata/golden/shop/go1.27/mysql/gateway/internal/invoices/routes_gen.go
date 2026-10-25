@@ -13,5 +13,6 @@ func RegisterRoutes(mux *http.ServeMux, h *Handler, guard *auth.Guard) {
 	mux.Handle("POST /invoices", guard.Protect(h.idempotent(h.create)))
 	mux.Handle("GET /invoices/{id}", guard.Protect(h.get))
 	mux.Handle("PUT /invoices/{id}", guard.Protect(h.update))
+	mux.Handle("PATCH /invoices/{id}", guard.Protect(h.patch))
 	mux.Handle("DELETE /invoices/{id}", guard.Protect(h.delete))
 }

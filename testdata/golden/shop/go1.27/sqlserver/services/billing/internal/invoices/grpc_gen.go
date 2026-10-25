@@ -44,6 +44,7 @@ func toMessage(item Invoice) *billingv1.Invoice {
 		Number:    item.Number,
 		Status:    item.Status,
 		Notes:     item.Notes,
+		Discount:  item.Discount,
 		CreatedAt: grpcx.Timestamp(item.CreatedAt),
 	}
 }
@@ -130,9 +131,10 @@ func (s *GRPCServer) Exists(ctx context.Context, req *billingv1.InvoiceExistsReq
 func createInputFrom(req *billingv1.InvoiceCreateRequest) (CreateInput, error) {
 	var errs validation.Errors
 	r := createRequest{
-		Number: req.Number,
-		Status: req.Status,
-		Notes:  req.Notes,
+		Number:   req.Number,
+		Status:   req.Status,
+		Notes:    req.Notes,
+		Discount: req.Discount,
 	}
 
 	in, err := r.input()
@@ -160,9 +162,10 @@ func (s *GRPCServer) Create(ctx context.Context, req *billingv1.InvoiceCreateReq
 func updateInputFrom(req *billingv1.InvoiceUpdateRequest) (UpdateInput, error) {
 	var errs validation.Errors
 	r := updateRequest{
-		Number: req.Number,
-		Status: req.Status,
-		Notes:  req.Notes,
+		Number:   req.Number,
+		Status:   req.Status,
+		Notes:    req.Notes,
+		Discount: req.Discount,
 	}
 
 	in, err := r.input()
@@ -180,6 +183,43 @@ func (s *GRPCServer) Update(ctx context.Context, req *billingv1.InvoiceUpdateReq
 	}
 	in, err := updateInputFrom(req)
 	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	item, err := s.svc.Update(ctx, caller.ID, id, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+
+func (s *GRPCServer) Patch(ctx context.Context, req *billingv1.InvoicePatchRequest) (*billingv1.Invoice, error) {
+	caller, err := grpcx.Authorize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	update := req.GetUpdate()
+	id, err := grpcx.ParseUUID(update.GetId(), "id")
+	if err != nil {
+		return nil, err
+	}
+	var errs validation.Errors
+	r := updateRequest{
+		Number:   update.Number,
+		Status:   update.Status,
+		Notes:    update.Notes,
+		Discount: update.Discount,
+	}
+
+	current, err := s.svc.Get(ctx, caller.ID, id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	members := make(map[string]bool, len(req.GetFields()))
+	for _, name := range req.GetFields() {
+		members[name] = true
+	}
+	in := patchBase(current)
+	if err := validation.Merge(errs.Err(), r.patch(&in, members), in.Validate()); err != nil {
 		return nil, s.fail(ctx, err)
 	}
 	item, err := s.svc.Update(ctx, caller.ID, id, in)

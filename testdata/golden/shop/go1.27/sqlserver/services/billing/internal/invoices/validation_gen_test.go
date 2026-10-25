@@ -33,8 +33,9 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 
 func validCreateInput() CreateInput {
 	return CreateInput{
-		Number: fixtureString(16),
-		Status: StatusDraft,
+		Number:   fixtureString(16),
+		Status:   StatusDraft,
+		Discount: "0.00",
 	}
 }
 
@@ -82,7 +83,7 @@ func TestUpdateRequestRequiresEveryField(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected required field errors, got %v", err)
 	}
-	for _, field := range []string{"number", "status"} {
+	for _, field := range []string{"number", "status", "discount"} {
 		if !errs.Has(field) {
 			t.Errorf("an update without %s would reset it", field)
 		}
@@ -91,8 +92,9 @@ func TestUpdateRequestRequiresEveryField(t *testing.T) {
 
 func validUpdateInput() UpdateInput {
 	return UpdateInput{
-		Number: fixtureString(16),
-		Status: StatusDraft,
+		Number:   fixtureString(16),
+		Status:   StatusDraft,
+		Discount: "0.00",
 	}
 }
 

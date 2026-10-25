@@ -33,6 +33,8 @@ func (SQLServer) FilterParam(placeholder string, _ schema.ColumnKind) string { r
 
 func (SQLServer) ColumnType(c *schema.Column) string {
 	switch c.Kind {
+	case schema.ColumnDecimal:
+		return "DECIMAL(" + strconv.Itoa(c.Size) + ", " + strconv.Itoa(c.Scale) + ")"
 	case schema.ColumnString:
 		if c.Size > 0 && c.Size <= 4000 {
 			return "NVARCHAR(" + strconv.Itoa(c.Size) + ")"

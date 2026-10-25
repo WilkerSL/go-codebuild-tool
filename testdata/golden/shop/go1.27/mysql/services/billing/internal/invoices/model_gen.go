@@ -22,6 +22,7 @@ type Invoice struct {
 	Number    string    `json:"number"`
 	Status    string    `json:"status"`
 	Notes     *string   `json:"notes"`
+	Discount  string    `json:"discount"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 

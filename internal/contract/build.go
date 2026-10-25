@@ -306,6 +306,10 @@ func (f *File) entity(m *schema.Model, e *schema.Entity) {
 			}
 			updateMsg := f.message(e.Name+"UpdateRequest", update...)
 			svc.Methods = append(svc.Methods, &Method{Name: "Update", Input: updateMsg.FullName, Output: entity.FullName})
+			patchMsg := f.message(e.Name+"PatchRequest",
+				&Field{Name: "update", Type: TypeMessage, TypeName: updateMsg.FullName},
+				&Field{Name: "fields", Type: TypeString, Repeated: true})
+			svc.Methods = append(svc.Methods, &Method{Name: "Patch", Input: patchMsg.FullName, Output: entity.FullName})
 		}
 		del := f.message(e.Name+"DeleteRequest", idField("id", pk))
 		svc.Methods = append(svc.Methods, &Method{Name: "Delete", Input: del.FullName, Output: Empty})

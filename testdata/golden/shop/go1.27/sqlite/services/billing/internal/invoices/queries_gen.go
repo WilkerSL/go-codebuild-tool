@@ -9,6 +9,7 @@ SELECT
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"
 FROM "invoices"
 WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL`
@@ -25,6 +26,7 @@ SELECT
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"
 FROM "invoices"
 WHERE "owner_id" = ?
@@ -41,6 +43,7 @@ SELECT
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"
 FROM "invoices"
 WHERE "owner_id" = ?
@@ -66,8 +69,10 @@ INSERT INTO "invoices" (
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"
 ) VALUES (
+    ?,
     ?,
     ?,
     ?,
@@ -81,6 +86,7 @@ RETURNING
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"`
 
 const updateQuery = `
@@ -88,7 +94,8 @@ UPDATE "invoices"
 SET
     "number" = ?,
     "status" = ?,
-    "notes" = ?
+    "notes" = ?,
+    "discount" = ?
 WHERE "id" = ? AND "owner_id" = ? AND "deleted_at" IS NULL
 RETURNING
     "id",
@@ -96,6 +103,7 @@ RETURNING
     "number",
     "status",
     "notes",
+    "discount",
     "created_at"`
 
 const deleteQuery = `

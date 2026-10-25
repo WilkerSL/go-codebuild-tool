@@ -429,11 +429,17 @@ func saasSmoke(t *testing.T, c client, dir string, env []string, method string) 
 	if updated["name"] != "Ann B" || updated["role"] != "admin" {
 		t.Fatalf("update = %v", updated)
 	}
-	project := c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Apollo", "budget": 10.5, "logo": "aGk="}, http.StatusCreated)
-	if project["priority"].(float64) != 3 || project["logo"] != "aGk=" {
+	project := c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Apollo", "budget": "10.5", "logo": "aGk="}, http.StatusCreated)
+	if project["priority"].(float64) != 3 || project["logo"] != "aGk=" || project["budget"] != "10.50" {
 		t.Fatalf("project = %v", project)
 	}
-	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Hermes"}, http.StatusCreated)
+	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Hermes", "budget": "0"}, http.StatusCreated)
+	c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Float", "budget": 10.5}, http.StatusBadRequest)
+	for _, budget := range []string{"-1", "1.234", "1e3", "", "123456789012345"} {
+		if fields := fieldErrors(c.expect("POST", "/projects", map[string]any{"orgId": orgID, "name": "Bad", "budget": budget}, http.StatusUnprocessableEntity)); len(fields) != 1 || fields[0] != "budget" {
+			t.Fatalf("budget %q: fields %v", budget, fields)
+		}
+	}
 	c.expect("DELETE", "/orgs/"+orgID, nil, http.StatusConflict)
 	c.expect("DELETE", "/users/"+userID+"/tags/"+tagID, nil, http.StatusNoContent)
 	c.expect("DELETE", "/users/"+userID, nil, http.StatusNoContent)
@@ -497,15 +503,28 @@ func secureSmoke(t *testing.T, c client, dir string, env []string, method string
 	folderID := fmt.Sprint(int64(folder["id"].(float64)))
 	asAnn.expect("POST", "/notes", map[string]any{"title": "Plan", "folderId": folder["id"], "ownerId": "ignored"}, http.StatusBadRequest)
 	note := asAnn.expect("POST", "/notes", map[string]any{"title": "Plan", "folderId": folder["id"]}, http.StatusCreated)
-	if note["ownerId"] != ann["id"] {
-		t.Fatalf("note owner = %v", note)
+	if note["ownerId"] != ann["id"] || note["estimate"] != nil {
+		t.Fatalf("note = %v", note)
 	}
 	noteID := note["id"].(string)
+	estimated := asAnn.expect("POST", "/notes", map[string]any{"title": "Costed", "estimate": "+012.5"}, http.StatusCreated)
+	if estimated["estimate"] != "12.50" {
+		t.Fatalf("estimate = %v", estimated["estimate"])
+	}
+	asAnn.expect("DELETE", "/notes/"+estimated["id"].(string), nil, http.StatusNoContent)
+	asAnn.expect("POST", "/notes", map[string]any{"title": "Costly", "estimate": "1000.01"}, http.StatusUnprocessableEntity)
 	if page := asAnn.expect("GET", "/notes", nil, http.StatusOK); page["total"].(float64) != 1 {
 		t.Fatalf("ann notes = %v", page)
 	}
 	if page := asAnn.expect("GET", "/folders/"+folderID+"/notes", nil, http.StatusOK); page["total"].(float64) != 1 {
 		t.Fatalf("folder notes = %v", page)
+	}
+	patched := patchCheck(t, asAnn, asBob, "/notes/"+noteID, "estimate", "7.5", "title")
+	if patched["estimate"] != "7.50" {
+		t.Fatalf("patched estimate = %v", patched["estimate"])
+	}
+	if cleared := asAnn.expect("PATCH", "/notes/"+noteID, map[string]any{"estimate": nil}, http.StatusOK); cleared["estimate"] != nil || cleared["title"] != "Plan" {
+		t.Fatalf("patch to null = %v", cleared)
 	}
 	asBob.expect("GET", "/notes/"+noteID, nil, http.StatusNotFound)
 	asBob.expect("PUT", "/notes/"+noteID, map[string]any{"title": "Mine"}, http.StatusUnprocessableEntity)

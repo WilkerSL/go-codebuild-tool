@@ -343,6 +343,36 @@ func TestParseDiagnostics(t *testing.T) {
 			want:  []wantDiag{{at: "auto\"`", code: CodeInvalidCombination, contains: "sent by the client"}},
 		},
 		{
+			name:  "decimal needs a string",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64   `gen:\"pk,auto\"`\n\tPrice float64 `gen:\"decimal=12:2\"`\n}\n"},
+			want:  []wantDiag{{at: "decimal=12:2", code: CodeInvalidCombination, contains: "only valid on string"}},
+		},
+		{
+			name:  "decimal precision out of range",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tPrice string `gen:\"decimal=40:2\"`\n}\n"},
+			want:  []wantDiag{{at: "decimal=40:2", code: CodeInvalidValue, contains: "between 1 and 38"}},
+		},
+		{
+			name:  "decimal scale above precision",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tPrice string `gen:\"decimal=4:6\"`\n}\n"},
+			want:  []wantDiag{{at: "decimal=4:6", code: CodeInvalidValue, contains: "between 0 and the precision"}},
+		},
+		{
+			name:  "decimal with enum",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tPrice string `gen:\"decimal=8:2,enum=a|b\"`\n}\n"},
+			want:  []wantDiag{{at: "enum=a|b", code: CodeInvalidCombination, contains: "holds a number"}},
+		},
+		{
+			name:  "decimal bound outside the digits",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tPrice string `gen:\"decimal=4:2,max=100\"`\n}\n"},
+			want:  []wantDiag{{at: "max=100", code: CodeInvalidValue, contains: "decimal=4:2"}},
+		},
+		{
+			name:  "decimal default that is not a number",
+			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID    int64  `gen:\"pk,auto\"`\n\tPrice string `gen:\"decimal=8:2,default=free\"`\n}\n"},
+			want:  []wantDiag{{at: "default=free", code: CodeInvalidValue, contains: "not a decimal number"}},
+		},
+		{
 			name:  "empty marker",
 			files: map[string]string{"specs/items.go": header + "type Item struct {\n\tID int64 `gen:\"pk,auto,\"`\n}\n"},
 			want:  []wantDiag{{at: "\"`\n}", code: CodeInvalidValue, contains: "empty marker"}},
@@ -425,5 +455,25 @@ func TestParseIsDeterministic(t *testing.T) {
 	b, _ := Parse(reversed)
 	if !slices.Equal(a.EntityNames(), b.EntityNames()) {
 		t.Fatalf("entity order differs: %v vs %v", a.EntityNames(), b.EntityNames())
+	}
+}
+
+func TestParseDecimal(t *testing.T) {
+	src := header + "type Item struct {\n\tID       int64   `gen:\"pk,auto\"`\n\tPrice    string  `gen:\"decimal=12:2,min=0,max=+1000.5,default=7.1,unique\"`\n\tQuantity *string `gen:\"decimal=9,index\"`\n}\n"
+	m, diags := parseFiles(map[string]string{"specs/items.go": src})
+	if diags.HasErrors() {
+		t.Fatal(diags.Error())
+	}
+	e := m.Entity("Item")
+	price, quantity := e.Field("Price"), e.Field("Quantity")
+	if price.Precision != 12 || price.Scale != 2 || price.Min != "0.00" || price.Max != "1000.50" || price.Default != "7.10" {
+		t.Errorf("price = %+v", price)
+	}
+	if quantity.Precision != 9 || quantity.Scale != 0 || quantity.Filterable() {
+		t.Errorf("quantity = %+v, filterable %v", quantity, quantity.Filterable())
+	}
+	c := schema.FieldColumn(price)
+	if c.Kind != schema.ColumnDecimal || c.Size != 12 || c.Scale != 2 {
+		t.Errorf("column = %+v", c)
 	}
 }

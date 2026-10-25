@@ -15,6 +15,7 @@ CREATE TABLE [invoices] (
     [number] NVARCHAR(32) NOT NULL,
     [status] NVARCHAR(32) NOT NULL CONSTRAINT [df_invoices_status] DEFAULT N'draft',
     [notes] NVARCHAR(500) NULL,
+    [discount] DECIMAL(10, 2) NOT NULL CONSTRAINT [df_invoices_discount] DEFAULT N'0.00',
     [created_at] DATETIME2(7) NOT NULL CONSTRAINT [df_invoices_created_at] DEFAULT SYSUTCDATETIME(),
     [deleted_at] DATETIME2(7) NULL,
     CONSTRAINT [pk_invoices] PRIMARY KEY ([id]),

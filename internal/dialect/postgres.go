@@ -51,6 +51,8 @@ func postgresCastType(kind schema.ColumnKind) string {
 
 func (Postgres) ColumnType(c *schema.Column) string {
 	switch c.Kind {
+	case schema.ColumnDecimal:
+		return "NUMERIC(" + strconv.Itoa(c.Size) + ", " + strconv.Itoa(c.Scale) + ")"
 	case schema.ColumnString:
 		if c.Size > 0 {
 			return "VARCHAR(" + strconv.Itoa(c.Size) + ")"

@@ -8,8 +8,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"math"
 	mrand "math/rand/v2"
 	"os"
+	"strconv"
 	"testing"
 	"uuid"
 
@@ -56,6 +58,20 @@ func fixtureInt[T int16 | int32 | int | int64](lo, hi int64) T {
 	return T(lo + mrand.Int64N(hi-lo+1))
 }
 
+func fixtureDecimal(whole, scale int) string {
+	v := "0"
+	if whole > 0 {
+		v = strconv.FormatInt(mrand.Int64N(int64(math.Pow10(min(whole, 9)))), 10)
+	}
+	if scale > 0 {
+		v += "."
+		for range scale {
+			v += strconv.Itoa(mrand.IntN(10))
+		}
+	}
+	return v
+}
+
 func fixtureOrgInput(t *testing.T, ctx context.Context, db *sql.DB) orgs.CreateInput {
 	t.Helper()
 	return orgs.CreateInput{
@@ -94,7 +110,7 @@ func fixtureProjectInput(t *testing.T, ctx context.Context, db *sql.DB) projects
 	return projects.CreateInput{
 		OrgID:    org.ID,
 		Name:     "a",
-		Budget:   0,
+		Budget:   "0.00",
 		Priority: 1,
 		Archived: true,
 		Logo:     []byte("a"),
@@ -180,7 +196,7 @@ func TestRepositoryCRUD(t *testing.T) {
 		OrgID:    created.OrgID,
 		OwnerID:  created.OwnerID,
 		Name:     "a",
-		Budget:   0,
+		Budget:   "0.00",
 		Priority: 1,
 		Archived: true,
 		Logo:     []byte("a"),
@@ -196,7 +212,7 @@ func TestRepositoryCRUD(t *testing.T) {
 		OrgID:    created.OrgID,
 		OwnerID:  created.OwnerID,
 		Name:     "a",
-		Budget:   0,
+		Budget:   "0.00",
 		Priority: 1,
 		Archived: true,
 		Logo:     []byte("a"),

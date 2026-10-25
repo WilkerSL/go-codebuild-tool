@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
 
@@ -14,7 +15,7 @@ type CreateInput struct {
 	OrgID    uuid.UUID
 	OwnerID  *uuid.UUID
 	Name     string
-	Budget   float64
+	Budget   string
 	Priority int32
 	Archived bool
 	Logo     []byte
@@ -25,7 +26,7 @@ type UpdateInput struct {
 	OrgID    uuid.UUID
 	OwnerID  *uuid.UUID
 	Name     string
-	Budget   float64
+	Budget   string
 	Priority int32
 	Archived bool
 	Logo     []byte
@@ -42,14 +43,14 @@ type ListParams struct {
 }
 
 type createRequest struct {
-	OrgID    *string  `json:"orgId"`
-	OwnerID  *string  `json:"ownerId"`
-	Name     *string  `json:"name"`
-	Budget   *float64 `json:"budget"`
-	Priority *int32   `json:"priority"`
-	Archived *bool    `json:"archived"`
-	Logo     *[]byte  `json:"logo"`
-	DueAt    *string  `json:"dueAt"`
+	OrgID    *string `json:"orgId"`
+	OwnerID  *string `json:"ownerId"`
+	Name     *string `json:"name"`
+	Budget   *string `json:"budget"`
+	Priority *int32  `json:"priority"`
+	Archived *bool   `json:"archived"`
+	Logo     *[]byte `json:"logo"`
+	DueAt    *string `json:"dueAt"`
 }
 
 func (req createRequest) input() (CreateInput, error) {
@@ -107,14 +108,14 @@ func (req createRequest) input() (CreateInput, error) {
 }
 
 type updateRequest struct {
-	OrgID    *string  `json:"orgId"`
-	OwnerID  *string  `json:"ownerId"`
-	Name     *string  `json:"name"`
-	Budget   *float64 `json:"budget"`
-	Priority *int32   `json:"priority"`
-	Archived *bool    `json:"archived"`
-	Logo     *[]byte  `json:"logo"`
-	DueAt    *string  `json:"dueAt"`
+	OrgID    *string `json:"orgId"`
+	OwnerID  *string `json:"ownerId"`
+	Name     *string `json:"name"`
+	Budget   *string `json:"budget"`
+	Priority *int32  `json:"priority"`
+	Archived *bool   `json:"archived"`
+	Logo     *[]byte `json:"logo"`
+	DueAt    *string `json:"dueAt"`
 }
 
 func (req updateRequest) input() (UpdateInput, error) {
@@ -175,4 +176,101 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Project) UpdateInput {
+	return UpdateInput{
+		OrgID:    item.OrgID,
+		OwnerID:  item.OwnerID,
+		Name:     item.Name,
+		Budget:   item.Budget,
+		Priority: item.Priority,
+		Archived: item.Archived,
+		Logo:     item.Logo,
+		DueAt:    item.DueAt,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "orgId", "ownerId", "name", "budget", "priority", "archived", "logo", "dueAt":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["orgId"] {
+		if req.OrgID == nil {
+			errs.Add("orgId", "cannot be null")
+		} else if v, err := uuid.Parse(*req.OrgID); err != nil {
+			errs.Add("orgId", "must be a valid UUID")
+		} else {
+			in.OrgID = v
+		}
+
+	}
+	if members["ownerId"] {
+		in.OwnerID = nil
+		if req.OwnerID != nil {
+			if v, err := uuid.Parse(*req.OwnerID); err != nil {
+				errs.Add("ownerId", "must be a valid UUID")
+			} else {
+				in.OwnerID = &v
+			}
+		}
+
+	}
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["budget"] {
+		if req.Budget == nil {
+			errs.Add("budget", "cannot be null")
+		} else {
+			in.Budget = *req.Budget
+		}
+
+	}
+	if members["priority"] {
+		if req.Priority == nil {
+			errs.Add("priority", "cannot be null")
+		} else {
+			in.Priority = *req.Priority
+		}
+
+	}
+	if members["archived"] {
+		if req.Archived == nil {
+			errs.Add("archived", "cannot be null")
+		} else {
+			in.Archived = *req.Archived
+		}
+
+	}
+	if members["logo"] {
+		if req.Logo == nil {
+			errs.Add("logo", "cannot be null")
+		} else {
+			in.Logo = *req.Logo
+		}
+
+	}
+	if members["dueAt"] {
+		in.DueAt = nil
+		if req.DueAt != nil {
+			if v, err := time.Parse(time.RFC3339Nano, *req.DueAt); err != nil {
+				errs.Add("dueAt", "must be an RFC 3339 timestamp")
+			} else {
+				in.DueAt = &v
+			}
+		}
+
+	}
+	return errs.Err()
 }

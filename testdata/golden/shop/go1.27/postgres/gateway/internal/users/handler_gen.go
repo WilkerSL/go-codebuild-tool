@@ -4,7 +4,9 @@ package users
 
 import (
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 
 	identityv1 "example.com/shop/contracts/identity/v1"
 	"google.golang.org/grpc"
@@ -111,6 +113,31 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.client.Update(r.Context(), msg)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, fromMessage(item))
+}
+
+func (h *Handler) patch(w http.ResponseWriter, r *http.Request) {
+	id, err := httpx.PathUUID(r, "id")
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	var req updateRequest
+	members, err := httpx.DecodePatch(w, r, &req)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	msg, err := req.message(id)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	item, err := h.client.Patch(r.Context(), &identityv1.UserPatchRequest{Update: msg, Fields: slices.Sorted(maps.Keys(members))})
 	if err != nil {
 		h.fail(w, r, err)
 		return

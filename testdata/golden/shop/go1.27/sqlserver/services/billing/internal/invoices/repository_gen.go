@@ -33,6 +33,7 @@ func scanInvoice(scan func(dest ...any) error) (Invoice, error) {
 		&item.Number,
 		&item.Status,
 		&item.Notes,
+		&item.Discount,
 		&item.CreatedAt,
 	)
 	return item, err
@@ -66,7 +67,7 @@ func (r *Repository) List(ctx context.Context, ownerID uuid.UUID, p ListParams) 
 
 func (r *Repository) Create(ctx context.Context, ownerID uuid.UUID, in CreateInput) (Invoice, error) {
 	id := uuid.NewV7()
-	item, err := scanInvoice(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.Number, in.Status, in.Notes).Scan)
+	item, err := scanInvoice(r.db.QueryRowContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.Number, in.Status, in.Notes, database.DecimalArg(in.Discount, 2)).Scan)
 	if err != nil {
 		return Invoice{}, writeError("create invoice", err)
 	}
@@ -74,7 +75,7 @@ func (r *Repository) Create(ctx context.Context, ownerID uuid.UUID, in CreateInp
 }
 
 func (r *Repository) Update(ctx context.Context, ownerID uuid.UUID, id uuid.UUID, in UpdateInput) (Invoice, error) {
-	item, err := scanInvoice(r.db.QueryRowContext(ctx, updateQuery, in.Number, in.Status, in.Notes, database.UUIDArg(id), database.UUIDArg(ownerID)).Scan)
+	item, err := scanInvoice(r.db.QueryRowContext(ctx, updateQuery, in.Number, in.Status, in.Notes, database.DecimalArg(in.Discount, 2), database.UUIDArg(id), database.UUIDArg(ownerID)).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Invoice{}, database.ErrNotFound
 	}
@@ -210,6 +211,8 @@ func notNullField(ce *database.ConstraintError) string {
 		return "number"
 	case ce.HasColumn("status"):
 		return "status"
+	case ce.HasColumn("discount"):
+		return "discount"
 	}
 	return ""
 }

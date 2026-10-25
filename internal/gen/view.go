@@ -127,6 +127,7 @@ type fieldView struct {
 	ScanTarget    string
 	Convert       string
 	UpdateConvert string
+	PatchConvert  string
 	HasRules      bool
 	CheckFunc     string
 	CheckBody     string
@@ -345,6 +346,10 @@ func nonNull(f *schema.Field) *schema.Field {
 
 func argExpr(f *schema.Field, expr string) string {
 	switch {
+	case f.Decimal() && f.Nullable:
+		return "database.NullDecimalArg(" + expr + ", " + strconv.Itoa(f.Scale) + ")"
+	case f.Decimal():
+		return "database.DecimalArg(" + expr + ", " + strconv.Itoa(f.Scale) + ")"
 	case f.Kind == schema.KindUUID && f.Nullable:
 		return "database.NullUUIDArg(" + expr + ")"
 	case f.Kind == schema.KindUUID:
@@ -488,7 +493,7 @@ func updateBlock(f *schema.Field) string {
 }
 
 func hasRules(f *schema.Field) bool {
-	return f.NotEmpty || f.Min != "" || f.Max != "" || f.Email || len(f.Enum) > 0
+	return f.Decimal() || f.NotEmpty || f.Min != "" || f.Max != "" || f.Email || len(f.Enum) > 0
 }
 
 const maxPasswordLength = 1024
@@ -513,6 +518,19 @@ func checkBody(f *schema.Field) string {
 	var b strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format, args...) }
 	switch {
+	case f.Decimal():
+		w("if !validation.Decimal(v, %d, %d) {\nerrs.Add(%s, %q)\n}", f.Precision, f.Scale, j, decimalMessage(f))
+		if f.Min != "" || f.Max != "" {
+			w(" else {\n")
+			if f.Min != "" {
+				w("if validation.CompareDecimal(v, %q) < 0 {\nerrs.Add(%s, \"must be at least %s\")\n}\n", f.Min, j, f.Min)
+			}
+			if f.Max != "" {
+				w("if validation.CompareDecimal(v, %q) > 0 {\nerrs.Add(%s, \"must be at most %s\")\n}\n", f.Max, j, f.Max)
+			}
+			w("}")
+		}
+		w("\n")
 	case f.Kind == schema.KindString:
 		if f.NotEmpty {
 			w("if strings.TrimSpace(v) == \"\" {\nerrs.Add(%s, \"must not be empty\")\n}\n", j)
@@ -646,6 +664,9 @@ func uniqueLength(f *schema.Field) int {
 }
 
 func validValue(f *schema.Field, qualifier string, unique bool) string {
+	if f.Decimal() {
+		return decimalValue(f, unique)
+	}
 	switch f.Kind {
 	case schema.KindString:
 		switch {
@@ -799,6 +820,7 @@ func newFieldView(f *schema.Field, dv dialectView) *fieldView {
 		ScanTarget:    scanTarget(f, dv.ScanTime),
 		Convert:       convertBlock(f),
 		UpdateConvert: updateBlock(f),
+		PatchConvert:  patchBlock(f),
 		HasRules:      hasRules(f),
 		CheckFunc:     "check" + f.Name,
 		CheckBody:     checkBody(f),
@@ -837,4 +859,47 @@ func idempotencyQueries(d dialect.Dialect) []queryConst {
 		out = append(out, queryConst{Name: c.name, SQL: c.sql, Literal: goStringLiteral(c.sql)})
 	}
 	return out
+}
+
+func decimalMessage(f *schema.Field) string {
+	whole := f.Precision - f.Scale
+	switch {
+	case f.Scale == 0:
+		return fmt.Sprintf("must be a whole number with at most %d digits, as a string", whole)
+	case whole == 0:
+		return fmt.Sprintf("must be a decimal number below 1 with at most %d digits after the point, as a string", f.Scale)
+	}
+	return fmt.Sprintf("must be a decimal number with at most %d digits before the point and %d after it, as a string", whole, f.Scale)
+}
+
+// decimalValue is a valid value of a decimal field for the generated tests: a
+// random one when the column is unique, otherwise a bound or 1.5 padded to the
+// scale.
+func decimalValue(f *schema.Field, unique bool) string {
+	switch {
+	case unique:
+		return fmt.Sprintf("fixtureDecimal(%d, %d)", f.Precision-f.Scale, f.Scale)
+	case f.Min != "":
+		return strconv.Quote(f.Min)
+	case f.Max != "":
+		return strconv.Quote(f.Max)
+	}
+	v := "1"
+	if f.Precision == f.Scale {
+		v = "0"
+	}
+	if f.Scale > 0 {
+		v += "." + strings.Repeat("5", f.Scale)
+	}
+	return strconv.Quote(v)
+}
+
+// patchBlock converts one member of a merge patch: the member was sent, so a
+// null clears a nullable field and is an error on any other.
+func patchBlock(f *schema.Field) string {
+	block := strings.Replace(updateBlock(f), `"is required"`, `"cannot be null"`, 1)
+	if f.Nullable && (f.Kind == schema.KindUUID || f.Kind == schema.KindTime) {
+		block = "in." + f.InputName() + " = nil\n" + block
+	}
+	return block
 }

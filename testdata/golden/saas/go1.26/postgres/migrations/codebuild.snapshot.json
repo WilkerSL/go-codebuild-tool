@@ -258,7 +258,9 @@
         },
         {
           "name": "budget",
-          "kind": "float64"
+          "kind": "decimal",
+          "size": 14,
+          "scale": 2
         },
         {
           "name": "priority",

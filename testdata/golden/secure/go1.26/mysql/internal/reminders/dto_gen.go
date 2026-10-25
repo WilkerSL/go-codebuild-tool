@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"example.com/secure/internal/platform/httpx"
 	"example.com/secure/internal/platform/validation"
 )
 
@@ -110,4 +111,61 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Reminder) UpdateInput {
+	return UpdateInput{
+		NoteID: item.NoteID,
+		Text:   item.Text,
+		DueAt:  item.DueAt,
+		Done:   item.Done,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "noteId", "text", "dueAt", "done":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["noteId"] {
+		if req.NoteID == nil {
+			errs.Add("noteId", "cannot be null")
+		} else if v, err := uuid.Parse(*req.NoteID); err != nil {
+			errs.Add("noteId", "must be a valid UUID")
+		} else {
+			in.NoteID = v
+		}
+
+	}
+	if members["text"] {
+		if req.Text == nil {
+			errs.Add("text", "cannot be null")
+		} else {
+			in.Text = *req.Text
+		}
+
+	}
+	if members["dueAt"] {
+		if req.DueAt == nil {
+			errs.Add("dueAt", "cannot be null")
+		} else if v, err := time.Parse(time.RFC3339Nano, *req.DueAt); err != nil {
+			errs.Add("dueAt", "must be an RFC 3339 timestamp")
+		} else {
+			in.DueAt = v
+		}
+
+	}
+	if members["done"] {
+		if req.Done == nil {
+			errs.Add("done", "cannot be null")
+		} else {
+			in.Done = *req.Done
+		}
+
+	}
+	return errs.Err()
 }

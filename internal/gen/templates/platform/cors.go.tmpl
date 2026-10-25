@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	corsMethods = "GET, POST, PUT, DELETE"
+	corsMethods = "GET, POST, PUT, PATCH, DELETE"
 	corsHeaders = "Authorization, Content-Type, X-Request-ID, Traceparent, Tracestate"
 	corsExposed = "Location, Retry-After, WWW-Authenticate, X-Request-ID"
 )

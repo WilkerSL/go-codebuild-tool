@@ -16,6 +16,7 @@ CREATE TABLE `invoices` (
     `number` VARCHAR(32) NOT NULL,
     `status` VARCHAR(32) NOT NULL DEFAULT 'draft',
     `notes` VARCHAR(500),
+    `discount` DECIMAL(10, 2) NOT NULL DEFAULT '0.00',
     `created_at` DATETIME(6) NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
     `deleted_at` DATETIME(6),
     CONSTRAINT `pk_invoices` PRIMARY KEY (`id`),

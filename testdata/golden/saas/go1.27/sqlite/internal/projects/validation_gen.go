@@ -38,9 +38,13 @@ func checkName(errs *validation.Errors, v string) {
 
 }
 
-func checkBudget(errs *validation.Errors, v float64) {
-	if v < 0 {
-		errs.Add("budget", "must be at least 0")
+func checkBudget(errs *validation.Errors, v string) {
+	if !validation.Decimal(v, 14, 2) {
+		errs.Add("budget", "must be a decimal number with at most 12 digits before the point and 2 after it, as a string")
+	} else {
+		if validation.CompareDecimal(v, "0.00") < 0 {
+			errs.Add("budget", "must be at least 0.00")
+		}
 	}
 
 }

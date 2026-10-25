@@ -373,6 +373,13 @@
           "nullable": true
         },
         {
+          "name": "estimate",
+          "kind": "decimal",
+          "size": 6,
+          "scale": 2,
+          "nullable": true
+        },
+        {
           "name": "pinned",
           "kind": "bool",
           "default": {

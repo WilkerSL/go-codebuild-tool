@@ -3,6 +3,7 @@
 package products
 
 import (
+	"example.com/shop/services/catalog/internal/platform/httpx"
 	"example.com/shop/services/catalog/internal/platform/validation"
 )
 
@@ -73,4 +74,44 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Product) UpdateInput {
+	return UpdateInput{
+		CategoryID: item.CategoryID,
+		Name:       item.Name,
+		Price:      item.Price,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "categoryId", "name", "price":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["categoryId"] {
+		in.CategoryID = req.CategoryID
+
+	}
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	if members["price"] {
+		if req.Price == nil {
+			errs.Add("price", "cannot be null")
+		} else {
+			in.Price = *req.Price
+		}
+
+	}
+	return errs.Err()
 }

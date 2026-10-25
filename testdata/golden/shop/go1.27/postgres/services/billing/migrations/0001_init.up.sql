@@ -15,6 +15,7 @@ CREATE TABLE "invoices" (
     "number" VARCHAR(32) NOT NULL,
     "status" VARCHAR(32) NOT NULL DEFAULT 'draft',
     "notes" VARCHAR(500),
+    "discount" NUMERIC(10, 2) NOT NULL DEFAULT '0.00',
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "deleted_at" TIMESTAMPTZ,
     CONSTRAINT "pk_invoices" PRIMARY KEY ("id"),

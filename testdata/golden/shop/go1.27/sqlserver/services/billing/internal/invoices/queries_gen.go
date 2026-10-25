@@ -9,6 +9,7 @@ SELECT
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 FROM [invoices]
 WHERE [id] = @p1 AND [owner_id] = @p2 AND [deleted_at] IS NULL`
@@ -25,6 +26,7 @@ SELECT
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 FROM [invoices]
 WHERE [owner_id] = @p1
@@ -42,6 +44,7 @@ SELECT
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 FROM [invoices]
 WHERE [owner_id] = @p1
@@ -69,6 +72,7 @@ DECLARE @rows TABLE (
     [number] NVARCHAR(32),
     [status] NVARCHAR(32),
     [notes] NVARCHAR(500),
+    [discount] DECIMAL(10, 2),
     [created_at] DATETIME2(7)
 );
 INSERT INTO [invoices] (
@@ -77,6 +81,7 @@ INSERT INTO [invoices] (
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 )
 OUTPUT
@@ -85,6 +90,7 @@ OUTPUT
     INSERTED.[number],
     INSERTED.[status],
     INSERTED.[notes],
+    INSERTED.[discount],
     INSERTED.[created_at]
 INTO @rows
 VALUES (
@@ -93,6 +99,7 @@ VALUES (
     @p3,
     @p4,
     @p5,
+    @p6,
     SYSUTCDATETIME()
 );
 SELECT
@@ -101,6 +108,7 @@ SELECT
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 FROM @rows`
 
@@ -111,28 +119,32 @@ DECLARE @rows TABLE (
     [number] NVARCHAR(32),
     [status] NVARCHAR(32),
     [notes] NVARCHAR(500),
+    [discount] DECIMAL(10, 2),
     [created_at] DATETIME2(7)
 );
 UPDATE [invoices]
 SET
     [number] = @p1,
     [status] = @p2,
-    [notes] = @p3
+    [notes] = @p3,
+    [discount] = @p4
 OUTPUT
     INSERTED.[id],
     INSERTED.[owner_id],
     INSERTED.[number],
     INSERTED.[status],
     INSERTED.[notes],
+    INSERTED.[discount],
     INSERTED.[created_at]
 INTO @rows
-WHERE [id] = @p4 AND [owner_id] = @p5 AND [deleted_at] IS NULL;
+WHERE [id] = @p5 AND [owner_id] = @p6 AND [deleted_at] IS NULL;
 SELECT
     [id],
     [owner_id],
     [number],
     [status],
     [notes],
+    [discount],
     [created_at]
 FROM @rows`
 

@@ -157,6 +157,36 @@ func (s *GRPCServer) Update(ctx context.Context, req *catalogv1.CategoryUpdateRe
 	return toMessage(item), nil
 }
 
+func (s *GRPCServer) Patch(ctx context.Context, req *catalogv1.CategoryPatchRequest) (*catalogv1.Category, error) {
+	if _, err := grpcx.Authorize(ctx, "admin"); err != nil {
+		return nil, err
+	}
+	update := req.GetUpdate()
+	id := update.GetId()
+	var errs validation.Errors
+	r := updateRequest{
+		Name: update.Name,
+	}
+
+	current, err := s.svc.Get(ctx, id)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	members := make(map[string]bool, len(req.GetFields()))
+	for _, name := range req.GetFields() {
+		members[name] = true
+	}
+	in := patchBase(current)
+	if err := validation.Merge(errs.Err(), r.patch(&in, members), in.Validate()); err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	item, err := s.svc.Update(ctx, id, in)
+	if err != nil {
+		return nil, s.fail(ctx, err)
+	}
+	return toMessage(item), nil
+}
+
 func (s *GRPCServer) Delete(ctx context.Context, req *catalogv1.CategoryDeleteRequest) (*emptypb.Empty, error) {
 	if _, err := grpcx.Authorize(ctx, "admin"); err != nil {
 		return nil, err

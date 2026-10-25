@@ -3,6 +3,7 @@
 package labels
 
 import (
+	"example.com/secure/internal/platform/httpx"
 	"example.com/secure/internal/platform/validation"
 )
 
@@ -51,4 +52,30 @@ func (req updateRequest) input() (UpdateInput, error) {
 	}
 
 	return in, errs.Err()
+}
+
+func patchBase(item Label) UpdateInput {
+	return UpdateInput{
+		Name: item.Name,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "name":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["name"] {
+		if req.Name == nil {
+			errs.Add("name", "cannot be null")
+		} else {
+			in.Name = *req.Name
+		}
+
+	}
+	return errs.Err()
 }

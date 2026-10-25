@@ -9,6 +9,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -27,6 +28,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -47,6 +49,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -78,6 +81,7 @@ DECLARE @rows TABLE (
     [folder_id] BIGINT,
     [title] NVARCHAR(200),
     [body] NVARCHAR(MAX),
+    [estimate] DECIMAL(6, 2),
     [pinned] BIT,
     [created_at] DATETIME2(7),
     [updated_at] DATETIME2(7)
@@ -88,6 +92,7 @@ INSERT INTO [notes] (
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -98,6 +103,7 @@ OUTPUT
     INSERTED.[folder_id],
     INSERTED.[title],
     INSERTED.[body],
+    INSERTED.[estimate],
     INSERTED.[pinned],
     INSERTED.[created_at],
     INSERTED.[updated_at]
@@ -109,6 +115,7 @@ VALUES (
     @p4,
     @p5,
     @p6,
+    @p7,
     SYSUTCDATETIME(),
     SYSUTCDATETIME()
 );
@@ -118,6 +125,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -130,6 +138,7 @@ DECLARE @rows TABLE (
     [folder_id] BIGINT,
     [title] NVARCHAR(200),
     [body] NVARCHAR(MAX),
+    [estimate] DECIMAL(6, 2),
     [pinned] BIT,
     [created_at] DATETIME2(7),
     [updated_at] DATETIME2(7)
@@ -139,7 +148,8 @@ SET
     [folder_id] = @p1,
     [title] = @p2,
     [body] = @p3,
-    [pinned] = @p4,
+    [estimate] = @p4,
+    [pinned] = @p5,
     [updated_at] = SYSUTCDATETIME()
 OUTPUT
     INSERTED.[id],
@@ -147,17 +157,19 @@ OUTPUT
     INSERTED.[folder_id],
     INSERTED.[title],
     INSERTED.[body],
+    INSERTED.[estimate],
     INSERTED.[pinned],
     INSERTED.[created_at],
     INSERTED.[updated_at]
 INTO @rows
-WHERE [id] = @p5 AND [owner_id] = @p6 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL);
+WHERE [id] = @p6 AND [owner_id] = @p7 AND [deleted_at] IS NULL AND EXISTS (SELECT 1 FROM [users] WHERE [users].[id] = [notes].[owner_id] AND [users].[deleted_at] IS NULL);
 SELECT
     [id],
     [owner_id],
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -180,6 +192,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -200,6 +213,7 @@ SELECT
     [folder_id],
     [title],
     [body],
+    [estimate],
     [pinned],
     [created_at],
     [updated_at]
@@ -236,6 +250,7 @@ SELECT
     [notes].[folder_id],
     [notes].[title],
     [notes].[body],
+    [notes].[estimate],
     [notes].[pinned],
     [notes].[created_at],
     [notes].[updated_at]
@@ -258,6 +273,7 @@ SELECT
     [notes].[folder_id],
     [notes].[title],
     [notes].[body],
+    [notes].[estimate],
     [notes].[pinned],
     [notes].[created_at],
     [notes].[updated_at]

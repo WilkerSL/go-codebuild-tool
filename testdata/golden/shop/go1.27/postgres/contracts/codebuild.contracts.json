@@ -3,7 +3,8 @@
   "messages": {
     "billing.v1.Invoice": {
       "fields": {
-        "created_at": 6,
+        "created_at": 7,
+        "discount": 6,
         "id": 1,
         "notes": 5,
         "number": 3,
@@ -12,6 +13,7 @@
       },
       "types": {
         "created_at": "google.protobuf.Timestamp",
+        "discount": "string",
         "id": "string",
         "notes": "string",
         "number": "string",
@@ -21,11 +23,13 @@
     },
     "billing.v1.InvoiceCreateRequest": {
       "fields": {
+        "discount": 4,
         "notes": 3,
         "number": 1,
         "status": 2
       },
       "types": {
+        "discount": "string",
         "notes": "string",
         "number": "string",
         "status": "string"
@@ -141,6 +145,16 @@
         "total": "int64"
       }
     },
+    "billing.v1.InvoiceItemPatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "billing.v1.InvoiceItemUpdateRequest"
+      }
+    },
     "billing.v1.InvoiceItemUpdateRequest": {
       "fields": {
         "id": 1,
@@ -189,14 +203,26 @@
         "total": "int64"
       }
     },
+    "billing.v1.InvoicePatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "billing.v1.InvoiceUpdateRequest"
+      }
+    },
     "billing.v1.InvoiceUpdateRequest": {
       "fields": {
+        "discount": 5,
         "id": 1,
         "notes": 4,
         "number": 2,
         "status": 3
       },
       "types": {
+        "discount": "string",
         "id": "string",
         "notes": "string",
         "number": "string",
@@ -289,6 +315,16 @@
         "next_cursor": "string",
         "offset": "int32",
         "total": "int64"
+      }
+    },
+    "catalog.v1.CategoryPatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "catalog.v1.CategoryUpdateRequest"
       }
     },
     "catalog.v1.CategoryUpdateRequest": {
@@ -393,6 +429,16 @@
         "next_cursor": "string",
         "offset": "int32",
         "total": "int64"
+      }
+    },
+    "catalog.v1.ProductPatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "catalog.v1.ProductUpdateRequest"
       }
     },
     "catalog.v1.ProductUpdateRequest": {
@@ -665,6 +711,16 @@
         "total": "int64"
       }
     },
+    "identity.v1.UserPatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "identity.v1.UserUpdateRequest"
+      }
+    },
     "identity.v1.UserUpdateRequest": {
       "fields": {
         "email": 2,
@@ -753,6 +809,16 @@
         "next_cursor": "string",
         "offset": "int32",
         "total": "int64"
+      }
+    },
+    "inventory.v1.StockPatchRequest": {
+      "fields": {
+        "fields": 2,
+        "update": 1
+      },
+      "types": {
+        "fields": "repeated string",
+        "update": "inventory.v1.StockUpdateRequest"
       }
     },
     "inventory.v1.StockUpdateRequest": {

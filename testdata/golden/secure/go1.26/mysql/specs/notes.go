@@ -15,6 +15,7 @@ type Note struct {
 	FolderID  *int64     `gen:"rel=belongs_to:Folder"`
 	Title     string     `gen:"required,notempty,max=200"`
 	Body      *string    `gen:"max=5000"`
+	Estimate  *string    `gen:"decimal=6:2,min=0,max=1000"`
 	Pinned    bool       `gen:"default=false,index"`
 	CreatedAt time.Time  `gen:"auto=create"`
 	UpdatedAt time.Time  `gen:"auto=update"`

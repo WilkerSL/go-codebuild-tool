@@ -3,6 +3,7 @@
 package audits
 
 import (
+	"example.com/saas/internal/platform/httpx"
 	"example.com/saas/internal/platform/validation"
 )
 
@@ -59,4 +60,35 @@ func (req updateRequest) input() (UpdateInput, error) {
 	in.Payload = req.Payload
 
 	return in, errs.Err()
+}
+
+func patchBase(item Audit) UpdateInput {
+	return UpdateInput{
+		Action:  item.Action,
+		Payload: item.Payload,
+	}
+}
+
+func (req updateRequest) patch(in *UpdateInput, members map[string]bool) error {
+	for name := range members {
+		switch name {
+		case "action", "payload":
+		default:
+			return httpx.BadRequest("the request body contains unknown fields", validation.FieldError{Field: name, Message: "is not allowed"})
+		}
+	}
+	var errs validation.Errors
+	if members["action"] {
+		if req.Action == nil {
+			errs.Add("action", "cannot be null")
+		} else {
+			in.Action = *req.Action
+		}
+
+	}
+	if members["payload"] {
+		in.Payload = req.Payload
+
+	}
+	return errs.Err()
 }

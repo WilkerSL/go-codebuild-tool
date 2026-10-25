@@ -33,6 +33,7 @@ func scanNote(scan func(dest ...any) error) (Note, error) {
 		&item.FolderID,
 		&item.Title,
 		&item.Body,
+		&item.Estimate,
 		&item.Pinned,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -75,7 +76,7 @@ func (r *Repository) Create(ctx context.Context, ownerID uuid.UUID, in CreateInp
 	id := uuid.NewV7()
 	var item Note
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
-		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.FolderID, in.Title, in.Body, in.Pinned); err != nil {
+		if _, err := db.ExecContext(ctx, createQuery, database.UUIDArg(id), database.UUIDArg(ownerID), in.FolderID, in.Title, in.Body, database.NullDecimalArg(in.Estimate, 2), in.Pinned); err != nil {
 			return writeError("create note", err)
 		}
 		created, err := scanNote(db.QueryRowContext(ctx, getQuery, database.UUIDArg(id), database.UUIDArg(ownerID)).Scan)
@@ -98,7 +99,7 @@ func (r *Repository) Update(ctx context.Context, ownerID uuid.UUID, id uuid.UUID
 	}
 	var item Note
 	if err := database.Atomic(ctx, r.db, func(db database.DBTX) error {
-		res, err := db.ExecContext(ctx, updateQuery, in.FolderID, in.Title, in.Body, in.Pinned, database.UUIDArg(id), database.UUIDArg(ownerID))
+		res, err := db.ExecContext(ctx, updateQuery, in.FolderID, in.Title, in.Body, database.NullDecimalArg(in.Estimate, 2), in.Pinned, database.UUIDArg(id), database.UUIDArg(ownerID))
 		if err != nil {
 			return writeError("update note", err)
 		}

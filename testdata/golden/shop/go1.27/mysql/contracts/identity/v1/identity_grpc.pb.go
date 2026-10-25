@@ -18,6 +18,7 @@ const (
 	UserService_List_FullMethodName   = "/identity.v1.UserService/List"
 	UserService_Create_FullMethodName = "/identity.v1.UserService/Create"
 	UserService_Update_FullMethodName = "/identity.v1.UserService/Update"
+	UserService_Patch_FullMethodName  = "/identity.v1.UserService/Patch"
 	UserService_Delete_FullMethodName = "/identity.v1.UserService/Delete"
 	UserService_Exists_FullMethodName = "/identity.v1.UserService/Exists"
 )
@@ -27,6 +28,7 @@ type UserServiceClient interface {
 	List(ctx context.Context, in *UserListRequest, opts ...grpc.CallOption) (*UserPage, error)
 	Create(ctx context.Context, in *UserCreateRequest, opts ...grpc.CallOption) (*User, error)
 	Update(ctx context.Context, in *UserUpdateRequest, opts ...grpc.CallOption) (*User, error)
+	Patch(ctx context.Context, in *UserPatchRequest, opts ...grpc.CallOption) (*User, error)
 	Delete(ctx context.Context, in *UserDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Exists(ctx context.Context, in *UserExistsRequest, opts ...grpc.CallOption) (*v1.ExistsResponse, error)
 }
@@ -75,6 +77,15 @@ func (c *userServiceClient) Update(ctx context.Context, in *UserUpdateRequest, o
 	return out, nil
 }
 
+func (c *userServiceClient) Patch(ctx context.Context, in *UserPatchRequest, opts ...grpc.CallOption) (*User, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(User)
+	if err := c.cc.Invoke(ctx, UserService_Patch_FullMethodName, in, out, cOpts...); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *userServiceClient) Delete(ctx context.Context, in *UserDeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -98,6 +109,7 @@ type UserServiceServer interface {
 	List(context.Context, *UserListRequest) (*UserPage, error)
 	Create(context.Context, *UserCreateRequest) (*User, error)
 	Update(context.Context, *UserUpdateRequest) (*User, error)
+	Patch(context.Context, *UserPatchRequest) (*User, error)
 	Delete(context.Context, *UserDeleteRequest) (*emptypb.Empty, error)
 	Exists(context.Context, *UserExistsRequest) (*v1.ExistsResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
@@ -119,6 +131,10 @@ func (UnimplementedUserServiceServer) Create(context.Context, *UserCreateRequest
 
 func (UnimplementedUserServiceServer) Update(context.Context, *UserUpdateRequest) (*User, error) {
 	return nil, status.Error(codes.Unimplemented, "method Update not implemented")
+}
+
+func (UnimplementedUserServiceServer) Patch(context.Context, *UserPatchRequest) (*User, error) {
+	return nil, status.Error(codes.Unimplemented, "method Patch not implemented")
 }
 
 func (UnimplementedUserServiceServer) Delete(context.Context, *UserDeleteRequest) (*emptypb.Empty, error) {
@@ -195,6 +211,21 @@ func _UserService_Update_Handler(srv any, ctx context.Context, dec func(any) err
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_Patch_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+	in := new(UserPatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: UserService_Patch_FullMethodName}
+	handler := func(ctx context.Context, req any) (any, error) {
+		return srv.(UserServiceServer).Patch(ctx, req.(*UserPatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _UserService_Delete_Handler(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	in := new(UserDeleteRequest)
 	if err := dec(in); err != nil {
@@ -233,6 +264,7 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{MethodName: "List", Handler: _UserService_List_Handler},
 		{MethodName: "Create", Handler: _UserService_Create_Handler},
 		{MethodName: "Update", Handler: _UserService_Update_Handler},
+		{MethodName: "Patch", Handler: _UserService_Patch_Handler},
 		{MethodName: "Delete", Handler: _UserService_Delete_Handler},
 		{MethodName: "Exists", Handler: _UserService_Exists_Handler},
 	},

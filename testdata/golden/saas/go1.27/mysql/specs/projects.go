@@ -13,7 +13,7 @@ type Project struct {
 	OrgID     uuid.UUID  `gen:"rel=belongs_to:Org,ondelete=cascade"`
 	OwnerID   *uuid.UUID `gen:"rel=belongs_to:User,ondelete=setnull"`
 	Name      string     `gen:"required,notempty,max=200"`
-	Budget    float64    `gen:"min=0"`
+	Budget    string     `gen:"decimal=14:2,min=0"`
 	Priority  int32      `gen:"min=1,max=5,default=3"`
 	Archived  bool       `gen:"index"`
 	Logo      []byte     `gen:"max=65536"`

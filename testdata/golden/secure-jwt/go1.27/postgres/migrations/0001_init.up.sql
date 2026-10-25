@@ -72,6 +72,7 @@ CREATE TABLE "notes" (
     "folder_id" BIGINT,
     "title" VARCHAR(200) NOT NULL,
     "body" VARCHAR(5000),
+    "estimate" NUMERIC(6, 2),
     "pinned" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
