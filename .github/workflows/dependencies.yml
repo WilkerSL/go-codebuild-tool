@@ -20,3 +20,22 @@ jobs:
         env:
           CODEBUILD_CHECK_PINNED: "1"
         run: go test -count=1 -run TestPinnedModulesAreCurrent -v ./internal/gen
+
+  vulnerabilities:
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.26.x", "1.27.x"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+      - name: The tool
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Generated projects and workspaces
+        env:
+          CODEBUILD_CHECK_VULNS: "1"
+        run: go test -count=1 -timeout 30m -run TestKnownVulnerabilities -v ./cmd/codebuild

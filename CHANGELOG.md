@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- A project with no route to wire, such as `codebuild build --starter` before the first spec or one whose entities are all `noroutes`, no longer fails to compile with `declared and not used: idem` in `internal/app/routes_gen.go`.
+
+### Security
+
+- New projects and workspaces on PostgreSQL require `github.com/jackc/pgx/v5` v5.12.0, which brings `golang.org/x/text` v0.41.0. The previous pin brought v0.29.0, affected by GO-2026-6629 and GO-2026-5970, so `govulncheck` failed in the CI of a new project. `go.mod` is yours and codebuild does not raise its requirements: in an existing project run `go get github.com/jackc/pgx/v5@v5.12.0` and `go mod tidy`.
+- New workspaces require `google.golang.org/grpc` v1.85.0 and new SQLite projects `modernc.org/sqlite` v1.61.1.
+- The tool moves to `golang.org/x/sys` v0.44.0 (GO-2026-5024, Windows only, not called by the tool).
+- CI runs `govulncheck` on the tool and on a generated project and workspace of every dialect, on every push and once a week.
+
 ## [0.7.0] - 2026-10-24
 
 ### Added

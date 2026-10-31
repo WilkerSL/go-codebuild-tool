@@ -69,18 +69,34 @@ func TestPinnedModulesAreCurrent(t *testing.T) {
 	}
 	client := &http.Client{Timeout: 30 * time.Second}
 	for _, m := range pinnedModules(t) {
-		resp, err := client.Get(fmt.Sprintf("https://proxy.golang.org/%s/@latest", escapeModule(m[0])))
+		latest, err := latestVersion(client, m[0])
+		for attempt := 1; err != nil && attempt < 3; attempt++ {
+			time.Sleep(10 * time.Second)
+			latest, err = latestVersion(client, m[0])
+		}
+		// One module the proxy cannot answer for must not hide the others.
 		if err != nil {
-			t.Fatalf("%s: %v", m[0], err)
+			t.Errorf("%s: %v", m[0], err)
+			continue
 		}
-		var latest struct{ Version string }
-		err = json.NewDecoder(resp.Body).Decode(&latest)
-		resp.Body.Close()
-		if err != nil || resp.StatusCode != http.StatusOK {
-			t.Fatalf("%s: status %d: %v", m[0], resp.StatusCode, err)
-		}
-		if latest.Version != m[1] {
-			t.Errorf("%s is pinned at %s but %s is available", m[0], m[1], latest.Version)
+		if latest != m[1] {
+			t.Errorf("%s is pinned at %s but %s is available", m[0], m[1], latest)
 		}
 	}
+}
+
+func latestVersion(client *http.Client, module string) (string, error) {
+	resp, err := client.Get(fmt.Sprintf("https://proxy.golang.org/%s/@latest", escapeModule(module)))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var latest struct{ Version string }
+	if err := json.NewDecoder(resp.Body).Decode(&latest); err != nil {
+		return "", err
+	}
+	return latest.Version, nil
 }

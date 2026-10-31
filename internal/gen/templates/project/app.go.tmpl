@@ -18,7 +18,9 @@ import (
 {{- end}}
 	"{{.Module}}/internal/platform/auth"
 {{- end}}
+{{- if .Wired}}
 	"{{.Module}}/internal/platform/database"
+{{- end}}
 {{- if .Ops}}
 	"{{.Module}}/internal/platform/ops"
 {{- end}}
@@ -26,7 +28,9 @@ import (
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+{{- if .Wired}}
 	idem := database.NewIdempotency(db)
+{{- end}}
 {{- if .Auth}}
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
