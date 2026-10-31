@@ -14,7 +14,7 @@ import (
 
 const (
 	GRPCModule      = "google.golang.org/grpc"
-	GRPCVersion     = "v1.84.0"
+	GRPCVersion     = "v1.85.0"
 	ProtobufModule  = "google.golang.org/protobuf"
 	ProtobufVersion = "v1.36.12"
 	GatewayDir      = "gateway"

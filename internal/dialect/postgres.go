@@ -14,7 +14,7 @@ func (Postgres) Name() string { return "postgres" }
 func (Postgres) Driver() Driver {
 	return Driver{
 		Module:     "github.com/jackc/pgx/v5",
-		Version:    "v5.11.0",
+		Version:    "v5.12.0",
 		Import:     "github.com/jackc/pgx/v5/stdlib",
 		Name:       "pgx",
 		ExampleDSN: "postgres://app:app@localhost:5432/app?sslmode=disable",

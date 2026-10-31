@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	example.com/shop/contracts v0.0.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
 

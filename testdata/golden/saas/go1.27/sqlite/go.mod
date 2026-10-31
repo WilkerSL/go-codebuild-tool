@@ -2,4 +2,4 @@ module example.com/saas
 
 go 1.27.0
 
-require modernc.org/sqlite v1.61.0
+require modernc.org/sqlite v1.61.1
