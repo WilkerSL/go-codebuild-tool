@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-01
+
 ### Fixed
 
 - The PostgreSQL health checks of the generated `docker-compose.yml` and CI workflows use `pg_isready -h 127.0.0.1`. Without `-h` the check goes through the socket, which also answers while the init server of the `postgres` image runs, before the port opens, so migrations could start early and stop with `connection refused`; a slow script in `/docker-entrypoint-initdb.d` made it happen every time. `docker-compose.yml` is regenerated on the next build. Workflows are yours: in an existing one, add `-h 127.0.0.1` to `--health-cmd` yourself.
@@ -209,7 +211,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.7.0
 [0.6.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.6.0
