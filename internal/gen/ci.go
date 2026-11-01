@@ -37,6 +37,8 @@ func newCIView(dialectName string) ciView {
 func ciServices(dialectName string) ciView {
 	switch dialectName {
 	case "postgres":
+		// -h 127.0.0.1: the socket also answers while the init server of the image
+		// runs, before the port opens.
 		return ciView{
 			Services: indentLines(`postgres:
   image: postgres:17
@@ -47,7 +49,7 @@ func ciServices(dialectName string) ciView {
   ports:
     - 5432:5432
   options: >-
-    --health-cmd "pg_isready -U app"
+    --health-cmd "pg_isready -h 127.0.0.1 -U app"
     --health-interval 5s
     --health-timeout 5s
     --health-retries 30`, "      "),

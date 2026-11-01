@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- The PostgreSQL health checks of the generated `docker-compose.yml` and CI workflows use `pg_isready -h 127.0.0.1`. Without `-h` the check goes through the socket, which also answers while the init server of the `postgres` image runs, before the port opens, so migrations could start early and stop with `connection refused`; a slow script in `/docker-entrypoint-initdb.d` made it happen every time. `docker-compose.yml` is regenerated on the next build. Workflows are yours: in an existing one, add `-h 127.0.0.1` to `--health-cmd` yourself.
+
 ## [0.7.1] - 2026-10-31
 
 ### Fixed

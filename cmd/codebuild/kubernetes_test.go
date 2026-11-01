@@ -111,7 +111,7 @@ spec:
             - {name: POSTGRES_DB, value: app}
           ports: [{containerPort: 5432}]
           readinessProbe:
-            exec: {command: ["pg_isready", "-U", "app"]}
+            exec: {command: ["pg_isready", "-h", "127.0.0.1", "-U", "app"]}
             periodSeconds: 2
 ---
 apiVersion: v1

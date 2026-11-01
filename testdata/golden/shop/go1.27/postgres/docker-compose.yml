@@ -21,7 +21,7 @@ services:
     volumes:
       - shared-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d shared"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d shared"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -35,7 +35,7 @@ services:
     volumes:
       - billing-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d billing"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d billing"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -49,7 +49,7 @@ services:
     volumes:
       - identity-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d identity"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d identity"]
       interval: 5s
       timeout: 5s
       retries: 30
