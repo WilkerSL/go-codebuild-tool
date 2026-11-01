@@ -59,8 +59,8 @@ func TestEndToEndPostgresHealthCheckWaitsForTCP(t *testing.T) {
 	}
 	health := string(match[1])
 	name := "codebuild-e2e-health"
-	run("", nil, "", "docker", "rm", "-f", name)
-	t.Cleanup(func() { run("", nil, "", "docker", "rm", "-f", name) })
+	run("", nil, "", "docker", "rm", "-f", "-v", name)
+	t.Cleanup(func() { run("", nil, "", "docker", "rm", "-f", "-v", name) })
 	command(t, "", nil, "docker", "run", "-d", "--name", name,
 		"-e", "POSTGRES_USER=app", "-e", "POSTGRES_PASSWORD=app", "-e", "POSTGRES_DB=app",
 		"--entrypoint", "sh", "postgres:17",
