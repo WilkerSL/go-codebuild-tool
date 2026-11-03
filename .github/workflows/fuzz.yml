@@ -33,7 +33,7 @@ jobs:
         run: go test -run '^$' -fuzz '^${{ matrix.target.name }}$' -fuzztime 3m ${{ matrix.target.package }}
       - name: Keep the failing input
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: corpus-${{ matrix.target.name }}
           path: ${{ matrix.target.package }}/testdata/fuzz
