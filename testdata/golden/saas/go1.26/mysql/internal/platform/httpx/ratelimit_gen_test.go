@@ -3,11 +3,13 @@
 package httpx
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -183,5 +185,28 @@ func TestClientKey(t *testing.T) {
 		if got := ClientKey(r, c.trust); got != c.want {
 			t.Errorf("ClientKey(%q, %q, %v) = %q, want %q", c.remote, c.forwarded, c.trust, got, c.want)
 		}
+	}
+}
+
+func TestRateLimiterWarnsAboutAnUntrustedProxy(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	l := NewRateLimiter(RateLimits{Client: 10, Window: time.Minute}, logger)
+	r := requestFrom("10.0.0.2:1234")
+	l.AllowClient(r)
+	if logs.Len() != 0 {
+		t.Fatalf("warning without a proxy: %s", logs.String())
+	}
+	r.Header.Set("X-Forwarded-For", "203.0.113.9")
+	for range 3 {
+		l.AllowClient(r)
+	}
+	if n := strings.Count(logs.String(), "AUTH_TRUST_FORWARDED_FOR"); n != 1 {
+		t.Fatalf("warnings = %d: %s", n, logs.String())
+	}
+	logs.Reset()
+	NewRateLimiter(RateLimits{Client: 10, Window: time.Minute, TrustForwardedFor: true}, logger).AllowClient(r)
+	if logs.Len() != 0 {
+		t.Fatalf("warning with a trusted proxy: %s", logs.String())
 	}
 }

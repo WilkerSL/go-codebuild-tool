@@ -9,7 +9,7 @@ Read it with one fact in mind: the security review of the generated code was don
 The API and the gateway speak plain HTTP on `HTTP_ADDR`. Terminate TLS in front of them: a Kubernetes Ingress or Gateway, a cloud load balancer, or a reverse proxy such as nginx, Caddy or Envoy. Then:
 
 - Keep `AUTH_COOKIE_SECURE=true` (the default), so cookies never travel over plain HTTP.
-- Set `AUTH_TRUST_FORWARDED_FOR=true` only when the proxy is the only way in and it appends the client address to `X-Forwarded-For`; the rate limits then count clients by the last hop of that header. Without it every client looks like the proxy.
+- Set `AUTH_TRUST_FORWARDED_FOR=true` when the proxy is the only way in and it appends the client address to `X-Forwarded-For`; the rate limits then count clients by the last hop of that header. Without it every client looks like the proxy and shares its limits: 600 anonymous requests a minute for everyone together, and 30 rejected credentials in a minute, from anyone, answer 429 on every protected route until the window ends. The API logs a warning once when requests carry `X-Forwarded-For` while the setting is off. In Kubernetes, add it to the configuration of your overlay when an Ingress or a load balancer is the way in.
 - Send `Strict-Transport-Security` from the proxy.
 - Expose `METRICS_ADDR` only inside the cluster or the private network.
 
@@ -94,7 +94,7 @@ Every route except the health probes is rate limited, in fixed windows of `RATE_
 | Requests of a logged-in account | account | 1,200 | `RATE_LIMIT_ACCOUNT` |
 | Rejected credentials | client address | 30 | `RATE_LIMIT_FAILURES` |
 
-A request over a limit gets 429 with `Retry-After`, and `0` turns a count off. In a project without accounts every route is public, so only the first count applies. Once an address is over its rejected credentials, its protected requests get 429 before their credentials are looked up, so a client trying tokens cannot make the API query the database for each one. An expired JWT was issued by the API, so it is no guess and does not count.
+Behind a proxy, set `AUTH_TRUST_FORWARDED_FOR=true` first, or every client counts as the proxy; see [TLS and the reverse proxy](#tls-and-the-reverse-proxy). A request over a limit gets 429 with `Retry-After`, and `0` turns a count off. In a project without accounts every route is public, so only the first count applies. Once an address is over its rejected credentials, its protected requests get 429 before their credentials are looked up, so a client trying tokens cannot make the API query the database for each one. An expired JWT was issued by the API, so it is no guess and does not count.
 
 The counters live in the memory of each replica: with three replicas a client can make up to three times the limit, and a restart resets them. Set the limits per replica, or enforce a global one at the proxy or the load balancer, which should absorb floods anyway. Clients behind one address, such as an office behind NAT or a server calling an API without accounts, share the counts per address: raise them for those. Login, registration and password changes keep their own, stricter limits on top; behind more than one replica set `AUTH_LIMIT_STORE=database`, so the replicas share those counters (the Kubernetes manifests do). See [authentication.md](authentication.md#rate-limiting).
 

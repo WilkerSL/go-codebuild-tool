@@ -72,6 +72,7 @@ type RateLimiter struct {
 	clients  *rateWindows
 	accounts *rateWindows
 	failures *rateWindows
+	proxied  sync.Once
 }
 
 func NewRateLimiter(cfg RateLimits, logger *slog.Logger) *RateLimiter {
@@ -92,10 +93,10 @@ func (l *RateLimiter) Limit(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (l *RateLimiter) AllowClient(r *http.Request) error {
-	if l == nil {
+	if l == nil || l.cfg.Client <= 0 {
 		return nil
 	}
-	return tooManyRequests(l.clients.hit(ClientKey(r, l.cfg.TrustForwardedFor), l.cfg.Client, l.cfg.Window))
+	return tooManyRequests(l.clients.hit(l.clientKey(r), l.cfg.Client, l.cfg.Window))
 }
 
 func (l *RateLimiter) AllowAccount(id string) error {
@@ -106,17 +107,26 @@ func (l *RateLimiter) AllowAccount(id string) error {
 }
 
 func (l *RateLimiter) Failed(r *http.Request) error {
-	if l == nil {
+	if l == nil || l.cfg.Failures <= 0 {
 		return nil
 	}
-	return tooManyRequests(l.failures.hit(ClientKey(r, l.cfg.TrustForwardedFor), l.cfg.Failures, l.cfg.Window))
+	return tooManyRequests(l.failures.hit(l.clientKey(r), l.cfg.Failures, l.cfg.Window))
 }
 
 func (l *RateLimiter) Blocked(r *http.Request) error {
-	if l == nil {
+	if l == nil || l.cfg.Failures <= 0 {
 		return nil
 	}
-	return tooManyRequests(l.failures.wait(ClientKey(r, l.cfg.TrustForwardedFor), l.cfg.Failures))
+	return tooManyRequests(l.failures.wait(l.clientKey(r), l.cfg.Failures))
+}
+
+func (l *RateLimiter) clientKey(r *http.Request) string {
+	if !l.cfg.TrustForwardedFor && l.logger != nil && r.Header.Get("X-Forwarded-For") != "" {
+		l.proxied.Do(func() {
+			l.logger.WarnContext(r.Context(), "requests carry X-Forwarded-For but AUTH_TRUST_FORWARDED_FOR is false, so every client behind the proxy shares one address and one set of rate limits; set it to true when the proxy is the only way in")
+		})
+	}
+	return ClientKey(r, l.cfg.TrustForwardedFor)
 }
 
 func tooManyRequests(wait time.Duration) error {
