@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-08
+
+### Changed
+
+- The rate limiter logs a warning, once per process, when requests carry `X-Forwarded-For` while `AUTH_TRUST_FORWARDED_FOR` is `false`. Behind such a proxy every client has the address of the proxy and shares its limits: 600 anonymous requests a minute count for everyone together, and 30 rejected credentials in a minute, from anyone, answer 429 on every protected route until the window ends. If you run 0.8.0 behind a proxy, Ingress or load balancer that is the only way in, set `AUTH_TRUST_FORWARDED_FOR=true`.
+- New SQLite projects require `modernc.org/sqlite` v1.62.0.
+
 ## [0.8.0] - 2026-11-08
 
 ### Added
@@ -223,7 +230,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.0...v0.7.1
