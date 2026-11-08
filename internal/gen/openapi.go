@@ -329,7 +329,7 @@ var problemStatuses = []struct {
 	{"PayloadTooLarge", "413", "The request body is larger than 1 MiB."},
 	{"UnsupportedMediaType", "415", "The request body was not sent with Content-Type: application/json."},
 	{"UnprocessableEntity", "422", "Validation failed; errors lists every invalid field."},
-	{"TooManyRequests", "429", "Too many attempts; retry after the number of seconds in Retry-After."},
+	{"TooManyRequests", "429", "Too many requests; retry after the number of seconds in Retry-After."},
 	{"ServiceUnavailable", "503", "The service is shutting down or a backend is unreachable."},
 	{"Error", "default", "Unexpected error."},
 }
@@ -391,7 +391,14 @@ func (d *openAPIDoc) newOp(id, summary, tag string) *opBuilder {
 	if d.used == nil {
 		d.used = map[string]bool{}
 	}
-	return &opBuilder{op: object{}.set("operationId", id).set("summary", summary).set("tags", []string{tag}), responses: map[string]any{}, used: d.used}
+	b := &opBuilder{op: object{}.set("operationId", id).set("summary", summary).set("tags", []string{tag}), responses: map[string]any{}, used: d.used}
+	return b.problems("TooManyRequests")
+}
+
+// unlimited is for the probes, which the rate limiter never sees.
+func (b *opBuilder) unlimited() *opBuilder {
+	delete(b.responses, "429")
+	return b
 }
 
 func (b *opBuilder) respond(code string, r any) *opBuilder {
@@ -791,10 +798,12 @@ func (d *openAPIDoc) healthPaths() {
 			set("required", []string{"status"})
 	}
 	live := d.newOp("livez", "Liveness probe", "health").
+		unlimited().
 		respond("200", object{}.set("description", "The process is running.").set("content", jsonContent(status("ok")))).
 		guard(guarded, schema.Policy{Public: true})
 	d.addOperation("/livez", "GET", live.build())
 	ready := d.newOp("readyz", "Readiness probe", "health").
+		unlimited().
 		respond("200", object{}.set("description", "The service accepts traffic.").set("content", jsonContent(status("ready")))).
 		problems("ServiceUnavailable").
 		guard(guarded, schema.Policy{Public: true})

@@ -2,14 +2,14 @@
 
 This guide covers what a generated project needs around it before it serves real users. It applies to monoliths and, where noted, to microservice workspaces.
 
-Read it with two facts in mind. The security review of the generated code was done internally by the maintainers; it was not an independent audit. And no generated project is known to run in production yet. If your project handles sensitive data, such as health, financial or authentication data of other systems, have the generated code and your deployment reviewed by an external security team before going live.
+Read it with one fact in mind: the security review of the generated code was done internally by the maintainers; it was not an independent audit. If your project handles sensitive data, such as health, financial or authentication data of other systems, have the generated code and your deployment reviewed by an external security team before going live.
 
 ## TLS and the reverse proxy
 
 The API and the gateway speak plain HTTP on `HTTP_ADDR`. Terminate TLS in front of them: a Kubernetes Ingress or Gateway, a cloud load balancer, or a reverse proxy such as nginx, Caddy or Envoy. Then:
 
 - Keep `AUTH_COOKIE_SECURE=true` (the default), so cookies never travel over plain HTTP.
-- Set `AUTH_TRUST_FORWARDED_FOR=true` only when the proxy is the only way in and it appends the client address to `X-Forwarded-For`; the rate limiter then counts clients by the last hop of that header. Without it every client looks like the proxy.
+- Set `AUTH_TRUST_FORWARDED_FOR=true` only when the proxy is the only way in and it appends the client address to `X-Forwarded-For`; the rate limits then count clients by the last hop of that header. Without it every client looks like the proxy.
 - Send `Strict-Transport-Security` from the proxy.
 - Expose `METRICS_ADDR` only inside the cluster or the private network.
 
@@ -86,7 +86,17 @@ Keep the panels private. With roles on the account entity the API or the gateway
 
 ## Rate limits
 
-The generated limiter covers login, registration and password changes only. Behind more than one replica set `AUTH_LIMIT_STORE=database`, so the replicas share the counters (the Kubernetes manifests do). Limit everything else, and absorb floods, at the proxy or the load balancer. See [authentication.md](authentication.md#rate-limiting).
+Every route except the health probes is rate limited, in fixed windows of `RATE_LIMIT_WINDOW` (one minute by default):
+
+| What is counted | Per | Default | Variable |
+|---|---|---|---|
+| Anonymous requests: public routes, and protected routes called without credentials | client address | 600 | `RATE_LIMIT_CLIENT` |
+| Requests of a logged-in account | account | 1,200 | `RATE_LIMIT_ACCOUNT` |
+| Rejected credentials | client address | 30 | `RATE_LIMIT_FAILURES` |
+
+A request over a limit gets 429 with `Retry-After`, and `0` turns a count off. In a project without accounts every route is public, so only the first count applies. Once an address is over its rejected credentials, its protected requests get 429 before their credentials are looked up, so a client trying tokens cannot make the API query the database for each one. An expired JWT was issued by the API, so it is no guess and does not count.
+
+The counters live in the memory of each replica: with three replicas a client can make up to three times the limit, and a restart resets them. Set the limits per replica, or enforce a global one at the proxy or the load balancer, which should absorb floods anyway. Clients behind one address, such as an office behind NAT or a server calling an API without accounts, share the counts per address: raise them for those. Login, registration and password changes keep their own, stricter limits on top; behind more than one replica set `AUTH_LIMIT_STORE=database`, so the replicas share those counters (the Kubernetes manifests do). See [authentication.md](authentication.md#rate-limiting).
 
 ## Retries and idempotency
 
@@ -166,8 +176,8 @@ What the numbers say:
 
 ## Remaining limits
 
-- The security reviews were internal, not an independent audit, and no generated project is known to run in production yet.
-- The rate limiter only covers the authentication endpoints.
+- The security reviews were internal, not an independent audit.
+- Request limits are counted in the memory of each replica; only the login, registration and password change limits can be shared through the database.
 - Offset pagination counts every matching row, and a list without `?cursor=` is an offset list, so its first page pays for the count too; the load test shows it slowing down past 100,000 rows. Use `?cursor=` for large tables and deep pages.
 - Idempotency keys cover creates; other writes are idempotent by nature or answer an error when repeated.
 - `jwt` access tokens stay valid until they expire on routes without roles unless `AUTH_JWT_CONFIRM=true`.

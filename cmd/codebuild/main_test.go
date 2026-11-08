@@ -203,6 +203,7 @@ func endToEnd(t *testing.T, bin string, project e2eProject, dialect string) {
 	telemetryCheck(t, c, metricsAddr, spans)
 	openAPICheck(t, c, dir)
 	stop()
+	rateLimitCheck(t, func(extra ...string) (client, func()) { return startAPI(t, dir, append(slices.Clone(env), extra...)) }, project.method != "")
 	if out := command(t, dir, env, "go", "run", "./cmd/migrate", "down", "1"); !strings.Contains(out, "reverted 1") {
 		t.Fatalf("migrate down: %s", out)
 	}
@@ -819,5 +820,29 @@ func idempotencyCheck(t *testing.T, c client, path string, body, other map[strin
 	}
 	if resp, _ := c.send("POST", path, body, http.Header{"Idempotency-Key": {"not a key"}}); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("an invalid Idempotency-Key = %d", resp.StatusCode)
+	}
+}
+
+// rateLimitCheck starts the API again with small limits: anonymous requests
+// and rejected credentials get 429 with Retry-After once over them.
+func rateLimitCheck(t *testing.T, start func(extra ...string) (client, func()), accounts bool) {
+	t.Helper()
+	c, stop := start("RATE_LIMIT_CLIENT=3", "RATE_LIMIT_FAILURES=2")
+	defer stop()
+	limited := func(c client, path string, allowed, status int) {
+		t.Helper()
+		for i := range allowed {
+			if resp, out := c.send(http.MethodGet, path, nil, nil); resp.StatusCode != status {
+				t.Fatalf("request %d to %s = %d, want %d: %v", i+1, path, resp.StatusCode, status, out)
+			}
+		}
+		resp, out := c.send(http.MethodGet, path, nil, nil)
+		if resp.StatusCode != http.StatusTooManyRequests || resp.Header.Get("Retry-After") == "" {
+			t.Fatalf("request over the limit to %s = %d, Retry-After %q: %v", path, resp.StatusCode, resp.Header.Get("Retry-After"), out)
+		}
+	}
+	limited(c, "/openapi.json", 3, http.StatusOK)
+	if accounts {
+		limited(c.as("not-a-token"), "/auth/me", 2, http.StatusUnauthorized)
 	}
 }

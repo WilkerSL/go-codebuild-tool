@@ -355,3 +355,76 @@ func TestGuard(t *testing.T) {
 		t.Fatalf("Current without a principal = %v", err)
 	}
 }
+
+func TestGuardRateLimits(t *testing.T) {
+	var id uuid.UUID
+	lookups := 0
+	authenticate := func(ctx context.Context, token string) (Principal, error) {
+		lookups++
+		switch token {
+		case "good":
+			return Principal{ID: id}, nil
+		case "expired":
+			return Principal{}, ErrExpiredToken
+		}
+		return Principal{}, ErrInvalidToken
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	guard, err := NewGuard(authenticate, Config{}, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guard.UseRateLimits(httpx.NewRateLimiter(httpx.RateLimits{Client: 2, Account: 2, Failures: 2, Window: time.Minute}, logger))
+	next := func(w http.ResponseWriter, r *http.Request) {}
+	serve := func(h http.Handler, addr, token string) int {
+		r := httptest.NewRequest(http.MethodGet, "http://api.example.com/things", nil)
+		r.RemoteAddr = addr + ":1234"
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	protected := guard.Protect(next)
+	for range 2 {
+		if code := serve(protected, "192.0.2.1", "good"); code != http.StatusOK {
+			t.Fatalf("account under its limit = %d", code)
+		}
+	}
+	if code := serve(protected, "192.0.2.2", "good"); code != http.StatusTooManyRequests {
+		t.Fatalf("account over its limit from another address = %d", code)
+	}
+	for range 2 {
+		if code := serve(protected, "192.0.2.3", ""); code != http.StatusUnauthorized {
+			t.Fatalf("request without credentials = %d", code)
+		}
+	}
+	if code := serve(protected, "192.0.2.3", ""); code != http.StatusTooManyRequests {
+		t.Fatalf("client over its limit without credentials = %d", code)
+	}
+	for range 3 {
+		if code := serve(protected, "192.0.2.4", "expired"); code != http.StatusUnauthorized {
+			t.Fatalf("expired token = %d", code)
+		}
+	}
+	for range 2 {
+		if code := serve(protected, "192.0.2.4", "bad"); code != http.StatusUnauthorized {
+			t.Fatalf("rejected token under the limit = %d", code)
+		}
+	}
+	before := lookups
+	if code := serve(protected, "192.0.2.4", "good"); code != http.StatusTooManyRequests || lookups != before {
+		t.Fatalf("address over the failure limit = %d after %d lookups", code, lookups-before)
+	}
+	if code := serve(protected, "192.0.2.5", "bad"); code != http.StatusUnauthorized {
+		t.Fatalf("another address = %d", code)
+	}
+	public := guard.Public(next)
+	for range 2 {
+		serve(public, "192.0.2.6", "")
+	}
+	if code := serve(public, "192.0.2.6", ""); code != http.StatusTooManyRequests {
+		t.Fatalf("public route over the client limit = %d", code)
+	}
+}

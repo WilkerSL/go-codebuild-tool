@@ -20,6 +20,7 @@ import (
 	"example.com/shop/gateway/internal/invoices"
 	"example.com/shop/gateway/internal/platform/auth"
 	"example.com/shop/gateway/internal/platform/grpcx"
+	"example.com/shop/gateway/internal/platform/httpx"
 	"example.com/shop/gateway/internal/platform/ops"
 	"example.com/shop/gateway/internal/products"
 	"example.com/shop/gateway/internal/stocks"
@@ -77,7 +78,12 @@ func (b *Backends) Close() error {
 }
 
 func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger *slog.Logger) error {
-	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+	rateLimits, err := httpx.LoadRateLimits(os.Getenv)
+	if err != nil {
+		return err
+	}
+	limiter := httpx.NewRateLimiter(rateLimits, logger)
+	mux.HandleFunc("GET /openapi.json", limiter.Limit(serveOpenAPI))
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -87,6 +93,7 @@ func RegisterRoutes(mux *http.ServeMux, b *Backends, signer *auth.Signer, logger
 	if err != nil {
 		return err
 	}
+	guard.UseRateLimits(limiter)
 	var limits auth.LimitStore = auth.NewMemoryStore()
 	if cfg.LimitStore == auth.LimitStoreDatabase {
 		limits = users.NewLimitStore(authClient)

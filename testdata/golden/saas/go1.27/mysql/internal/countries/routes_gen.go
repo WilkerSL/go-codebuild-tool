@@ -7,6 +7,6 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler) {
-	mux.HandleFunc("GET /countries", h.list)
-	mux.HandleFunc("GET /countries/{id}", h.get)
+	mux.HandleFunc("GET /countries", h.limited(h.list))
+	mux.HandleFunc("GET /countries/{id}", h.limited(h.get))
 }

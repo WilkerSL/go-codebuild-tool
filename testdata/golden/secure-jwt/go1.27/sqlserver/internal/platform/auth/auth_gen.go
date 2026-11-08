@@ -5,7 +5,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -49,9 +48,12 @@ var bearer = http.Header{"Www-Authenticate": {"Bearer"}}
 var (
 	ErrUnauthenticated    = &httpx.Error{Status: http.StatusUnauthorized, Detail: "authentication is required", Header: bearer}
 	ErrInvalidToken       = &httpx.Error{Status: http.StatusUnauthorized, Detail: "the access token is invalid or expired", Header: bearer}
+	ErrExpiredToken       = &httpx.Error{Status: http.StatusUnauthorized, Detail: ExpiredTokenDetail, Header: bearer, Err: ErrInvalidToken}
 	ErrInvalidCredentials = &httpx.Error{Status: http.StatusUnauthorized, Detail: "the credentials are invalid", Header: bearer}
 	ErrForbidden          = httpx.NewError(http.StatusForbidden, "the caller is not allowed to perform this operation")
 )
+
+const ExpiredTokenDetail = "the access token has expired"
 
 type principalKey struct{}
 
@@ -106,19 +108,7 @@ func Credential(r *http.Request) (string, bool) {
 }
 
 func ClientIP(r *http.Request, trustForwardedFor bool) string {
-	if trustForwardedFor {
-		if lines := r.Header.Values("X-Forwarded-For"); len(lines) > 0 {
-			hops := strings.Split(lines[len(lines)-1], ",")
-			if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
-				return ip
-			}
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return httpx.ClientIP(r, trustForwardedFor)
 }
 
 func SetCookie(w http.ResponseWriter, cfg Config, name, value, path string, expires time.Time) {

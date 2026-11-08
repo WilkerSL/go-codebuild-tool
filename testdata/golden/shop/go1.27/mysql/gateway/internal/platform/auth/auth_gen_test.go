@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"example.com/shop/gateway/internal/platform/grpcx"
+	"example.com/shop/gateway/internal/platform/httpx"
 )
 
 func testSigner(t *testing.T) (*Signer, *Verifier) {
@@ -207,5 +208,57 @@ func TestCookieNeedsSameOrigin(t *testing.T) {
 	guard.Protect(func(http.ResponseWriter, *http.Request) {}).ServeHTTP(rec, r)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("cross-site cookie = %d", rec.Code)
+	}
+}
+
+func TestGuardRateLimits(t *testing.T) {
+	signer, _ := testSigner(t)
+	lookups := 0
+	authenticate := func(_ context.Context, token string) (Principal, error) {
+		lookups++
+		switch token {
+		case "good":
+			return Principal{ID: "7", Method: "session", CredentialID: "s1"}, nil
+		case "expired":
+			return Principal{}, &httpx.Error{Status: http.StatusUnauthorized, Detail: ExpiredTokenDetail}
+		}
+		return Principal{}, &httpx.Error{Status: http.StatusUnauthorized, Detail: "the access token is invalid or expired"}
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	guard, err := NewGuard(authenticate, signer, Config{}, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guard.UseRateLimits(httpx.NewRateLimiter(httpx.RateLimits{Client: 2, Account: 2, Failures: 2, Window: time.Minute}, logger))
+	protected := guard.Protect(func(w http.ResponseWriter, r *http.Request) {})
+	serve := func(addr, token string) int {
+		r := httptest.NewRequest(http.MethodGet, "/things", nil)
+		r.RemoteAddr = addr + ":1234"
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		protected.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	for range 2 {
+		if code := serve("192.0.2.1", "good"); code != http.StatusOK {
+			t.Fatalf("account under its limit = %d", code)
+		}
+	}
+	if code := serve("192.0.2.2", "good"); code != http.StatusTooManyRequests {
+		t.Fatalf("account over its limit = %d", code)
+	}
+	for range 3 {
+		if code := serve("192.0.2.3", "expired"); code != http.StatusUnauthorized {
+			t.Fatalf("expired token = %d", code)
+		}
+	}
+	for range 2 {
+		serve("192.0.2.3", "bad")
+	}
+	before := lookups
+	if code := serve("192.0.2.3", "good"); code != http.StatusTooManyRequests || lookups != before {
+		t.Fatalf("address over the failure limit = %d after %d lookups", code, lookups-before)
 	}
 }

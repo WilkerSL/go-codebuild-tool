@@ -80,8 +80,11 @@ func ParseJWT(token string, now time.Time, secrets ...[]byte) (Claims, error) {
 		return Claims{}, ErrInvalidToken
 	}
 	var c Claims
-	if err := json.Unmarshal(data, &c); err != nil || c.Subject == "" || c.ExpiresAt <= now.Unix() {
+	if err := json.Unmarshal(data, &c); err != nil || c.Subject == "" {
 		return Claims{}, ErrInvalidToken
+	}
+	if c.ExpiresAt <= now.Unix() {
+		return Claims{}, ErrExpiredToken
 	}
 	return c, nil
 }

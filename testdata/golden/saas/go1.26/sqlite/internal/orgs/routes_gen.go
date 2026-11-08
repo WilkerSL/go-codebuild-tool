@@ -7,10 +7,10 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler) {
-	mux.HandleFunc("GET /orgs", h.list)
-	mux.HandleFunc("POST /orgs", h.idempotent(h.create))
-	mux.HandleFunc("GET /orgs/{id}", h.get)
-	mux.HandleFunc("PUT /orgs/{id}", h.update)
-	mux.HandleFunc("PATCH /orgs/{id}", h.patch)
-	mux.HandleFunc("DELETE /orgs/{id}", h.delete)
+	mux.HandleFunc("GET /orgs", h.limited(h.list))
+	mux.HandleFunc("POST /orgs", h.limited(h.idempotent(h.create)))
+	mux.HandleFunc("GET /orgs/{id}", h.limited(h.get))
+	mux.HandleFunc("PUT /orgs/{id}", h.limited(h.update))
+	mux.HandleFunc("PATCH /orgs/{id}", h.limited(h.patch))
+	mux.HandleFunc("DELETE /orgs/{id}", h.limited(h.delete))
 }

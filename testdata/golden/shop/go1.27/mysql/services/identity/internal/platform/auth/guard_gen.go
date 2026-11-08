@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,6 +19,7 @@ type Guard struct {
 	authenticate Authenticator
 	origins      *http.CrossOriginProtection
 	logger       *slog.Logger
+	limits       *httpx.RateLimiter
 }
 
 func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Guard, error) {
@@ -30,10 +32,27 @@ func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Gua
 	return &Guard{authenticate: authenticate, origins: origins, logger: logger}, nil
 }
 
+func (g *Guard) UseRateLimits(limits *httpx.RateLimiter) *Guard {
+	g.limits = limits
+	return g
+}
+
+func (g *Guard) Public(next http.HandlerFunc) http.HandlerFunc {
+	return g.limits.Limit(next)
+}
+
 func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := g.limits.Blocked(r); err != nil {
+			httpx.WriteError(w, r, g.logger, err)
+			return
+		}
 		p, err := g.Authenticate(r)
 		if err != nil {
+			httpx.WriteError(w, r, g.logger, g.counted(r, err))
+			return
+		}
+		if err := g.limits.AllowAccount(fmt.Sprint(p.ID)); err != nil {
 			httpx.WriteError(w, r, g.logger, err)
 			return
 		}
@@ -43,6 +62,20 @@ func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 		}
 		next(w, r.WithContext(WithPrincipal(r.Context(), p)))
 	})
+}
+
+func (g *Guard) counted(r *http.Request, err error) error {
+	var limit error
+	switch {
+	case errors.Is(err, ErrUnauthenticated):
+		limit = g.limits.AllowClient(r)
+	case errors.Is(err, ErrInvalidToken):
+		limit = g.limits.Failed(r)
+	}
+	if limit != nil {
+		return limit
+	}
+	return err
 }
 
 func (g *Guard) Authenticate(r *http.Request) (Principal, error) {

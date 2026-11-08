@@ -7,13 +7,13 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler) {
-	mux.HandleFunc("GET /tags", h.list)
-	mux.HandleFunc("POST /tags", h.idempotent(h.create))
-	mux.HandleFunc("GET /tags/{id}", h.get)
-	mux.HandleFunc("PUT /tags/{id}", h.update)
-	mux.HandleFunc("PATCH /tags/{id}", h.patch)
-	mux.HandleFunc("DELETE /tags/{id}", h.delete)
-	mux.HandleFunc("GET /users/{userId}/tags", h.listUserTags)
-	mux.HandleFunc("PUT /users/{userId}/tags/{tagId}", h.linkUserTags)
-	mux.HandleFunc("DELETE /users/{userId}/tags/{tagId}", h.unlinkUserTags)
+	mux.HandleFunc("GET /tags", h.limited(h.list))
+	mux.HandleFunc("POST /tags", h.limited(h.idempotent(h.create)))
+	mux.HandleFunc("GET /tags/{id}", h.limited(h.get))
+	mux.HandleFunc("PUT /tags/{id}", h.limited(h.update))
+	mux.HandleFunc("PATCH /tags/{id}", h.limited(h.patch))
+	mux.HandleFunc("DELETE /tags/{id}", h.limited(h.delete))
+	mux.HandleFunc("GET /users/{userId}/tags", h.limited(h.listUserTags))
+	mux.HandleFunc("PUT /users/{userId}/tags/{tagId}", h.limited(h.linkUserTags))
+	mux.HandleFunc("DELETE /users/{userId}/tags/{tagId}", h.limited(h.unlinkUserTags))
 }

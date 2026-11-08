@@ -48,6 +48,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -120,6 +123,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -163,6 +169,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -224,6 +233,9 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -291,6 +303,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -325,6 +340,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -374,6 +392,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -451,6 +472,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -492,6 +516,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -560,6 +587,9 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -634,6 +664,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -672,6 +705,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -736,6 +772,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -786,6 +825,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -833,6 +875,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -892,6 +937,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -965,6 +1013,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1008,6 +1059,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1069,6 +1123,9 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1136,6 +1193,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1170,6 +1230,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1231,6 +1294,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1303,6 +1369,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1353,6 +1422,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1400,6 +1472,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1451,6 +1526,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1524,6 +1602,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1567,6 +1648,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1628,6 +1712,9 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1695,6 +1782,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1729,6 +1819,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1782,6 +1875,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1838,6 +1934,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1915,6 +2014,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1962,6 +2064,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2030,6 +2135,9 @@
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2104,6 +2212,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2142,6 +2253,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2308,6 +2422,9 @@
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2330,6 +2447,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2357,6 +2477,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2469,6 +2592,9 @@
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2496,6 +2622,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2535,6 +2664,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -3749,7 +3881,7 @@
         }
       },
       "TooManyRequests": {
-        "description": "Too many attempts; retry after the number of seconds in Retry-After.",
+        "description": "Too many requests; retry after the number of seconds in Retry-After.",
         "content": {
           "application/problem+json": {
             "schema": {

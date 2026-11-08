@@ -246,7 +246,8 @@ func startLoadProject(t *testing.T, bin, dsn, specs, method string, env []string
 	}
 	command(t, dir, nil, bin, "build", "--starter", "--module", "example.com/"+specs, "--dialect", "postgres")
 	command(t, dir, nil, "go", "mod", "tidy")
-	env = append([]string{"DATABASE_URL=" + dsn, "LOG_LEVEL=error"}, env...)
+	// The load generator is one client, far over any limit a real client gets.
+	env = append([]string{"DATABASE_URL=" + dsn, "LOG_LEVEL=error", "RATE_LIMIT_CLIENT=0", "RATE_LIMIT_ACCOUNT=0", "RATE_LIMIT_FAILURES=0"}, env...)
 	command(t, dir, env, "go", "run", "./cmd/migrate", "up")
 	t.Cleanup(func() { run(dir, env, "", "go", "run", "./cmd/migrate", "down", "1") })
 	c, _ := startAPI(t, dir, env)
@@ -365,7 +366,7 @@ func loadWorkspace(t *testing.T, bin string, dbs map[string]string, cfg loadConf
 	for name := range shopServices {
 		w.startService(name, "LOG_LEVEL=error")
 	}
-	gateway, _ := w.startGateway("gateway", "LOG_LEVEL=error", "AUTH_LOGIN_LIMIT=0")
+	gateway, _ := w.startGateway("gateway", "LOG_LEVEL=error", "AUTH_LOGIN_LIMIT=0", "RATE_LIMIT_CLIENT=0", "RATE_LIMIT_ACCOUNT=0", "RATE_LIMIT_FAILURES=0")
 	c := newLoadClient(gateway.base, cfg.concurrency)
 	email := fmt.Sprintf("load-%d@example.com", time.Now().UnixNano())
 	if err := c.do("POST", "/auth/register", "", map[string]any{"email": email, "name": "Load", "password": "load password 1"}, http.StatusCreated, nil); err != nil {

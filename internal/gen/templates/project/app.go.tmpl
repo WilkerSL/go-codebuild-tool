@@ -6,9 +6,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
-{{- if .Auth}}
 	"os"
-{{- end}}
 {{range .Wired}}
 	"{{.Import}}"
 {{- end}}
@@ -21,13 +19,19 @@ import (
 {{- if .Wired}}
 	"{{.Module}}/internal/platform/database"
 {{- end}}
+	"{{.Module}}/internal/platform/httpx"
 {{- if .Ops}}
 	"{{.Module}}/internal/platform/ops"
 {{- end}}
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
-	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+	rateLimits, err := httpx.LoadRateLimits(os.Getenv)
+	if err != nil {
+		return err
+	}
+	limiter := httpx.NewRateLimiter(rateLimits, logger)
+	mux.HandleFunc("GET /openapi.json", limiter.Limit(serveOpenAPI))
 {{- if .Wired}}
 	idem := database.NewIdempotency(db)
 {{- end}}
@@ -41,6 +45,7 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	guard.UseRateLimits(limiter)
 	var limits auth.LimitStore = auth.NewMemoryStore()
 	if cfg.LimitStore == auth.LimitStoreDatabase {
 		limits = {{.Auth.Package}}.NewLimitStore(db)
@@ -55,7 +60,7 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	ops.Register(mux, opsConfig, guard, logger)
 {{- end}}
 {{- range .Wired}}
-	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger).UseIdempotency(idem){{if $.Auth}}, guard{{end}})
+	{{.Package}}.RegisterRoutes(mux, {{.Package}}.NewHandler({{.Package}}.NewService(db), logger).UseIdempotency(idem){{if $.Auth}}, guard{{else}}.UseRateLimits(limiter){{end}})
 {{- end}}
 	return nil
 }

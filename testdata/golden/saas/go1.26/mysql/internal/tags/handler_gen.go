@@ -16,6 +16,7 @@ type Handler struct {
 	svc    *Service
 	logger *slog.Logger
 	idem   *database.Idempotency
+	limits *httpx.RateLimiter
 }
 
 func NewHandler(svc *Service, logger *slog.Logger) *Handler {
@@ -25,6 +26,15 @@ func NewHandler(svc *Service, logger *slog.Logger) *Handler {
 func (h *Handler) UseIdempotency(store *database.Idempotency) *Handler {
 	h.idem = store
 	return h
+}
+
+func (h *Handler) UseRateLimits(limits *httpx.RateLimiter) *Handler {
+	h.limits = limits
+	return h
+}
+
+func (h *Handler) limited(next http.HandlerFunc) http.HandlerFunc {
+	return h.limits.Limit(next)
 }
 
 func (h *Handler) idempotent(next http.HandlerFunc) http.HandlerFunc {

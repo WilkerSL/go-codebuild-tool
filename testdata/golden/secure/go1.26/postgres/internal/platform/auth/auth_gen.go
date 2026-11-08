@@ -5,7 +5,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -93,19 +92,7 @@ func Credential(r *http.Request) (string, bool) {
 }
 
 func ClientIP(r *http.Request, trustForwardedFor bool) string {
-	if trustForwardedFor {
-		if lines := r.Header.Values("X-Forwarded-For"); len(lines) > 0 {
-			hops := strings.Split(lines[len(lines)-1], ",")
-			if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
-				return ip
-			}
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return httpx.ClientIP(r, trustForwardedFor)
 }
 
 func SetCookie(w http.ResponseWriter, cfg Config, name, value, path string, expires time.Time) {

@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"math"
 	"net/http"
-	"net/netip"
 	"strconv"
 	"sync"
 	"time"
@@ -136,17 +135,5 @@ func (s *MemoryStore) drop(e *list.Element) {
 }
 
 func ClientKey(r *http.Request, trustForwardedFor bool) string {
-	ip := ClientIP(r, trustForwardedFor)
-	addr, err := netip.ParseAddr(ip)
-	if err != nil {
-		return ip
-	}
-	if addr = addr.Unmap(); addr.Is4() {
-		return addr.String()
-	}
-	network, err := addr.Prefix(64)
-	if err != nil {
-		return ip
-	}
-	return network.String()
+	return httpx.ClientKey(r, trustForwardedFor)
 }

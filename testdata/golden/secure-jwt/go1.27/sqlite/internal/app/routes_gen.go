@@ -13,13 +13,19 @@ import (
 	"example.com/secure/internal/notes"
 	"example.com/secure/internal/platform/auth"
 	"example.com/secure/internal/platform/database"
+	"example.com/secure/internal/platform/httpx"
 	"example.com/secure/internal/platform/ops"
 	"example.com/secure/internal/reminders"
 	"example.com/secure/internal/users"
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
-	mux.HandleFunc("GET /openapi.json", serveOpenAPI)
+	rateLimits, err := httpx.LoadRateLimits(os.Getenv)
+	if err != nil {
+		return err
+	}
+	limiter := httpx.NewRateLimiter(rateLimits, logger)
+	mux.HandleFunc("GET /openapi.json", limiter.Limit(serveOpenAPI))
 	idem := database.NewIdempotency(db)
 	cfg, err := auth.LoadConfig(os.Getenv)
 	if err != nil {
@@ -30,6 +36,7 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	guard.UseRateLimits(limiter)
 	var limits auth.LimitStore = auth.NewMemoryStore()
 	if cfg.LimitStore == auth.LimitStoreDatabase {
 		limits = users.NewLimitStore(db)

@@ -9,9 +9,9 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, h *Handler, guard *auth.Guard) {
-	mux.HandleFunc("GET /categories", h.list)
+	mux.HandleFunc("GET /categories", guard.Public(h.list))
 	mux.Handle("POST /categories", guard.Protect(h.idempotent(h.create), "admin"))
-	mux.HandleFunc("GET /categories/{id}", h.get)
+	mux.HandleFunc("GET /categories/{id}", guard.Public(h.get))
 	mux.Handle("PUT /categories/{id}", guard.Protect(h.update, "admin"))
 	mux.Handle("PATCH /categories/{id}", guard.Protect(h.patch, "admin"))
 	mux.Handle("DELETE /categories/{id}", guard.Protect(h.delete, "admin"))

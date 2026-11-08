@@ -243,6 +243,10 @@ func workspaceEndToEnd(t *testing.T, bin, dialect string) {
 		command(t, dir, []string{"DATABASE_URL=" + dbs["identity"]}, w.exe("accounts"), "set-role", email, "admin")
 	})
 	openAPICheck(t, c, dir)
+	rateLimitCheck(t, func(extra ...string) (client, func()) {
+		c, p := w.startGateway("gateway-limits", extra...)
+		return c, p.stop
+	}, true)
 	if resp, _ := c.send(http.MethodGet, "/categories", nil, http.Header{"X-Request-Id": {"workspace-check"}}); resp.Header.Get("X-Request-ID") != "workspace-check" {
 		t.Fatalf("the gateway did not keep the request id: %q", resp.Header.Get("X-Request-ID"))
 	}

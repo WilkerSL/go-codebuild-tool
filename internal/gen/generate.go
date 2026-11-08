@@ -157,6 +157,8 @@ func Generate(opts Options) ([]File, error) {
 	g.goFile("internal/platform/httpx/health_gen.go", "platform/health.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/cors_gen.go", "platform/cors.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/ratelimit_gen.go", "platform/ratelimit.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/ratelimit_gen_test.go", "platform/ratelimit_test.go.tmpl", pv)
 	g.telemetry(pv)
 	g.goFile("internal/platform/database/errors_gen.go", "platform/errors.go.tmpl", pv)
 	g.goFile("internal/platform/database/values_gen.go", "platform/values.go.tmpl", pv)

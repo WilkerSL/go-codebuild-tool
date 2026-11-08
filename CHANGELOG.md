@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Every route of a monolith or a gateway is rate limited, except the health probes. Anonymous requests count per client address (`RATE_LIMIT_CLIENT`, 600 per window), requests of a logged-in account per account (`RATE_LIMIT_ACCOUNT`, 1,200) and rejected credentials per client address (`RATE_LIMIT_FAILURES`, 30), in windows of `RATE_LIMIT_WINDOW` (one minute). Over a limit the answer is 429 with `Retry-After`; once an address is over its rejected credentials, its protected requests get 429 before any lookup. An expired JWT does not count as a rejected credential. The counters live in the memory of each replica, so the limits are per replica; login, registration and password changes keep their own limits on top. `0` turns a count off, and `AUTH_TRUST_FORWARDED_FOR` applies to every count. See [production.md](docs/production.md#rate-limits).
+
+### Changed
+
+- Existing projects get the limits on the next build, through the generated `routes_gen.go`. A domain you wire by hand in `main.go` gets them by calling `UseRateLimits` on its handler in a project without accounts; with accounts the guard counts its requests. Raise or turn off the counts for clients that legitimately send more, such as a server calling an API without accounts or a load test.
+- An expired JWT access token gets 401 with the detail `the access token has expired`, instead of `the access token is invalid or expired`; the status and `WWW-Authenticate` do not change.
+- `openapi.json` documents 429 on every operation except the health probes.
+
 ## [0.7.2] - 2026-11-01
 
 ### Fixed

@@ -107,12 +107,18 @@ Clients send `Authorization: Bearer <token>`. Login also sets an `HttpOnly`, `Sa
 | `AUTH_TRUSTED_ORIGINS` | empty | Comma-separated origins allowed to use the cookie cross-site. |
 | `AUTH_LOGIN_LIMIT` | `10` | Attempts per client and identity per window (the client alone gets ten times more across login, registration and password changes); password changes are also limited per session. `0` disables the limit. |
 | `AUTH_LOGIN_WINDOW` | `15m` | Rate limit window. |
-| `AUTH_TRUST_FORWARDED_FOR` | `false` | Use the last hop of the last `X-Forwarded-For` header as the client IP; enable only behind a proxy you control. |
+| `AUTH_TRUST_FORWARDED_FOR` | `false` | Use the last hop of the last `X-Forwarded-For` header as the client IP, for every rate limit; enable only behind a proxy you control. |
 | `AUTH_LIMIT_STORE` | `memory` | Where the login and password change limiter keeps its counters: `memory` (per process) or `database` (shared by every replica). |
+| `RATE_LIMIT_CLIENT` | `600` | Anonymous requests per client address and window, on every route. `0` disables the count. |
+| `RATE_LIMIT_ACCOUNT` | `1200` | Requests per logged-in account and window. |
+| `RATE_LIMIT_FAILURES` | `30` | Rejected credentials per client address and window; over it, protected requests from that address get 429 before any lookup. |
+| `RATE_LIMIT_WINDOW` | `1m` | Window of the three counts above. |
 
 ## Rate limiting
 
-Login, registration and password changes go through two limiters: one per client and identity (or per session for password changes) and one per client alone. Keys are stored as SHA-256 hashes rather than as the identity and address themselves; that keeps them out of logs and dumps at a glance, but it is not anonymization: someone who can read the counters and guesses an identity and an address can confirm the pair. IPv6 clients are counted per /64 network, the block a single host usually controls.
+Every route is rate limited, per client address for anonymous requests, per account once logged in, and per client address for rejected credentials; [production.md](production.md#rate-limits) describes those limits and how they behave behind several replicas. Expired JWTs are not rejected credentials: the API issued them, so they are no guess.
+
+On top of them, login, registration and password changes go through two limiters: one per client and identity (or per session for password changes) and one per client alone. Keys are stored as SHA-256 hashes rather than as the identity and address themselves; that keeps them out of logs and dumps at a glance, but it is not anonymization: someone who can read the counters and guesses an identity and an address can confirm the pair. IPv6 clients are counted per /64 network, the block a single host usually controls.
 
 With `AUTH_LIMIT_STORE=memory` each process keeps at most 100,000 keys per limiter and drops the oldest window first, so floods of distinct identities cannot exhaust memory, but each replica limits on its own and a restart resets the counters.
 
@@ -163,6 +169,6 @@ Projects created before authentication existed keep their `cmd/api/main.go`. If 
 
 ## Known limits
 
-- The default rate limiter (`AUTH_LIMIT_STORE=memory`) limits each replica on its own and forgets its counters on restart. Set `AUTH_LIMIT_STORE=database` behind several replicas. The limiter only covers the authentication endpoints; put a limiting proxy in front of the API for everything else.
+- The default rate limiter (`AUTH_LIMIT_STORE=memory`) limits each replica on its own and forgets its counters on restart. Set `AUTH_LIMIT_STORE=database` behind several replicas. The limits of the other routes are always counted per replica; see [production.md](production.md#rate-limits).
 - With `jwt` in a monolith and the default `AUTH_JWT_CONFIRM=false`, an access token stays valid until it expires on routes without `roles=` or `writeroles=`: revoking the session does not stop a copy of that token from reading data there. Set `AUTH_JWT_CONFIRM=true`, shorten `AUTH_ACCESS_TTL` or restrict the route to a role if that matters. In a workspace the gateway checks every JWT against the account service, so revocation is immediate everywhere.
 - The internal review of this code was not an independent audit; see [SECURITY.md](../SECURITY.md).

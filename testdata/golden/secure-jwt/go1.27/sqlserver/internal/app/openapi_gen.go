@@ -56,6 +56,9 @@ var openAPIDocument = []byte(`{
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -128,6 +131,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -171,6 +177,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -232,6 +241,9 @@ var openAPIDocument = []byte(`{
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -299,6 +311,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -333,6 +348,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -382,6 +400,9 @@ var openAPIDocument = []byte(`{
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -459,6 +480,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -500,6 +524,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -568,6 +595,9 @@ var openAPIDocument = []byte(`{
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -642,6 +672,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -680,6 +713,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -744,6 +780,9 @@ var openAPIDocument = []byte(`{
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -794,6 +833,9 @@ var openAPIDocument = []byte(`{
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -841,6 +883,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -900,6 +945,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -973,6 +1021,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1016,6 +1067,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1077,6 +1131,9 @@ var openAPIDocument = []byte(`{
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1144,6 +1201,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1178,6 +1238,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1239,6 +1302,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1311,6 +1377,9 @@ var openAPIDocument = []byte(`{
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1361,6 +1430,9 @@ var openAPIDocument = []byte(`{
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1408,6 +1480,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1459,6 +1534,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1532,6 +1610,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1575,6 +1656,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1636,6 +1720,9 @@ var openAPIDocument = []byte(`{
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1703,6 +1790,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1737,6 +1827,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1790,6 +1883,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1846,6 +1942,9 @@ var openAPIDocument = []byte(`{
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -1923,6 +2022,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1970,6 +2072,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2038,6 +2143,9 @@ var openAPIDocument = []byte(`{
           },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2112,6 +2220,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2150,6 +2261,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2316,6 +2430,9 @@ var openAPIDocument = []byte(`{
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2338,6 +2455,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2365,6 +2485,9 @@ var openAPIDocument = []byte(`{
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2477,6 +2600,9 @@ var openAPIDocument = []byte(`{
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -2504,6 +2630,9 @@ var openAPIDocument = []byte(`{
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -2543,6 +2672,9 @@ var openAPIDocument = []byte(`{
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "$ref": "#/components/responses/Error"
@@ -3757,7 +3889,7 @@ var openAPIDocument = []byte(`{
         }
       },
       "TooManyRequests": {
-        "description": "Too many attempts; retry after the number of seconds in Retry-After.",
+        "description": "Too many requests; retry after the number of seconds in Retry-After.",
         "content": {
           "application/problem+json": {
             "schema": {

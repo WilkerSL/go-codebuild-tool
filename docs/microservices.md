@@ -60,7 +60,7 @@ In a workspace, `./...` stops at nested modules. Use the module path pattern fro
 ## How a request flows
 
 1. A client calls the gateway, for example `POST /invoices` with `Authorization: Bearer <token>` or the session cookie.
-2. The gateway runs the same checks as a monolith: credential extraction, cross-origin protection for cookies, the login rate limiter and the roles of the route. It validates the credential with `AuthService.Authenticate` on the account service.
+2. The gateway runs the same checks as a monolith: credential extraction, cross-origin protection for cookies, the rate limits and the roles of the route. It validates the credential with `AuthService.Authenticate` on the account service.
 3. It signs an internal token for the caller and calls `InvoiceService.Create` on the billing service over mutual TLS.
 4. The billing service verifies the token, authorizes the call again, validates the request and checks `ProductID` with `ProductService.Exists` on the catalog service, propagating the same token.
 5. Errors travel as gRPC status codes with a `common.v1.Problem` detail carrying the HTTP status and the field errors, so the gateway answers with the same RFC 9457 problem details, status codes and `WWW-Authenticate` headers as a monolith.

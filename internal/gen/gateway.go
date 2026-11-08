@@ -262,6 +262,8 @@ func generateGateway(opts WorkspaceOptions, wv *workspaceView) ([]File, error) {
 	g.goFile("internal/platform/httpx/probe_gen.go", "workspace/httpx_probe.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/httpx_gen_test.go", "platform/httpx_test.go.tmpl", pv)
 	g.goFile("internal/platform/httpx/cors_gen.go", "platform/cors.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/ratelimit_gen.go", "platform/ratelimit.go.tmpl", pv)
+	g.goFile("internal/platform/httpx/ratelimit_gen_test.go", "platform/ratelimit_test.go.tmpl", pv)
 	g.telemetry(pv)
 	g.goFile("internal/platform/grpcx/tls_gen.go", "workspace/grpcx_tls.go.tmpl", pv)
 	g.goFile("internal/platform/grpcx/client_gen.go", "workspace/grpcx_client.go.tmpl", pv)

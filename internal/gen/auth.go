@@ -158,8 +158,11 @@ func newAuthView(pv *projectView, d dialect.Dialect, m *schema.Model) *authView 
 
 func routeLine(method, path, handler string, policy schema.Policy, guarded bool) string {
 	pattern := strconv.Quote(method + " " + path)
-	if !guarded || policy.Public {
-		return "mux.HandleFunc(" + pattern + ", " + handler + ")"
+	if !guarded {
+		return "mux.HandleFunc(" + pattern + ", h.limited(" + handler + "))"
+	}
+	if policy.Public {
+		return "mux.HandleFunc(" + pattern + ", guard.Public(" + handler + "))"
 	}
 	args := []string{handler}
 	for _, r := range policy.Roles {

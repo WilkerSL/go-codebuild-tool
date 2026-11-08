@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,6 +19,7 @@ type Guard struct {
 	authenticate Authenticator
 	origins      *http.CrossOriginProtection
 	logger       *slog.Logger
+	limits       *httpx.RateLimiter
 {{- if .Auth.JWT}}
 	confirm      bool
 {{- end}}
@@ -33,8 +35,21 @@ func NewGuard(authenticate Authenticator, cfg Config, logger *slog.Logger) (*Gua
 	return &Guard{authenticate: authenticate, origins: origins, logger: logger{{if .Auth.JWT}}, confirm: cfg.JWTConfirm{{end}}}, nil
 }
 
+func (g *Guard) UseRateLimits(limits *httpx.RateLimiter) *Guard {
+	g.limits = limits
+	return g
+}
+
+func (g *Guard) Public(next http.HandlerFunc) http.HandlerFunc {
+	return g.limits.Limit(next)
+}
+
 func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := g.limits.Blocked(r); err != nil {
+			httpx.WriteError(w, r, g.logger, err)
+			return
+		}
 {{- if .Auth.JWT}}
 		if {{if .Auth.Role}}len(roles) > 0 || {{end}}g.confirm {
 			r = r.WithContext(WithConfirmation(r.Context()))
@@ -42,6 +57,10 @@ func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 {{- end}}
 		p, err := g.Authenticate(r)
 		if err != nil {
+			httpx.WriteError(w, r, g.logger, g.counted(r, err))
+			return
+		}
+		if err := g.limits.AllowAccount(fmt.Sprint(p.ID)); err != nil {
 			httpx.WriteError(w, r, g.logger, err)
 			return
 		}
@@ -53,6 +72,24 @@ func (g *Guard) Protect(next http.HandlerFunc, roles ...string) http.Handler {
 {{- end}}
 		next(w, r.WithContext(WithPrincipal(r.Context(), p)))
 	})
+}
+
+{{/* A request without credentials counts like any anonymous request, and a rejected credential as a failure of the client address. An expired token was issued here, so it is no guess: clients behind one address would otherwise block each other every time their tokens expire. */ -}}
+func (g *Guard) counted(r *http.Request, err error) error {
+	var limit error
+	switch {
+	case errors.Is(err, ErrUnauthenticated):
+		limit = g.limits.AllowClient(r)
+{{- if .Auth.JWT}}
+	case errors.Is(err, ErrExpiredToken):
+{{- end}}
+	case errors.Is(err, ErrInvalidToken):
+		limit = g.limits.Failed(r)
+	}
+	if limit != nil {
+		return limit
+	}
+	return err
 }
 
 func (g *Guard) Authenticate(r *http.Request) (Principal, error) {
