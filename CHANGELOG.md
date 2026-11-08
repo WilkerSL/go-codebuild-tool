@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-08
+
 ### Added
 
 - Every route of a monolith or a gateway is rate limited, except the health probes. Anonymous requests count per client address (`RATE_LIMIT_CLIENT`, 600 per window), requests of a logged-in account per account (`RATE_LIMIT_ACCOUNT`, 1,200) and rejected credentials per client address (`RATE_LIMIT_FAILURES`, 30), in windows of `RATE_LIMIT_WINDOW` (one minute). Over a limit the answer is 429 with `Retry-After`; once an address is over its rejected credentials, its protected requests get 429 before any lookup. An expired JWT does not count as a rejected credential. The counters live in the memory of each replica, so the limits are per replica; login, registration and password changes keep their own limits on top. `0` turns a count off, and `AUTH_TRUST_FORWARDED_FOR` applies to every count. See [production.md](docs/production.md#rate-limits).
@@ -221,7 +223,8 @@ These fixes come from an internal review of the generated authentication code; i
 - MCP server with the `grammar` resource and the `list_domains`, `validate`, `plan` and `generate` tools.
 - Golden tests for every Go version and dialect, end-to-end tests against real databases, CI and GoReleaser configuration.
 
-[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/WilkerSL/go-codebuild-tool/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/WilkerSL/go-codebuild-tool/releases/tag/v0.7.0
