@@ -21,7 +21,7 @@ Include:
 - the specs and commands that produce the vulnerable code, or the affected file of the tool;
 - the impact you expect and, if you have one, a proof of concept.
 
-The report stays private until a fix is released. Fixed versions are published as a new release with an advisory that credits the reporter, unless you prefer to stay anonymous.
+You get an acknowledgement within 7 days and, within 14 days, an assessment of the report with the next steps. The report stays private until a fix is released. Fixed versions are published as a new release with an advisory that credits the reporter, unless you prefer to stay anonymous.
 
 ## Verifying a release
 
